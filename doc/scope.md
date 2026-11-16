@@ -1,30 +1,111 @@
 # Scope
 
-`adb_direct` covers the ADB protocol between a client and `adbd` over TCP. Anything that depends on the app using it, or on the platform it runs on, stays with the caller.
+`adb_direct` aims to do everything a user of `adb` needs from a device, from pure Dart, with every device that speaks ADB: Android 4.4 to the newest, phones, TVs, emulators, watches and cars. This page lists every area and its state. Anything that cannot be done in pure Dart gets an interface so it can be plugged in.
 
-## In the package
+States: **planned** (designed, not written), **in progress**, **done** (with the version that shipped it).
 
-| Area | Contents |
-| --- | --- |
-| Transport | The ADB message format, `CNXN`, `OPEN`, `WRTE`, `OKAY`, `CLSE`, streams multiplexed over one connection |
-| Classic authentication | `AUTH` with an RSA key: signing the device's token, offering the public key when the device does not know it yet |
-| Keys | Creating an RSA key pair and the certificate used for TLS. Storing them is the caller's job: the package takes and returns bytes |
-| TLS | `STLS` and the switch to TLS 1.3 on the open socket |
-| Pairing | Android 11+ pairing with a six-digit code: TLS 1.3, the keying material exporter, SPAKE2, the exchange of peer info |
-| Services | Shell with a deadline; the sync protocol (stat, pull, push); `pm install` streamed with progress; install of several APKs in one session |
-| Watchdog | A deadline per command and a stall guard for transfers, because a device that disappears leaves a half-open socket that never fails by itself |
-| Probes | A `CNXN` probe that never authenticates, and a check whether the device already trusts a key that never sends the public key; neither makes the device ask its user anything |
-| Discovery helpers | The mDNS service names (`_adb._tcp`, `_adb-tls-connect._tcp`, `_adb-tls-pairing._tcp`) and a parser for their announcements |
-| Errors | One sealed error type with stable codes, see [errors.md](errors.md) |
+## Coverage
+
+### Transports
+
+| Area | `adb` equivalent | State |
+| --- | --- | --- |
+| TCP, classic network debugging | `adb connect host:5555` | planned |
+| TLS (Android 11+ wireless debugging) | `adb connect` to an `_adb-tls-connect` service | planned |
+| Pairing with a six-digit code | `adb pair host:port code` | planned |
+| Pairing by QR code | the QR flow in Android Studio | planned |
+| A transport interface for anything that moves bytes (USB through a platform plugin, a tunnel) | `adb -d` | planned |
+| Client for a running adb server (port 5037) | `adb -H`, `-P` | planned |
+
+### Authentication and keys
+
+| Area | `adb` equivalent | State |
+| --- | --- | --- |
+| RSA key pair, ADB public key format | `adb keygen` | planned |
+| Signing the device's token, offering the public key | the "Allow debugging?" flow | planned |
+| Self-signed certificate for TLS and pairing | — | planned |
+| Reading and writing `adbkey` / `adbkey.pub` files | `~/.android/adbkey` | planned |
+
+### Discovery
+
+| Area | `adb` equivalent | State |
+| --- | --- | --- |
+| mDNS service names, parsing announcements | — | planned |
+| Built-in mDNS browsing on platforms where multicast works from `dart:io` | `adb mdns services` | planned |
+| A hook for platform discovery (iOS `NWBrowser`) | — | planned |
+| A probe that tells whether an address speaks ADB, without authenticating | — | planned |
+| A check whether a device already trusts a key, without asking its user | — | planned |
+
+### Device state
+
+| Area | `adb` equivalent | State |
+| --- | --- | --- |
+| Identity and features from the connection banner | `adb get-state`, `adb features` | planned |
+| Serial, properties | `adb get-serialno`, `getprop` | planned |
+| Reboot to system, bootloader, recovery, sideload | `adb reboot …` | planned |
+| Restart adbd as root, back as user | `adb root`, `adb unroot` | planned |
+| Remount, verity | `adb remount`, `adb disable-verity` | planned |
+| Switch to TCP mode | `adb tcpip` | planned |
+| Wait for a device state | `adb wait-for-…` | planned |
+
+### Shell
+
+| Area | `adb` equivalent | State |
+| --- | --- | --- |
+| Shell protocol v2: stdout, stderr, exit code | `adb shell cmd` | planned |
+| Fallback for devices without `shell_v2` | — | planned |
+| Interactive shell with a PTY, window size, stdin | `adb shell` | planned |
+| Raw exec without a PTY | `adb exec-out` | planned |
+| Streaming output (logcat and the like) | `adb logcat` | planned |
+| Deadlines per command, output limits | — | planned |
+
+### Files
+
+| Area | `adb` equivalent | State |
+| --- | --- | --- |
+| stat, list, pull, push (sync v1) | `adb pull`, `adb push`, `adb ls` | planned |
+| Sync v2 (`stat_v2`, `ls_v2`, `sendrecv_v2`) | — | planned |
+| Compression in sync where pure Dart allows it | `adb push -z` | planned |
+| Directories, timestamps, modes | `adb push -a`, `adb sync` | planned |
+| Progress and stall detection on every transfer | — | planned |
+
+### Apps
+
+| Area | `adb` equivalent | State |
+| --- | --- | --- |
+| Streamed install with progress | `adb install` | planned |
+| Split APKs in one session | `adb install-multiple` | planned |
+| Several packages atomically | `adb install-multi-package` | planned |
+| Install options (replace, downgrade, grant, test, user) | `adb install -r -d -g -t --user` | planned |
+| Uninstall, keep data | `adb uninstall [-k]` | planned |
+| Incremental install | `adb install --incremental` | planned |
+| `cmd` and `abb_exec` where the device has them, `pm` otherwise | — | planned |
+
+### Networking
+
+| Area | `adb` equivalent | State |
+| --- | --- | --- |
+| Forward a local port to the device (`tcp:`, `localabstract:`, `localreserved:`, `localfilesystem:`, `jdwp:`) | `adb forward` | planned |
+| Reverse forwarding | `adb reverse` | planned |
+| Opening any device service as a stream | — | planned |
+
+### Other services
+
+| Area | `adb` equivalent | State |
+| --- | --- | --- |
+| Bug report | `adb bugreport` | planned |
+| JDWP process list | `adb jdwp`, `track-jdwp` | planned |
+| Sideload an OTA in recovery | `adb sideload` | planned |
+| Backup and restore (deprecated on the device side) | `adb backup`, `adb restore` | planned |
 
 ## Left to the caller
 
-- **Finding devices.** mDNS needs platform APIs on iOS (`NWBrowser`, the Local Network permission) and multicast setup on some Android devices; a subnet scan is a product decision. The caller finds addresses and hands them to the package.
-- **Which addresses to connect to.** The package connects where it is told. Restricting connections (for example to private addresses) is the caller's policy.
-- **Key storage.** Keychain, a no-backup directory, a file: the caller decides.
-- **What runs on the device.** The package runs commands and moves bytes; parsing `pm`, `dumpsys` or `getprop` output belongs to the app.
-- **Background execution.** Keeping a connection alive while the app is in the background is a platform matter.
+- **Which addresses to connect to.** The package connects where it is told; restricting connections (for example to private addresses) is the caller's policy.
+- **Key storage.** The package reads and writes key bytes and `adbkey` files; where they live is the caller's choice.
+- **Parsing what device commands print.** `pm`, `dumpsys` and `getprop` output belongs to the app, beyond the helpers listed above.
+- **Background execution** on mobile platforms.
 
-## Not planned
+## Cannot be done in pure Dart
 
-USB, the adb server protocol (`host:` services through port 5037), port forwarding and reverse forwarding, `logcat` streaming helpers, the web.
+- **USB.** Needs libusb or a platform API. The transport interface lets a separate package provide it.
+- **The web.** Browsers do not open raw TCP sockets.

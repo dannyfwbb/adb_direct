@@ -13,7 +13,7 @@ An ADB client in pure Dart that talks to `adbd` on an Android device over the ne
 - **Probes that never ask the user**: check whether an address speaks ADB, and whether a device already trusts a key, without showing "Allow debugging?" on anyone's screen.
 - **Typed errors** with stable codes, see [doc/errors.md](doc/errors.md).
 
-Not in scope: USB, the adb server protocol, port forwarding, and device discovery itself (on iOS it has to go through the platform). The package gives the mDNS service names and parses their announcements; finding devices is the caller's choice. See [doc/scope.md](doc/scope.md).
+The goal is everything a user of `adb` needs from a device: forwarding, interactive shells, sync v2, reboot modes, sideload and the rest. [doc/scope.md](doc/scope.md) lists every area and its state. USB needs a platform API, so the package offers a transport interface for it instead.
 
 ## Platforms
 
