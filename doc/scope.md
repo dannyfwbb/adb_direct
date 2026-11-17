@@ -42,11 +42,11 @@ States: **planned** (designed, not written), **in progress**, **built** (impleme
 | --- | --- | --- |
 | Identity and features from the connection banner | `adb get-state`, `adb features` | built |
 | Serial, properties | `adb get-serialno`, `getprop` | planned |
-| Reboot to system, bootloader, recovery, sideload | `adb reboot …` | planned |
-| Restart adbd as root, back as user | `adb root`, `adb unroot` | planned |
-| Remount, verity | `adb remount`, `adb disable-verity` | planned |
-| Switch to TCP mode | `adb tcpip` | planned |
-| Wait for a device state | `adb wait-for-…` | planned |
+| Reboot to system, bootloader, recovery, sideload | `adb reboot …` | built |
+| Restart adbd as root, back as user | `adb root`, `adb unroot` | built |
+| Remount, verity | `adb remount`, `adb disable-verity` | built |
+| Switch to TCP or USB mode | `adb tcpip`, `adb usb` | built |
+| Wait for a device to come back | `adb wait-for-…` | built (`AdbConnection.waitFor`) |
 
 ### Shell
 
@@ -87,21 +87,21 @@ States: **planned** (designed, not written), **in progress**, **built** (impleme
 
 | Area | `adb` equivalent | State |
 | --- | --- | --- |
-| Forward a local port to the device (`tcp:`, `localabstract:`, `localreserved:`, `localfilesystem:`, `jdwp:`) | `adb forward` | planned |
-| Reverse forwarding | `adb reverse` | planned |
+| Forward a local port to the device (`tcp:`, `localabstract:`, `localreserved:`, `localfilesystem:`, `jdwp:`) | `adb forward` | built (in-process; no `--list` of other processes' forwards) |
+| Reverse forwarding, to a local port or to code | `adb reverse` | built |
 | Opening any device service as a stream | — | built |
 
 ### Other services
 
 | Area | `adb` equivalent | State |
 | --- | --- | --- |
-| Bug report | `adb bugreport` | planned |
-| JDWP process list | `adb jdwp`, `track-jdwp` | planned |
-| App process tracking (pid, debuggable, profileable, architecture, packages) | `adb track-app` | planned |
-| Device files opened directly | `dev:`, `dev-raw:` services | planned |
-| Screenshots and log streaming helpers | `adb exec-out screencap -p`, `adb logcat` | planned |
-| Sideload an OTA in recovery | `adb sideload` | planned |
-| Backup and restore (deprecated on the device side) | `adb backup`, `adb restore` | planned |
+| Bug report | `adb bugreport` | built |
+| JDWP process list, a stream to a process's JDWP | `adb jdwp`, `track-jdwp` | built |
+| App process tracking (pid, debuggable, profileable, architecture, packages) | `adb track-app` | built |
+| Device files opened directly | `dev:`, `dev-raw:` services | through `open('dev:<path>')`; no helper, not checked on a device |
+| Screenshots and log streaming helpers | `adb exec-out screencap -p`, `adb logcat` | built |
+| Sideload an OTA in recovery | `adb sideload` | built, not yet checked on a device in recovery |
+| Backup and restore (deprecated on the device side) | `adb backup`, `adb restore` | built, not yet checked on a device (needs on-screen confirmation) |
 
 ## Left to the caller
 

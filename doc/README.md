@@ -10,6 +10,7 @@
 | [pairing.md](pairing.md) | Pairing with a code or a QR code (Android 11+ wireless debugging) |
 | [shell.md](shell.md) | Running commands, raw `exec`, interactive sessions |
 | [files.md](files.md) | Stat, list, read and write files; local files and directories |
+| [services.md](services.md) | Forward, reverse, root/reboot/tcpip and waiting for the device, JDWP, process tracking, logcat, screenshots, bug reports, backup, sideload |
 | [apps.md](apps.md) | Install, split APKs, several apps at once, uninstall, results |
 
 API documentation is generated from the code with `dart doc` once the package has an API.

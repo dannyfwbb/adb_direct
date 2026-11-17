@@ -40,3 +40,19 @@ dart run tool/pair.dart 127.0.0.1 15557 <code> /tmp/paired.pem 15556
 ```
 
 It pairs a key (made if the file is missing), then connects over TLS with it. The key shows up under "Paired devices" as `adb_direct@pair`.
+
+## Services that restart adbd
+
+Run device test files one at a time (`dart test -j 1 -t device …`): `tcpip`, `root` and `unroot` restart adbd under any other file running against the same device.
+
+
+`tcpip`, `root` and `unroot` restart adbd, which drops `adb forward` on the host along with it. Use the emulator's own port redirection instead, which does not go through adbd:
+
+```bash
+adb -s emulator-5556 emu redir add tcp:15555:5555   # TV emulator
+adb -s emulator-5554 emu redir add tcp:15558:5555   # phone emulator (adbd on TCP 5555)
+ADB_DIRECT_TEST_HOST=127.0.0.1 ADB_DIRECT_TEST_PORT=15558 ADB_DIRECT_TEST_ROOTABLE=1 \
+ADB_DIRECT_TEST_KEY=$HOME/.android/adbkey dart test -t device test/device/daemon_device_test.dart
+```
+
+Set `ADB_DIRECT_TEST_ROOTABLE=1` only for a device that may be rooted and unrooted (the phone emulator). Reboot has no test: a rebooted emulator listens on TCP only after `adb tcpip` again. JDWP needs a debuggable app running; `ADB_DIRECT_TEST_BUGREPORT=1` adds the bug report (minutes on a real device).

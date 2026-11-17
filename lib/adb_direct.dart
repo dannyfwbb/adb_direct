@@ -23,7 +23,16 @@ export 'src/pairing/pairing_qr.dart' show AdbPairingQr, AdbPairingService;
 export 'src/probe/probe.dart' show AdbEndpoint, AdbEndpointKind, AdbProbe;
 export 'src/protocol/banner.dart' show AdbBanner, AdbDeviceState, AdbFeature;
 export 'src/protocol/sync_protocol.dart' show AdbDirectoryEntry, AdbFileStat;
+export 'src/services/backup.dart' show AdbBackup;
+export 'src/services/daemon.dart'
+    show AdbDaemon, AdbDaemonAnswer, AdbDaemonOutcome;
+export 'src/services/debug.dart'
+    show AdbAppProcess, AdbBugReportProgress, AdbDebug;
+export 'src/services/forward.dart' show AdbForward;
 export 'src/services/packages.dart' show AdbApk, AdbInstallOptions, AdbPackages;
+export 'src/services/recovery.dart' show AdbRecovery;
+export 'src/services/reverse.dart'
+    show AdbReverse, AdbReverseEntry, AdbReverseForward, AdbReverseHandler;
 export 'src/services/shell.dart'
     show AdbShell, AdbShellResult, AdbShellSession, shellQuote;
 export 'src/services/sync.dart' show AdbProgress, AdbSync;

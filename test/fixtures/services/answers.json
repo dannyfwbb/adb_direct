@@ -1,0 +1,19 @@
+{
+  "reverse:forward:tcp:18080;tcp:19000": "OKAY000518080",
+  "reverse:forward:tcp:0;tcp:19001": "OKAY000542277",
+  "reverse:forward:norebind:tcp:18080;tcp:19002": "FAIL001dcannot rebind existing socket",
+  "reverse:forward:tcp:18081;localabstract:whatever": "OKAY000518081",
+  "reverse:list-forward": "0061host-26 tcp:18080 tcp:19000\nhost-26 tcp:42277 tcp:19001\nhost-26 tcp:18081 localabstract:whatever\n",
+  "reverse:killforward:tcp:18080": "OKAY",
+  "reverse:killforward:tcp:1": "FAIL001alistener 'tcp:1' not found",
+  "reverse:forward:bogus;tcp:1": "FAIL0038cannot bind listener: unknown socket specification:bogus",
+  "reverse:killforward-all": "OKAY",
+  "reverse:list-forward (empty)": "0000",
+  "track-jdwp (none)": "0000",
+  "root: (production)": "adbd cannot run as root in production builds\n",
+  "root: (userdebug)": "restarting adbd as root\n",
+  "remount: (TV, user build)": "/system/bin/sh: /system/bin/remount: inaccessible or not found\n",
+  "remount: (phone, locked)": "Device must be bootloader unlocked\n",
+  "enable-verity: (TV, user build)": "/system/bin/sh: /system/bin/enable-verity: inaccessible or not found\n",
+  "tcpip:5555": "restarting in TCP mode port: 5555\n"
+}

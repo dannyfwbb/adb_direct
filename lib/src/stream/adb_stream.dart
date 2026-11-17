@@ -128,6 +128,23 @@ final class StreamEndpoint {
     _armAcknowledgementTimer();
   }
 
+  /// An endpoint for a stream the device opened (reverse forwarding),
+  /// already open: [remoteId] is the device's id, [window] the window its
+  /// `OPEN` announced (delayed acknowledgements). The connection sends the
+  /// `OKAY`.
+  factory StreamEndpoint.accepted(
+    StreamHost host, {
+    required int localId,
+    required String service,
+    required int remoteId,
+    required int window,
+  }) => StreamEndpoint(host, localId: localId, service: service)
+    ..accepted = true
+    .._handleOpened(remoteId, host.delayedAck ? window : null);
+
+  /// Whether the device opened this stream (reverse forwarding).
+  bool accepted = false;
+
   final StreamHost _host;
 
   /// Our id for this stream.

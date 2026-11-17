@@ -12,7 +12,13 @@ import '../crypto/adb_key_pair.dart';
 import '../errors.dart';
 import '../protocol/banner.dart';
 import '../protocol/message.dart';
+import '../services/backup.dart';
+import '../services/daemon.dart';
+import '../services/debug.dart';
+import '../services/forward.dart';
 import '../services/packages.dart';
+import '../services/recovery.dart';
+import '../services/reverse.dart';
 import '../services/shell.dart';
 import '../services/sync.dart';
 import '../stream/adb_stream.dart';
@@ -97,6 +103,95 @@ final class AdbConnection {
           'first), or the connection dropped',
           cause: e.cause,
         );
+      }
+    }
+  }
+
+  /// Connects to a device that is coming back: after
+  /// [AdbDaemon.reboot], [AdbDaemon.root], [AdbDaemon.tcpip] and the like,
+  /// or a device that is still booting. Retries [connect] with a pause that
+  /// grows from 250 ms to 2 s until it succeeds or [timeout] passes.
+  ///
+  /// Only "not there yet" failures are retried (unreachable, refused,
+  /// closed, timeouts, a garbled exchange while adbd starts). A device that
+  /// answers and refuses the key fails at once with
+  /// [AdbUnauthorizedException]. On timeout the last failure is thrown;
+  /// [cancelOn] stops waiting with [AdbCancelledException].
+  static Future<AdbConnection> waitFor(
+    Object host,
+    int port, {
+    required AdbKeyPair key,
+    List<AdbKeyPair> extraKeys = const [],
+    AdbConnectOptions options = const AdbConnectOptions(),
+    Duration timeout = const Duration(minutes: 2),
+    Future<void>? cancelOn,
+    AdbClock clock = AdbClock.system,
+    AdbTracer? tracer,
+  }) async {
+    final deadline = clock.elapsed + timeout;
+    var cancelled = false;
+    Completer<void>? pause;
+    cancelOn
+        ?.then(
+          (_) {
+            cancelled = true;
+            pause?.complete();
+          },
+          onError: (Object _) {
+            cancelled = true;
+            pause?.complete();
+          },
+        )
+        .ignore();
+    var delay = const Duration(milliseconds: 250);
+    while (true) {
+      if (cancelled) {
+        throw const AdbCancelledException(
+          'Waiting for the device was cancelled',
+        );
+      }
+      try {
+        return await connect(
+          host,
+          port,
+          key: key,
+          extraKeys: extraKeys,
+          options: options,
+          cancelOn: cancelOn,
+          clock: clock,
+          tracer: tracer,
+        );
+      } on AdbException catch (e) {
+        final retry = switch (e) {
+          AdbUnreachableException() ||
+          AdbRefusedException() ||
+          AdbClosedException() ||
+          AdbTimeoutException() ||
+          AdbProtocolException() => true,
+          _ => false,
+        };
+        if (e is AdbCancelledException) {
+          throw const AdbCancelledException(
+            'Waiting for the device was cancelled',
+          );
+        }
+        if (!retry || clock.elapsed >= deadline) rethrow;
+        tracer?.call(
+          AdbNoteTrace(at: clock.elapsed, message: 'waitFor: ${e.message}'),
+        );
+      }
+      final left = deadline - clock.elapsed;
+      final wait = delay < left ? delay : left;
+      final current = pause = Completer<void>();
+      final timer = clock.timer(wait, () {
+        if (!current.isCompleted) current.complete();
+      });
+      await current.future;
+      timer.cancel();
+      pause = null;
+      delay *= 2;
+      if (delay > const Duration(seconds: 2)) {
+        delay = const Duration(seconds: 2);
       }
     }
   }
@@ -225,6 +320,32 @@ final class AdbConnection {
     answerTimeout: _options.packageManagerTimeout,
   );
 
+  /// adbd's own services: root, unroot, remount, reboot, tcpip, usb,
+  /// verity.
+  late final AdbDaemon daemon = AdbDaemon(this);
+
+  /// Debugging: JDWP, process tracking, logcat, screenshots, bug reports.
+  late final AdbDebug debug = AdbDebug(this);
+
+  /// `adb backup` and `adb restore`.
+  late final AdbBackup backup = AdbBackup(this);
+
+  /// Recovery: `adb sideload`.
+  late final AdbRecovery recovery = AdbRecovery(this);
+
+  /// Reverse forwarding: connections made on the device arrive here.
+  late final AdbReverse reverse = AdbReverse(this);
+
+  /// Forwards a local TCP port to [remote] on the device (`tcp:8080`,
+  /// `localabstract:<name>`, `jdwp:<pid>`, …), like `adb forward`. [port]
+  /// 0 picks a free port ([AdbForward.port] tells which). The forward ends
+  /// with [AdbForward.close] or with this connection.
+  Future<AdbForward> forward(
+    String remote, {
+    int port = 0,
+    Object address = '127.0.0.1',
+  }) => AdbForward.start(this, remote, port: port, address: address);
+
   /// Files: stat, list, read and write over the sync protocol.
   late final AdbSync sync = AdbSync(
     this,
@@ -326,16 +447,28 @@ final class AdbConnection {
           endpoint.handleClose();
         }
       case AdbCommand.open:
-        // The device opens a stream to us only for reverse forwarding, which
-        // nothing has set up: refuse it.
-        if (message.arg0 != 0) {
-          _link
-            ..note(
-              'Refused a device-initiated OPEN of '
-              '"${utf8.decode(message.payload, allowMalformed: true)}"',
-            )
-            ..send(AdbMessage.close(localId: 0, remoteId: message.arg0));
+        // The device opens a stream to us only for reverse forwarding, and
+        // only to a target registered here; anything else is refused (adb
+        // aborts on it, as an unchecked OPEN would let a device reach
+        // whatever the host can).
+        if (message.arg0 == 0) return;
+        var target = utf8.decode(message.payload, allowMalformed: true);
+        while (target.endsWith('\u0000')) {
+          target = target.substring(0, target.length - 1);
         }
+        final handler = _reverseTargets[target];
+        // As adbd: the window must be there exactly when delayed
+        // acknowledgements are on. And a device may not flood us.
+        final reverseStreams = _endpoints.values.where((e) => e.accepted);
+        if (handler == null ||
+            delayedAck != (message.arg1 != 0) ||
+            reverseStreams.length >= maxReverseStreams) {
+          _link
+            ..note('Refused a device-initiated OPEN of "$target"')
+            ..send(AdbMessage.close(localId: 0, remoteId: message.arg0));
+          return;
+        }
+        _acceptReverse(message, target, handler);
       case AdbCommand.connect:
         // A new CNXN means adbd started over (restarted, or switched mode):
         // every stream on this connection is gone.
@@ -408,6 +541,58 @@ final class AdbConnection {
     if (_livenessProbe != null || _closeReason != null) return;
     final probe = _livenessProbe = _openEndpoint(livenessService);
     unawaited(probe.done.then((_) => _livenessProbe = null));
+  }
+
+  /// The most device-initiated streams open at once; more are refused.
+  static const int maxReverseStreams = 256;
+
+  /// Reverse targets: our label → what handles a device connection.
+  final Map<String, FutureOr<void> Function(AdbStream)> _reverseTargets = {};
+
+  /// Accepts device-initiated `OPEN`s of [label] from now on.
+  @internal
+  void registerReverseTarget(
+    String label,
+    FutureOr<void> Function(AdbStream) handler,
+  ) => _reverseTargets[label] = handler;
+
+  /// Stops accepting them.
+  @internal
+  void unregisterReverseTarget(String label) => _reverseTargets.remove(label);
+
+  void _acceptReverse(
+    AdbMessage open,
+    String target,
+    FutureOr<void> Function(AdbStream) handler,
+  ) {
+    final endpoint = StreamEndpoint.accepted(
+      _core,
+      localId: _allocateId(),
+      service: target,
+      remoteId: open.arg0,
+      window: open.arg1,
+    );
+    _endpoints[endpoint.localId] = endpoint;
+    _link
+      ..note('Accepted a reverse connection to "$target"')
+      ..send(
+        AdbMessage.okay(
+          localId: endpoint.localId,
+          remoteId: open.arg0,
+          // With delayed acknowledgements our OKAY announces our window.
+          acknowledged: delayedAck ? _options.receiveWindow : null,
+        ),
+      );
+    final stream = AdbStream(endpoint);
+    Future.sync(() => handler(stream))
+        .then<void>(
+          (_) {},
+          onError: (Object e) {
+            _link.note('A reverse handler for "$target" failed: $e');
+            unawaited(stream.close());
+          },
+        )
+        .ignore();
   }
 
   int _allocateId() {
