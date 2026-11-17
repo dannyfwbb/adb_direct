@@ -23,9 +23,19 @@ final String? skip = host == null || keyPath == null
 
 void main() {
   late AdbKeyPair key;
-  setUpAll(() {
+  // What the device offers: old ones have no authentication, no shell
+  // protocol v2 and no stat v2; the tests check what each should do.
+  late bool authenticates;
+  late bool shellV2;
+  setUpAll(() async {
     if (skip == null) {
       key = AdbKeyPair.fromPem(File(keyPath!).readAsStringSync());
+      authenticates =
+          (await AdbProbe.identify(host!, port)).kind ==
+          AdbEndpointKind.adbAuthentication;
+      final adb = await AdbConnection.connect(host!, port, key: key);
+      shellV2 = adb.shell.supportsShellProtocol;
+      await adb.close();
     }
   });
 
@@ -38,15 +48,21 @@ void main() {
     printOnFailure('${adb.device}');
     expect(adb.device.state, AdbDeviceState.device);
     expect(adb.device.model, isNotEmpty);
-    expect(adb.acceptedKey, key);
+    expect(adb.acceptedKey, authenticates ? key : isNull);
   }, skip: skip);
 
   test('runs commands with separate output and the exit status', () async {
     final adb = await connect();
     addTearDown(adb.close);
     final result = await adb.shell.run('echo hi; echo err >&2; exit 3');
-    expect(result.stdoutText, 'hi\n');
-    expect(result.stderrText, 'err\n');
+    if (shellV2) {
+      expect(result.stdoutText, 'hi\n');
+      expect(result.stderrText, 'err\n');
+    } else {
+      // One stream for both, no CR from a PTY.
+      expect(result.separateStreams, isFalse);
+      expect(result.stdoutText, 'hi\nerr\n');
+    }
     expect(result.exitCode, 3);
     final sdk = await adb.shell.run('getprop ro.build.version.sdk');
     expect(int.parse(sdk.stdoutText.trim()), greaterThanOrEqualTo(19));
@@ -87,7 +103,16 @@ void main() {
       addTearDown(adb.close);
       const size = 64 * 1024 * 1024;
       final stopwatch = Stopwatch()..start();
-      final stream = await adb.shell.exec('head -c $size /dev/zero');
+      // dd: old devices have no head.
+      final AdbStream stream;
+      try {
+        stream = await adb.shell.exec(
+          'dd if=/dev/zero bs=1048576 count=64 2>/dev/null',
+        );
+      } on AdbServiceUnavailableException {
+        markTestSkipped('no exec: before Android 5');
+        return;
+      }
       var total = 0;
       await for (final chunk in stream.input) {
         total += chunk.length;
@@ -107,6 +132,10 @@ void main() {
   test(
     'uploads 16 MiB through stdin',
     () async {
+      if (!shellV2) {
+        markTestSkipped('needs shell protocol v2 to close stdin');
+        return;
+      }
       final adb = await connect();
       addTearDown(adb.close);
       const size = 16 * 1024 * 1024;
@@ -132,9 +161,10 @@ void main() {
 
   test('probes: identify and knowsKey never prompt', () async {
     final endpoint = await AdbProbe.identify(host!, port);
-    expect(endpoint.kind, AdbEndpointKind.adbAuthentication);
+    expect(endpoint.isAdb, isTrue);
     expect(await AdbProbe.knowsKey(host!, port, key), isTrue);
-    expect(await AdbProbe.knowsKey(host!, port, otherKey), isFalse);
+    // A device without authentication trusts every key.
+    expect(await AdbProbe.knowsKey(host!, port, otherKey), !authenticates);
   }, skip: skip);
 
   test('an interactive shell with a PTY', () async {
@@ -145,10 +175,21 @@ void main() {
     final seen = shell.stdout.listen(
       (data) => output.write(String.fromCharCodes(data)),
     );
-    await shell.resize(rows: 40, columns: 100);
-    await shell.write('stty size; exit 5\n'.codeUnits);
-    expect(await shell.exitCode, 5);
-    await seen.cancel();
-    expect(output.toString(), contains('40 100'));
+    if (shellV2) {
+      await shell.resize(rows: 40, columns: 100);
+      // Android 7 has no stty; mksh keeps LINES and COLUMNS up to date.
+      await shell.write(
+        'stty size 2>/dev/null || echo "\$LINES \$COLUMNS"; exit 5\n'.codeUnits,
+      );
+      expect(await shell.exitCode, 5);
+      await seen.cancel();
+      expect(output.toString(), contains('40 100'));
+    } else {
+      // No window size and no exit status without the protocol.
+      await shell.write('echo pty-ok; exit 5\n'.codeUnits);
+      expect(await shell.exitCode, isNull);
+      await seen.cancel();
+      expect(output.toString(), contains('pty-ok'));
+    }
   }, skip: skip);
 }

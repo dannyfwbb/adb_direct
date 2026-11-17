@@ -41,14 +41,10 @@ const String livenessService = 'adb-direct-ping:';
 ///
 /// The connection ends when either side closes it or anything fails; every
 /// open stream and pending call then fails with the same [closeReason].
-final class AdbConnection {
-  AdbConnection._(this._link, this._handshake, this._options)
-    : clock = _link.clock {
-    _core = _ConnectionCore(this);
-    _lastInbound = clock.elapsed;
-    _link.route(_core);
-    _scheduleLivenessCheck();
-  }
+abstract base class AdbConnection {
+  /// For the implementations in this package.
+  @internal
+  AdbConnection.base();
 
   /// Connects to adbd at [host]:[port] (5555 for classic network debugging)
   /// and authenticates with [key], then [extraKeys] in turn.
@@ -234,7 +230,7 @@ final class AdbConnection {
       ).run();
       if (link.failure case final failure?) throw failure;
       connected = true;
-      return AdbConnection._(link, result, options);
+      return _PacketConnection(link, result, options);
     } on TlsKeyRejected {
       link.fail(
         const AdbUnauthorizedException('The key was not accepted over TLS'),
@@ -258,57 +254,50 @@ final class AdbConnection {
     }
   }
 
-  final MessageLink _link;
-  final HandshakeResult _handshake;
-  final AdbConnectOptions _options;
-  late final _ConnectionCore _core;
-  final Map<int, StreamEndpoint> _endpoints = {};
-  final Completer<void> _done = Completer<void>();
-  int _nextLocalId = 1;
-  AdbException? _closeReason;
-  Duration _lastInbound = Duration.zero;
-  StreamEndpoint? _livenessProbe;
-  Timer? _livenessTimer;
-
   /// The clock deadlines run on.
-  final AdbClock clock;
+  AdbClock get clock;
 
   /// What the device said about itself: state, product, model, features.
-  AdbBanner get device => _handshake.banner;
+  AdbBanner get device;
 
-  /// The key the device accepted, or null if it asked for none.
-  AdbKeyPair? get acceptedKey => _handshake.key;
+  /// The key the device accepted, or null if it asked for none (or the
+  /// connection goes through an adb server).
+  AdbKeyPair? get acceptedKey;
 
   /// The negotiated protocol version.
-  int get protocolVersion => _handshake.protocolVersion;
+  int get protocolVersion;
 
   /// Whether the connection runs over TLS (a wireless debugging port).
-  bool get isTls => _handshake.tls;
+  bool get isTls;
 
   /// The device's TLS certificate (DER) on a TLS connection, else null.
   /// adb has nothing to verify it against; an app can remember it (or its
   /// public key) after the first connection and compare it later.
-  Uint8List? get deviceCertificate => _handshake.deviceCertificate;
+  Uint8List? get deviceCertificate;
 
   /// The largest payload either side sends in one message.
-  int get maxPayload => _handshake.maxPayload;
+  int get maxPayload;
 
   /// Whether delayed acknowledgements are in use on this connection.
-  bool get delayedAck => _handshake.delayedAck;
+  bool get delayedAck;
 
   /// Whether the device lists [feature] (it is used only if this library
   /// announced it too).
   bool supports(AdbFeature feature) => device.supports(feature);
 
   /// Whether the connection has ended.
-  bool get isClosed => _closeReason != null;
+  bool get isClosed;
 
   /// Why the connection ended, or null while it is open.
-  AdbException? get closeReason => _closeReason;
+  AdbException? get closeReason;
 
   /// Completes when the connection has ended, for any reason. Never fails;
   /// see [closeReason].
-  Future<void> get done => _done.future;
+  Future<void> get done;
+
+  /// The options it was made with.
+  @internal
+  AdbConnectOptions get options;
 
   /// Shell commands.
   late final AdbShell shell = AdbShell(this);
@@ -316,8 +305,8 @@ final class AdbConnection {
   /// Apps: install, install several APKs or apps, uninstall.
   late final AdbPackages packages = AdbPackages(
     this,
-    stallTimeout: _options.transferStallTimeout,
-    answerTimeout: _options.packageManagerTimeout,
+    stallTimeout: options.transferStallTimeout,
+    answerTimeout: options.packageManagerTimeout,
   );
 
   /// adbd's own services: root, unroot, remount, reboot, tcpip, usb,
@@ -349,7 +338,7 @@ final class AdbConnection {
   /// Files: stat, list, read and write over the sync protocol.
   late final AdbSync sync = AdbSync(
     this,
-    stallTimeout: _options.transferStallTimeout,
+    stallTimeout: options.transferStallTimeout,
   );
 
   /// Opens a stream to [service] on the device, such as `shell:ls` or
@@ -367,6 +356,110 @@ final class AdbConnection {
   /// Like [open], but returns the stream at once, before the device
   /// answered; [AdbStream.opened] tells how the open went. Writes made
   /// before then wait.
+  AdbStream openStream(String service);
+
+  /// Closes the connection. Open streams end; their pending calls fail with
+  /// [AdbCancelledException].
+  ///
+  /// With [drain] (the default) bytes already written are sent first, for
+  /// up to [AdbConnectOptions.acknowledgementTimeout]; without it the socket
+  /// closes at once, which is what to do when the device may be gone.
+  Future<void> close({bool drain = true});
+
+  /// Accepts device-initiated `OPEN`s of [label] from now on.
+  @internal
+  void registerReverseTarget(
+    String label,
+    FutureOr<void> Function(AdbStream) handler,
+  );
+
+  /// Stops accepting them.
+  @internal
+  void unregisterReverseTarget(String label);
+
+  @override
+  String toString() =>
+      'AdbConnection(${device.model ?? device.systemType}'
+      "${isClosed ? ', closed' : ''})";
+}
+
+/// A connection that speaks the ADB protocol itself, over TCP or TLS.
+final class _PacketConnection extends AdbConnection {
+  _PacketConnection(this._link, this._handshake, this._options)
+    : clock = _link.clock,
+      super.base() {
+    _core = _ConnectionCore(this);
+    _lastInbound = clock.elapsed;
+    _link.route(_core);
+    _scheduleLivenessCheck();
+  }
+
+  final MessageLink _link;
+  final HandshakeResult _handshake;
+  final AdbConnectOptions _options;
+
+  @override
+  AdbConnectOptions get options => _options;
+  late final _ConnectionCore _core;
+  final Map<int, StreamEndpoint> _endpoints = {};
+  final Completer<void> _done = Completer<void>();
+  int _nextLocalId = 1;
+  AdbException? _closeReason;
+  Duration _lastInbound = Duration.zero;
+  StreamEndpoint? _livenessProbe;
+  Timer? _livenessTimer;
+
+  /// The clock deadlines run on.
+  @override
+  final AdbClock clock;
+
+  /// What the device said about itself: state, product, model, features.
+  @override
+  AdbBanner get device => _handshake.banner;
+
+  /// The key the device accepted, or null if it asked for none.
+  @override
+  AdbKeyPair? get acceptedKey => _handshake.key;
+
+  /// The negotiated protocol version.
+  @override
+  int get protocolVersion => _handshake.protocolVersion;
+
+  /// Whether the connection runs over TLS (a wireless debugging port).
+  @override
+  bool get isTls => _handshake.tls;
+
+  /// The device's TLS certificate (DER) on a TLS connection, else null.
+  /// adb has nothing to verify it against; an app can remember it (or its
+  /// public key) after the first connection and compare it later.
+  @override
+  Uint8List? get deviceCertificate => _handshake.deviceCertificate;
+
+  /// The largest payload either side sends in one message.
+  @override
+  int get maxPayload => _handshake.maxPayload;
+
+  /// Whether delayed acknowledgements are in use on this connection.
+  @override
+  bool get delayedAck => _handshake.delayedAck;
+
+  /// Whether the connection has ended.
+  @override
+  bool get isClosed => _closeReason != null;
+
+  /// Why the connection ended, or null while it is open.
+  @override
+  AdbException? get closeReason => _closeReason;
+
+  /// Completes when the connection has ended, for any reason. Never fails;
+  /// see [closeReason].
+  @override
+  Future<void> get done => _done.future;
+
+  /// Like [open], but returns the stream at once, before the device
+  /// answered; [AdbStream.opened] tells how the open went. Writes made
+  /// before then wait.
+  @override
   AdbStream openStream(String service) => AdbStream(_openEndpoint(service));
 
   /// Closes the connection. Open streams end; their pending calls fail with
@@ -375,6 +468,7 @@ final class AdbConnection {
   /// With [drain] (the default) bytes already written are sent first, for
   /// up to [AdbConnectOptions.acknowledgementTimeout]; without it the socket
   /// closes at once, which is what to do when the device may be gone.
+  @override
   Future<void> close({bool drain = true}) async {
     if (_closeReason == null) {
       await _link.close(
@@ -384,11 +478,6 @@ final class AdbConnection {
     }
     return done;
   }
-
-  @override
-  String toString() =>
-      'AdbConnection(${device.model ?? device.systemType}'
-      '${isClosed ? ', closed' : ''})';
 
   StreamEndpoint _openEndpoint(String service) {
     if (_closeReason case final reason?) throw reason;
@@ -551,6 +640,7 @@ final class AdbConnection {
 
   /// Accepts device-initiated `OPEN`s of [label] from now on.
   @internal
+  @override
   void registerReverseTarget(
     String label,
     FutureOr<void> Function(AdbStream) handler,
@@ -558,6 +648,7 @@ final class AdbConnection {
 
   /// Stops accepting them.
   @internal
+  @override
   void unregisterReverseTarget(String label) => _reverseTargets.remove(label);
 
   void _acceptReverse(
@@ -609,7 +700,7 @@ final class AdbConnection {
 final class _ConnectionCore implements MessageHandler, StreamHost {
   _ConnectionCore(this._connection);
 
-  final AdbConnection _connection;
+  final _PacketConnection _connection;
 
   @override
   void onMessage(AdbMessage message) => _connection._onMessage(message);

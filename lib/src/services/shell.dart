@@ -93,31 +93,44 @@ final class AdbShell {
   }) async {
     final v2 = supportsShellProtocol;
     final marker = v2 ? null : _exitMarker();
-    final stream = _connection.openStream(
-      v2
-          ? 'shell,v2,raw:$command'
-          // Old devices: no exit status in the protocol; ask the shell to
-          // print it after the command, behind a marker no output contains.
-          : 'shell:$command\necho $marker\$?',
-    );
-    final collector = _Collector(maxOutputBytes, v2: v2);
     final finished = Completer<void>();
     // The deadline covers everything, the open included.
+    AdbStream? stream;
     final timer = _connection.clock.timer(timeout, () {
       if (finished.isCompleted) return;
       finished.completeError(
         AdbTimeoutException('"$command" did not finish within $timeout'),
       );
-      unawaited(stream.close());
+      unawaited(stream?.close());
     });
-    final subscription = stream.input.listen(
+    var pty = false;
+    try {
+      if (v2) {
+        stream = _connection.openStream('shell,v2,raw:$command');
+      } else {
+        // Old devices: no exit status in the protocol; ask the shell to
+        // print it after the command, behind a marker no output contains.
+        // stdin cannot be closed there, so it is empty from the start, as
+        // with the protocol; a subshell keeps an `exit` from skipping the
+        // marker.
+        (stream, pty) = await _openWithoutProtocol(
+          'exec </dev/null\n(\n$command\n)\necho $marker\$?',
+        );
+      }
+    } on Object {
+      timer.cancel();
+      rethrow;
+    }
+    final open = stream;
+    final collector = _Collector(maxOutputBytes, v2: v2, pty: pty);
+    final subscription = open.input.listen(
       (data) {
         if (finished.isCompleted) return;
         try {
-          if (collector.add(data)) unawaited(stream.close());
+          if (collector.add(data)) unawaited(open.close());
         } on AdbProtocolException catch (e) {
           finished.completeError(e);
-          unawaited(stream.close());
+          unawaited(open.close());
         }
       },
       onError: (Object error) {
@@ -130,7 +143,7 @@ final class AdbShell {
     if (v2) {
       // An empty stdin: commands that read it end at once.
       unawaited(
-        stream
+        open
             .write(ShellProtocol.encode(ShellPacketId.closeStdin, const []))
             .catchError((Object _) {}),
       );
@@ -142,6 +155,26 @@ final class AdbShell {
       await subscription.cancel();
     }
     return collector.result(marker);
+  }
+
+  /// Whether `exec:` exists (Android 5 and later); null until tried.
+  bool? _execWorks;
+
+  /// A stream for [script] on a device without shell protocol v2: `exec:`
+  /// (no PTY, stdout and stderr together) where it exists, else `shell:`,
+  /// whose PTY turns line ends into CR LF. Returns whether it is the PTY.
+  Future<(AdbStream, bool)> _openWithoutProtocol(String script) async {
+    if (_execWorks != false) {
+      try {
+        final stream = await _connection.open('exec:$script');
+        _execWorks = true;
+        return (stream, false);
+      } on AdbServiceUnavailableException {
+        if (_execWorks == true) rethrow;
+        _execWorks = false;
+      }
+    }
+    return (await _connection.open('shell:$script'), true);
   }
 
   /// Opens `exec:` for [command]: raw bytes both ways, no PTY, no protocol.
@@ -187,10 +220,13 @@ final class AdbShell {
 
 /// Gathers a command's output up to a limit.
 final class _Collector {
-  _Collector(this._limit, {required this.v2});
+  _Collector(this._limit, {required this.v2, required this.pty});
 
   final int _limit;
   final bool v2;
+
+  /// Output came through a PTY: its CR LF line ends become LF.
+  final bool pty;
   final ShellPacketReader _packets = ShellPacketReader();
   final BytesBuilder _stdout = BytesBuilder(copy: false);
   final BytesBuilder _stderr = BytesBuilder(copy: false);
@@ -232,6 +268,7 @@ final class _Collector {
     if (marker != null && !_truncated) {
       (stdout, exitCode) = _stripExitMarker(stdout, marker);
     }
+    if (pty) stdout = _fromCrLf(stdout);
     return AdbShellResult(
       stdout: stdout,
       stderr: _stderr.takeBytes(),
@@ -239,6 +276,19 @@ final class _Collector {
       separateStreams: v2,
       truncated: _truncated,
     );
+  }
+
+  static Uint8List _fromCrLf(Uint8List bytes) {
+    final out = BytesBuilder(copy: false);
+    var start = 0;
+    for (var i = 0; i + 1 < bytes.length; i++) {
+      if (bytes[i] == 13 && bytes[i + 1] == 10) {
+        out.add(Uint8List.sublistView(bytes, start, i));
+        start = i + 1;
+      }
+    }
+    out.add(Uint8List.sublistView(bytes, start));
+    return out.takeBytes();
   }
 
   /// Removes `<marker><status>\n` (or `\r\n`) from the end of [output].

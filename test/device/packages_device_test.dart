@@ -27,6 +27,19 @@ AdbApk apk(String name) => AdbApk.file(File('test/fixtures/apks/$name.apk'));
 void main() {
   AdbConnection? connection;
   AdbConnection adb() => connection!;
+  var sdk = 0;
+
+  /// Install sessions came with Android 5 (API 21): before, the library
+  /// says so.
+  Future<bool> hasSessions() async {
+    if (sdk >= 21) return true;
+    await expectLater(
+      adb().packages.installMultiple([apk('app-v2')]),
+      throwsA(isA<AdbNotSupportedException>()),
+    );
+    markTestSkipped('no install sessions before API 21 (checked: refused)');
+    return false;
+  }
 
   Future<String> installedVersion() async => (await adb().shell.run(
     'dumpsys package $package | grep versionCode',
@@ -38,6 +51,11 @@ void main() {
       host!,
       port,
       key: AdbKeyPair.fromPem(File(keyPath!).readAsStringSync()),
+    );
+    sdk = int.parse(
+      (await connection!.shell.run(
+        'getprop ro.build.version.sdk',
+      )).stdoutText.trim(),
     );
   });
   tearDown(() async {
@@ -74,6 +92,7 @@ void main() {
   }, skip: skip);
 
   test('a base with a split in one session', () async {
+    if (!await hasSessions()) return;
     await adb().packages.installMultiple([apk('app-v2'), apk('app-v2-extra')]);
     final paths = (await adb().shell.run('pm path $package')).stdoutText;
     expect(paths, contains('base.apk'));
@@ -83,6 +102,7 @@ void main() {
   test(
     'a split without its base is refused ("Full install must include a base package")',
     () async {
+      if (!await hasSessions()) return;
       // That the session is then abandoned is checked by the unit tests: this
       // device offers the shell user no way to list install sessions.
       await expectLater(
@@ -106,7 +126,10 @@ void main() {
         isA<AdbInstallException>().having(
           (e) => e.failureCode,
           'failureCode',
-          'INSTALL_PARSE_FAILED_NOT_APK',
+          anyOf(
+            startsWith('INSTALL_PARSE_FAILED_'),
+            'INSTALL_FAILED_INVALID_APK',
+          ),
         ),
       ),
     );
@@ -122,15 +145,16 @@ void main() {
         isA<AdbInstallException>().having(
           (e) => e.failureCode,
           'failureCode',
-          'DELETE_FAILED_INTERNAL_ERROR',
+          // Android 9's pm prints a Java stack trace instead: no code.
+          anyOf('DELETE_FAILED_INTERNAL_ERROR', isNull),
         ),
       ),
     );
   }, skip: skip);
 
   test('two apps atomically (multi-package)', () async {
-    if (!adb().supports(AdbFeature.abbExec)) {
-      markTestSkipped('no abb_exec on this device');
+    if (sdk < 29) {
+      markTestSkipped('several apps atomically need Android 10');
       return;
     }
     await adb().packages.installMultiPackage([

@@ -139,22 +139,41 @@ void main() {
   });
 
   group('run on devices without shell protocol v2', () {
+    /// With [exec] the device has `exec:` (Android 5+); without, it refuses
+    /// it and the command goes through `shell:` and its PTY.
     Future<AdbShellResult> runOld(
       String cmd,
-      List<String> Function(String marker) chunks,
-    ) async {
+      List<String> Function(String marker) chunks, {
+      bool exec = true,
+    }) async {
       final (adb, adbd) = await connectTo(banner: oldBanner, (session) async {
-        final service = await acceptOpen(session, 'shell:$cmd\necho ');
+        if (!exec) {
+          final refused = await session.receive();
+          expect(
+            utf8.decode(refused.payload),
+            startsWith('exec:exec </dev/null\n(\n$cmd\n)\necho '),
+          );
+          session.send(AdbMessage.close(localId: 0, remoteId: refused.arg0));
+        }
+        final service = await acceptOpen(
+          session,
+          '${exec ? 'exec' : 'shell'}:exec </dev/null\n(\n$cmd\n)\necho ',
+        );
         final marker = RegExp(
           r'echo (ADB_DIRECT_EXIT_[0-9a-f]+_)\$\?$',
         ).firstMatch(service)!.group(1)!;
+        final id = exec ? 1 : 2;
         for (final chunk in chunks(marker)) {
           session.send(
-            AdbMessage.write(localId: 9, remoteId: 1, data: utf8.encode(chunk)),
+            AdbMessage.write(
+              localId: 9,
+              remoteId: id,
+              data: utf8.encode(chunk),
+            ),
           );
-          await session.expect(AdbMessage.okay(localId: 1, remoteId: 9));
+          await session.expect(AdbMessage.okay(localId: id, remoteId: 9));
         }
-        session.send(AdbMessage.close(localId: 9, remoteId: 1));
+        session.send(AdbMessage.close(localId: 9, remoteId: id));
       });
       final result = await adb.shell.run(cmd);
       await adbd.done();
@@ -182,6 +201,16 @@ void main() {
       );
       expect(result.stdoutText, 'partial');
       expect(result.exitCode, 7);
+    });
+
+    test('without exec: the PTY\'s CR LF line ends become LF', () async {
+      final result = await runOld(
+        'ls',
+        (marker) => ['a\r\nb\r\n${marker}0\r\n'],
+        exec: false,
+      );
+      expect(result.stdoutText, 'a\nb\n');
+      expect(result.exitCode, 0);
     });
 
     test('no marker (the command exited the shell): status unknown', () async {

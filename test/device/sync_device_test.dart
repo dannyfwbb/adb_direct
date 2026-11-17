@@ -51,9 +51,17 @@ void main() {
     expect((await adb().sync.stat('/system'))!.isDirectory, isTrue);
     expect(await adb().sync.stat('/no/such/path'), isNull);
     final link = await adb().sync.stat('/sdcard');
+    expect(link!.isLink, isTrue);
+    if (!adb().sync.canFollowLinks) {
+      // Before stat_v2 (Android 8) the device cannot follow it.
+      await expectLater(
+        adb().sync.stat('/sdcard', followLinks: true),
+        throwsA(isA<AdbNotSupportedException>()),
+      );
+      return;
+    }
     final target = await adb().sync.stat('/sdcard', followLinks: true);
     printOnFailure('$link / $target');
-    expect(link!.isLink, isTrue);
     expect(target!.isDirectory, isTrue);
   }, skip: skip);
 
@@ -88,8 +96,10 @@ void main() {
   );
 
   test('a refused read is an AdbSyncException; the next call works', () async {
+    // A missing file: refused for root too (old eng builds run adbd as
+    // root and can read anything).
     await expectLater(
-      adb().sync.readAll('/system/build.prop'),
+      adb().sync.readAll('/no/such/file'),
       throwsA(isA<AdbSyncException>()),
     );
     expect((await adb().sync.stat('/system/etc/hosts'))!.isFile, isTrue);
@@ -184,10 +194,16 @@ void main() {
   );
 
   test('sizes match the device; past 4 GiB with stat_v2', () async {
-    await adb().shell.run('truncate -s 5G $scratch/sparse');
-    final real = int.parse(
-      (await adb().shell.run('stat -c %s $scratch/sparse')).stdoutText.trim(),
+    final made = await adb().shell.run(
+      'truncate -s 5G $scratch/sparse && stat -c %s $scratch/sparse',
     );
+    if (made.exitCode != 0) {
+      // Old devices have neither tool.
+      await adb().shell.run('rm -f $scratch/sparse');
+      markTestSkipped('no truncate or stat on this device');
+      return;
+    }
+    final real = int.parse(made.stdoutText.trim());
     final stat = await adb().sync.stat('$scratch/sparse');
     await adb().shell.run('rm $scratch/sparse');
     expect(stat!.size, real);

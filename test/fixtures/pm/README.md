@@ -11,3 +11,5 @@ Exact answers of `cmd package` on the Google TV emulator (Android 14), recorded 
 | `uninstall_not_installed.txt` | `uninstall` of an app that is not there |
 | `uninstall_other_user.txt` | `uninstall --user 10` (a user that does not exist): `Success` |
 | `stack_trace.txt` | `disable-user` of an unknown package: no `Success`, no `Failure`, a Java stack trace |
+
+Android 7 (API 24 emulator, 2026-11-18): `cmd package install-commit <id>` prints nothing when it succeeds; `install-create` and `install-write` print `Success: …` as later versions do.

@@ -575,4 +575,41 @@ void main() {
       },
     );
   });
+
+  test(
+    "Android 7's silent install-commit is a success over cmd only",
+    () async {
+      final (adb, adbd) = await connectTo(banner: cmdBanner, (session) async {
+        await command(
+          session,
+          output: 'Success: created install session [5]\n',
+        );
+        await command(
+          session,
+          output: 'Success: streamed 10 bytes\n',
+          expectInput: 10,
+        );
+        await command(session, output: '');
+      });
+      await adb.packages.installMultiple([tiny]);
+      await adbd.done();
+      await adb.close();
+
+      final (adb2, adbd2) = await connectTo(banner: abbBanner, (session) async {
+        await command(
+          session,
+          output: 'Success: created install session [5]\n',
+        );
+        await command(session, output: 'Success\n', expectInput: 10);
+        await command(session, output: '');
+        await command(session, output: 'Success\n'); // abandon
+      });
+      await expectLater(
+        adb2.packages.installMultiple([tiny]),
+        throwsA(isA<AdbInstallException>()),
+      );
+      await adbd2.done();
+      await adb2.close();
+    },
+  );
 }

@@ -7,7 +7,9 @@ import 'dart:math';
 import 'package:path/path.dart' as p;
 
 import '../errors.dart';
+import '../protocol/banner.dart';
 import '../protocol/sync_protocol.dart';
+import 'shell.dart';
 import 'sync.dart';
 
 /// Local files and directories with [AdbSync], like `adb pull` and
@@ -96,6 +98,7 @@ extension AdbSyncFiles on AdbSync {
     bool onlyChanged = false,
   }) async {
     var count = 0;
+    await _makeDirectories(local, remote);
     await for (final entity in local.list(
       recursive: true,
       followLinks: false,
@@ -115,6 +118,54 @@ extension AdbSyncFiles on AdbSync {
       }
     }
     return count;
+  }
+
+  /// Devices with shell protocol v2 but without `fixed_push_mkdir`
+  /// (Android 7 to 9) fail to create the parents of a pushed file
+  /// (`secure_mkdirs failed`): make the tree first, as adb does. Failures
+  /// are ignored (a directory that exists already).
+  Future<void> _makeDirectories(Directory local, String remote) async {
+    final c = connection;
+    if (c.supports(AdbFeature.fixedPushMkdir) ||
+        !c.supports(AdbFeature.shellV2)) {
+      return;
+    }
+    final dirs = <String>[remote];
+    await for (final entity in local.list(
+      recursive: true,
+      followLinks: false,
+    )) {
+      if (entity is Directory) {
+        dirs.add(
+          _join(
+            remote,
+            p
+                .relative(entity.path, from: local.path)
+                .split(p.separator)
+                .join('/'),
+          ),
+        );
+      }
+    }
+    dirs.sort((a, b) => a.length.compareTo(b.length));
+    // Batches under adb's own limit for one command line.
+    var batch = <String>[];
+    var length = 0;
+    Future<void> flush() async {
+      if (batch.isEmpty) return;
+      await c.shell
+          .run('mkdir -p ${batch.map(shellQuote).join(' ')}')
+          .then<void>((_) {}, onError: (Object _) {});
+      batch = [];
+      length = 0;
+    }
+
+    for (final dir in dirs) {
+      if (length + dir.length > 30000) await flush();
+      batch.add(dir);
+      length += dir.length + 3;
+    }
+    await flush();
   }
 
   /// The stat of what [remote] names, following a link where the device

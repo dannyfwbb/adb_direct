@@ -23,11 +23,11 @@ import '../protocol/message.dart';
 /// ADB streams have no half-close: [close] ends both directions, and so does
 /// the device closing its end.
 final class AdbStream {
-  /// Wraps an endpoint; streams are created by the connection.
+  /// Wraps a stream's core; streams are created by the connection.
   @internal
   AdbStream(this._endpoint);
 
-  final StreamEndpoint _endpoint;
+  final StreamCore _endpoint;
 
   /// The service name sent in `OPEN`.
   String get service => _endpoint.service;
@@ -83,6 +83,24 @@ final class AdbStream {
   String toString() => 'AdbStream($service${isClosed ? ', closed' : ''})';
 }
 
+/// What an [AdbStream] is made of: an ADB stream over packets
+/// ([StreamEndpoint]), or a socket the adb server connected to a device
+/// service.
+@internal
+abstract interface class StreamCore {
+  String get service;
+  Stream<Uint8List> get input;
+  Future<void> get opened;
+  Future<void> get done;
+  bool get isClosed;
+  AdbException? get closeReason;
+  int get acknowledgedBytes;
+  Stream<int> get acknowledgements;
+  Future<void> write(List<int> data);
+  Future<void> flush();
+  Future<void> close();
+}
+
 /// What a stream endpoint needs from its connection.
 @internal
 abstract interface class StreamHost {
@@ -113,7 +131,7 @@ enum _State { opening, open, closed }
 /// The state machine behind an [AdbStream]: the connection routes messages
 /// here. Internal.
 @internal
-final class StreamEndpoint {
+final class StreamEndpoint implements StreamCore {
   /// Creates an endpoint that is opening; the connection sends the `OPEN`.
   StreamEndpoint(this._host, {required this.localId, required this.service}) {
     // Synchronous delivery: when add() returns, an active listener has
@@ -151,6 +169,7 @@ final class StreamEndpoint {
   final int localId;
 
   /// The service name sent in `OPEN`.
+  @override
   final String service;
 
   late final StreamController<Uint8List> _input;
@@ -181,21 +200,27 @@ final class StreamEndpoint {
       StreamController<int>.broadcast();
 
   /// See [AdbStream.input].
+  @override
   Stream<Uint8List> get input => _input.stream;
 
   /// See [AdbStream.opened].
+  @override
   Future<void> get opened => _opened.future;
 
   /// See [AdbStream.done].
+  @override
   Future<void> get done => _done.future;
 
   /// See [AdbStream.isClosed].
+  @override
   bool get isClosed => _state == _State.closed;
 
   /// See [AdbStream.closeReason].
+  @override
   AdbException? get closeReason => _closeReason;
 
   /// See [AdbStream.acknowledgedBytes].
+  @override
   int get acknowledgedBytes => _acknowledged;
 
   /// Whether a message from the device's stream [remoteId] belongs to this
@@ -204,6 +229,7 @@ final class StreamEndpoint {
   bool acceptsFrom(int remoteId) => _remoteId == 0 || _remoteId == remoteId;
 
   /// See [AdbStream.write].
+  @override
   Future<void> write(List<int> data) {
     if (_state == _State.closed) {
       return Future.error(
@@ -222,6 +248,7 @@ final class StreamEndpoint {
   }
 
   /// See [AdbStream.flush].
+  @override
   Future<void> flush() {
     if (_state == _State.closed) {
       return Future.error(
@@ -237,6 +264,7 @@ final class StreamEndpoint {
   }
 
   /// See [AdbStream.acknowledgements].
+  @override
   Stream<int> get acknowledgements => _acknowledgements.stream;
 
   void _completeFlushes() {
@@ -249,6 +277,7 @@ final class StreamEndpoint {
   }
 
   /// See [AdbStream.close].
+  @override
   Future<void> close() {
     const reason = AdbCancelledException('The stream was closed by the caller');
     switch (_state) {

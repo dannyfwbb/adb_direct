@@ -45,11 +45,33 @@ void main() {
     final key = AdbKeyPair.fromPem(File(keyPath!).readAsStringSync());
     adb = await AdbConnection.connect(host!, port, key: key);
   });
+
+  /// The device side of these tests needs toybox's nc (Android 6 and
+  /// later); older devices have none.
+  Future<bool> hasNc() async {
+    final ok = (await adb.shell.run('toybox nc --help')).exitCode == 0;
+    if (!ok) markTestSkipped('no toybox nc on this device');
+    return ok;
+  }
+
+  /// Old adbd (Android 5 on the emulator) refuses reverse with "more than
+  /// one device and emulator".
+  Future<T?> reverse<T>(Future<T> Function() action) async {
+    try {
+      return await action();
+    } on AdbServiceUnavailableException catch (e) {
+      if (!e.message.contains('more than one device')) rethrow;
+      markTestSkipped('this adbd cannot reverse: ${e.message}');
+      return null;
+    }
+  }
+
   tearDown(() async {
     if (skip == null) await adb.close();
   });
 
   test('forward: a local port to an echo server on the device', () async {
+    if (!await hasNc()) return;
     // An echo server on the device, alive while this stream is open.
     final server = await adb.open(
       'exec:toybox nc -s 127.0.0.1 -p 18090 -L cat',
@@ -85,9 +107,16 @@ void main() {
   }, skip: skip);
 
   test('reverse: a device port to a local echo server', () async {
+    if (!await hasNc()) return;
     final echo = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
     echo.listen((s) => s.listen(s.add, onDone: () => s.close()));
-    final forward = await adb.reverse.toLocalPort('tcp:0', echo.port);
+    final forward = await reverse(
+      () => adb.reverse.toLocalPort('tcp:0', echo.port),
+    );
+    if (forward == null) {
+      await echo.close();
+      return;
+    }
     expect(forward.devicePort, isPositive);
     expect(
       await adb.reverse.list(),
@@ -106,15 +135,19 @@ void main() {
   }, skip: skip);
 
   test('reverse: connections handled in code; refusals', () async {
-    final forward = await adb.reverse.add('tcp:0', (stream) {
-      // Reading must not cancel the input (`first` would): cancelling it
-      // closes the stream.
-      stream.input.listen((request) async {
-        await stream.write(utf8.encode('got ${utf8.decode(request)}'));
-        await stream.flush();
-        await stream.close();
-      });
-    });
+    if (!await hasNc()) return;
+    final forward = await reverse(
+      () => adb.reverse.add('tcp:0', (stream) {
+        // Reading must not cancel the input (`first` would): cancelling it
+        // closes the stream.
+        stream.input.listen((request) async {
+          await stream.write(utf8.encode('got ${utf8.decode(request)}'));
+          await stream.flush();
+          await stream.close();
+        });
+      }),
+    );
+    if (forward == null) return;
     final result = await adb.shell.run(
       '(echo ping; sleep 2) | toybox nc 127.0.0.1 ${forward.devicePort}',
     );

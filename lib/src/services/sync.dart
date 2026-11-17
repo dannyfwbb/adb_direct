@@ -35,6 +35,10 @@ final class AdbSync {
 
   final AdbConnection _connection;
 
+  /// The connection, for the `dart:io` helpers.
+  @internal
+  AdbConnection get connection => _connection;
+
   /// How long a transfer may make no progress before it fails with
   /// [AdbTimeoutException] (the connection stays up).
   final Duration stallTimeout;

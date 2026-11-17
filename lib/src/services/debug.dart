@@ -110,9 +110,15 @@ final class AdbDebug {
   /// `['-v', 'threadtime', '*:W']`). Without `-d` it follows the log until
   /// the subscription is cancelled.
   Stream<String> logcat({List<String> arguments = const []}) async* {
-    final stream = await _connection.open(
-      'exec:logcat${arguments.map((a) => ' ${shellQuote(a)}').join()}',
-    );
+    final command = 'logcat${arguments.map((a) => ' ${shellQuote(a)}').join()}';
+    AdbStream stream;
+    try {
+      stream = await _connection.open('exec:$command');
+    } on AdbServiceUnavailableException {
+      // Before Android 5 there is no exec:; the shell's PTY ends lines
+      // with CR LF, which the line splitter takes as one break.
+      stream = await _connection.open('shell:$command');
+    }
     try {
       yield* stream.input
           .cast<List<int>>()
@@ -125,12 +131,18 @@ final class AdbDebug {
 
   /// A screenshot as PNG (`screencap -p`).
   Future<Uint8List> screencap({int? display}) async {
-    final stream = await _connection.open(
-      'exec:screencap -p${display == null ? '' : ' -d $display'}',
-    );
-    final png = BytesBuilder(copy: false);
-    await stream.input.forEach(png.add);
-    final bytes = png.takeBytes();
+    final command = 'screencap -p${display == null ? '' : ' -d $display'}';
+    Uint8List bytes;
+    try {
+      final stream = await _connection.open('exec:$command');
+      final png = BytesBuilder(copy: false);
+      await stream.input.forEach(png.add);
+      bytes = png.takeBytes();
+    } on AdbServiceUnavailableException {
+      // Before Android 5 there is no exec:, and a PTY would mangle the
+      // bytes: write a file on the device and copy it.
+      bytes = await _screencapToFile(command);
+    }
     const signature = [0x89, 0x50, 0x4e, 0x47];
     if (bytes.length < 8 ||
         !List.generate(4, (i) => bytes[i] == signature[i]).every((b) => b)) {
@@ -140,13 +152,33 @@ final class AdbDebug {
     return bytes;
   }
 
+  Future<Uint8List> _screencapToFile(String command) async {
+    final path =
+        '/data/local/tmp/adb_direct_${DateTime.now().microsecondsSinceEpoch}.png';
+    try {
+      await _connection.shell.run('$command ${shellQuote(path)}');
+      return await _connection.sync.readAll(path);
+    } finally {
+      await _connection.shell
+          .run('rm -f ${shellQuote(path)}')
+          .then<void>((_) {}, onError: (Object _) {});
+    }
+  }
+
   /// Writes a bug report (a zip, Android 7+) to [local], as `adb bugreport`
   /// does: `bugreportz -p` on the device, then a pull, then the device copy
   /// is removed. Takes minutes; [onProgress] follows it.
   ///
   /// Throws [AdbException] when the device reports a failure.
   Future<void> bugreport(File local, {AdbBugReportProgress? onProgress}) async {
-    final stream = await _connection.open('exec:bugreportz -p');
+    final AdbStream stream;
+    try {
+      stream = await _connection.open('exec:bugreportz -p');
+    } on AdbServiceUnavailableException {
+      throw const AdbNotSupportedException(
+        'Bug reports as zip files need Android 7 or later',
+      );
+    }
     String? path;
     String? failure;
     await for (final line
