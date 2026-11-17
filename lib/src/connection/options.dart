@@ -18,6 +18,7 @@ final class AdbConnectOptions {
     this.acknowledgementTimeout = const Duration(seconds: 20),
     this.livenessInterval = const Duration(seconds: 10),
     this.transferStallTimeout = const Duration(seconds: 30),
+    this.packageManagerTimeout = const Duration(minutes: 5),
     this.receiveWindow = 4 * 1024 * 1024,
     this.hostFeatures = defaultHostFeatures,
   });
@@ -28,6 +29,8 @@ final class AdbConnectOptions {
   /// implemented ones are announced; the set grows with the library.
   static const Set<AdbFeature> defaultHostFeatures = {
     AdbFeature.shellV2,
+    AdbFeature.cmd,
+    AdbFeature.abbExec,
     AdbFeature.statV2,
     AdbFeature.lsV2,
     AdbFeature.sendRecvV2,
@@ -77,6 +80,11 @@ final class AdbConnectOptions {
   /// connection stays up: a slow transfer is not a dead device.
   final Duration transferStallTimeout;
 
+  /// How long the package manager may take to answer a command. After an
+  /// upload it verifies and optimizes the app in silence, which takes
+  /// minutes for a big app on a slow TV.
+  final Duration packageManagerTimeout;
+
   /// Bytes the device may send on a stream before we acknowledge, when
   /// delayed acknowledgements are in use. Bounds the memory a stream whose
   /// reader is slow can take.
@@ -100,6 +108,7 @@ final class AdbConnectOptions {
     positive(approvalTimeout, 'approvalTimeout');
     positive(acknowledgementTimeout, 'acknowledgementTimeout');
     positive(transferStallTimeout, 'transferStallTimeout');
+    positive(packageManagerTimeout, 'packageManagerTimeout');
     if (livenessInterval case final interval?) {
       positive(interval, 'livenessInterval');
     }

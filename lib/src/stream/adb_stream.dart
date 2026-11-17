@@ -66,6 +66,15 @@ final class AdbStream {
   /// Fails with the reason when the stream closes first.
   Future<void> write(List<int> data) => _endpoint.write(data);
 
+  /// Completes when the device has acknowledged every byte written before
+  /// this call (later writes do not delay it). Fails like [write] when the
+  /// stream closes first.
+  Future<void> flush() => _endpoint.flush();
+
+  /// [acknowledgedBytes] each time the device acknowledges more, for
+  /// progress that means "arrived". Broadcast; ends when the stream closes.
+  Stream<int> get acknowledgements => _endpoint.acknowledgements;
+
   /// Closes the stream in both directions. Pending writes fail with
   /// [AdbCancelledException]. Data already received stays readable.
   Future<void> close() => _endpoint.close();
@@ -149,6 +158,10 @@ final class StreamEndpoint {
   int _unacknowledgedBytes = 0;
 
   Timer? _acknowledgementTimer;
+  int _queued = 0;
+  final List<(int, Completer<void>)> _flushes = [];
+  final StreamController<int> _acknowledgements =
+      StreamController<int>.broadcast();
 
   /// See [AdbStream.input].
   Stream<Uint8List> get input => _input.stream;
@@ -185,9 +198,37 @@ final class StreamEndpoint {
     final pending = _PendingWrite(
       data is Uint8List ? data : Uint8List.fromList(data),
     );
+    _queued += pending.data.length;
     _writes.add(pending);
     _pump();
     return pending.completer.future;
+  }
+
+  /// See [AdbStream.flush].
+  Future<void> flush() {
+    if (_state == _State.closed) {
+      return Future.error(
+        _closeReason ??
+            AdbClosedException('The stream to "$service" is closed'),
+      );
+    }
+    final target = _queued;
+    if (_acknowledged >= target) return Future.value();
+    final completer = Completer<void>();
+    _flushes.add((target, completer));
+    return completer.future;
+  }
+
+  /// See [AdbStream.acknowledgements].
+  Stream<int> get acknowledgements => _acknowledgements.stream;
+
+  void _completeFlushes() {
+    _flushes.removeWhere((entry) {
+      final (target, completer) = entry;
+      if (_acknowledged < target) return false;
+      completer.complete();
+      return true;
+    });
   }
 
   /// See [AdbStream.close].
@@ -295,6 +336,7 @@ final class StreamEndpoint {
     _disarmAcknowledgementTimer();
     _opened.complete();
     _pump();
+    _completeFlushes();
   }
 
   void _handleAcknowledgement(int? acknowledged) {
@@ -310,7 +352,9 @@ final class StreamEndpoint {
     }
     _disarmAcknowledgementTimer();
     if (_inFlight > 0) _armAcknowledgementTimer();
+    _acknowledgements.add(_acknowledged);
     _pump();
+    _completeFlushes();
   }
 
   void _pump() {
@@ -407,6 +451,11 @@ final class StreamEndpoint {
     while (_writes.isNotEmpty) {
       _writes.removeFirst().completer.completeError(reason);
     }
+    for (final (_, completer) in _flushes) {
+      completer.completeError(reason);
+    }
+    _flushes.clear();
+    unawaited(_acknowledgements.close());
     if (!normal) _input.addError(reason);
     unawaited(_input.close());
     if (!_closeWhenOpened) _host.endpointFinished(localId);

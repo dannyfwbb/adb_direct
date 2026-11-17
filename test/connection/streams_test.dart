@@ -707,4 +707,115 @@ void main() {
       }
     });
   });
+
+  group('flush', () {
+    test('classic: completes when the last write is acknowledged', () async {
+      final acknowledged = Completer<void>();
+      final (adb, adbd) = await connectTo((session) async {
+        await session.expect(open(1, 'exec:cat'));
+        session.send(AdbMessage.okay(localId: 9, remoteId: 1));
+        await session.receive();
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        acknowledged.complete();
+        session.send(AdbMessage.okay(localId: 9, remoteId: 1));
+        await session.expectQuiet(const Duration(milliseconds: 50));
+      });
+      final stream = await adb.open('exec:cat');
+      await stream.write([1, 2, 3]);
+      await stream.flush();
+      expect(acknowledged.isCompleted, isTrue);
+      expect(stream.acknowledgedBytes, 3);
+      await adbd.done();
+      await adb.close();
+    });
+
+    test('delayed ACK: completes when every byte is acknowledged', () async {
+      final window = const AdbConnectOptions().receiveWindow;
+      final (adb, adbd) = await connectTo(banner: tvBanner, (session) async {
+        await session.expect(open(1, 'exec:cat', window: window));
+        session.send(
+          AdbMessage.okay(localId: 9, remoteId: 1, acknowledged: 100),
+        );
+        await session.receive();
+        await session.receive();
+        session.send(AdbMessage.okay(localId: 9, remoteId: 1, acknowledged: 2));
+        await session.expectQuiet(const Duration(milliseconds: 50));
+        session.send(AdbMessage.okay(localId: 9, remoteId: 1, acknowledged: 3));
+        await session.expectQuiet(const Duration(milliseconds: 50));
+      });
+      final stream = await adb.open('exec:cat');
+      await stream.write([1, 1]);
+      await stream.write([2, 2, 2]);
+      var flushed = false;
+      final flush = stream.flush().then((_) => flushed = true);
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+      expect(stream.acknowledgedBytes, lessThan(5));
+      expect(flushed, isFalse);
+      await flush;
+      expect(flushed, isTrue);
+      expect(stream.acknowledgedBytes, 5);
+      await adbd.done();
+      await adb.close();
+    });
+
+    test('fails when the stream closes first', () async {
+      final (adb, adbd) = await connectTo((session) async {
+        await session.expect(open(1, 'exec:cat'));
+        session.send(AdbMessage.okay(localId: 9, remoteId: 1));
+        await session.receive();
+        session.send(AdbMessage.close(localId: 9, remoteId: 1));
+      });
+      final stream = await adb.open('exec:cat');
+      await stream.write([1]);
+      await expectLater(stream.flush(), throwsA(isA<AdbException>()));
+      await adbd.done();
+      await adb.close();
+    });
+  });
+
+  group('flush edge cases', () {
+    test('nothing written: completes at once, even while opening', () async {
+      final (adb, adbd) = await connectTo((session) async {
+        await session.receive();
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        session.send(AdbMessage.okay(localId: 9, remoteId: 1));
+        await session.expectQuiet(const Duration(milliseconds: 50));
+      });
+      final stream = adb.openStream('exec:cat');
+      await stream.flush().timeout(const Duration(seconds: 1));
+      await stream.opened;
+      await stream.flush();
+      await adbd.done();
+      await adb.close();
+    });
+
+    test('a write queued before the open is flushed after it', () async {
+      final (adb, adbd) = await connectTo((session) async {
+        await session.receive();
+        session.send(AdbMessage.okay(localId: 9, remoteId: 1));
+        await session.receive();
+        session.send(AdbMessage.okay(localId: 9, remoteId: 1));
+        await session.expectQuiet(const Duration(milliseconds: 50));
+      });
+      final stream = adb.openStream('exec:cat');
+      unawaited(stream.write([1]));
+      await stream.flush().timeout(const Duration(seconds: 2));
+      expect(stream.acknowledgedBytes, 1);
+      await adbd.done();
+      await adb.close();
+    });
+
+    test('a stream the caller closed cannot be flushed', () async {
+      final (adb, adbd) = await connectTo((session) async {
+        await session.receive();
+        session.send(AdbMessage.okay(localId: 9, remoteId: 1));
+        await session.receive();
+      });
+      final stream = await adb.open('exec:cat');
+      await stream.close();
+      await expectLater(stream.flush(), throwsA(isA<AdbException>()));
+      await adbd.done();
+      await adb.close();
+    });
+  });
 }

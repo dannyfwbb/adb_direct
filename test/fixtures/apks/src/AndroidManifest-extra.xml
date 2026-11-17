@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright 2026 The adb_direct authors. SPDX-License-Identifier: Apache-2.0 -->
+<!-- A feature split for app-v2, for split install tests. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="app.adbdirect.testapp"
+    split="extra"
+    android:isFeatureSplit="true"
+    android:versionCode="2">
+    <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="34" />
+    <application android:hasCode="false" android:debuggable="true" />
+</manifest>

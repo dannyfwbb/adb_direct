@@ -13,6 +13,7 @@ import '../errors.dart';
 import '../protocol/banner.dart';
 import '../protocol/sync_protocol.dart';
 import '../stream/adb_stream.dart';
+import '../stream/progress_watchdog.dart';
 import '../stream/stream_reader.dart';
 
 /// Called as a transfer progresses with the bytes done so far and the total
@@ -425,7 +426,7 @@ final class _SyncSession {
     required int? size,
     required AdbProgress? onProgress,
   }) => _exchange(() async {
-    final watchdog = _PushWatchdog(
+    final watchdog = ProgressWatchdog(
       clock: clock,
       timeout: stallTimeout,
       progress: () => _stream.acknowledgedBytes + _reader.received,
@@ -455,18 +456,30 @@ final class _SyncSession {
     int? size,
     AdbProgress? onProgress,
   ) async {
+    // Progress counts file bytes the device acknowledged, not the framing:
+    // each DATA frame records where its payload ends on the wire.
     final start = _stream.acknowledgedBytes;
-    void progress() =>
-        onProgress?.call(_stream.acknowledgedBytes - start, size);
+    final frames = <(int, int)>[]; // (wire end, payload end)
+    var wire = 0;
+    var payload = 0;
+    var reported = 0;
+    void progress() {
+      final acknowledged = _stream.acknowledgedBytes - start;
+      while (frames.isNotEmpty && frames.first.$1 <= acknowledged) {
+        reported = frames.removeAt(0).$2;
+      }
+      onProgress?.call(reported, size);
+    }
+
     try {
-      await _stream.write(
-        v2
-            ? [
-                ...SyncRequest.withPath(SyncId.send2, path),
-                ...SyncRequest.triple(SyncId.send2, mode, 0),
-              ]
-            : SyncRequest.withPath(SyncId.send, '$path,$mode'),
-      );
+      final request = v2
+          ? [
+              ...SyncRequest.withPath(SyncId.send2, path),
+              ...SyncRequest.triple(SyncId.send2, mode, 0),
+            ]
+          : SyncRequest.withPath(SyncId.send, '$path,$mode');
+      wire += request.length;
+      await _stream.write(request);
       await for (final chunk in data) {
         for (var offset = 0; offset < chunk.length;) {
           // adbd answers a write error with FAIL at once and then drains
@@ -480,6 +493,9 @@ final class _SyncSession {
             ..setUint32(0, SyncId.data, Endian.little)
             ..setUint32(4, end - offset, Endian.little);
           frame.setRange(8, frame.length, chunk, offset);
+          wire += frame.length;
+          payload += end - offset;
+          frames.add((wire, payload));
           await _stream.write(frame);
           offset = end;
           progress();
@@ -556,43 +572,4 @@ final class _SyncSession {
     await _reader.cancel();
     await _stream.close();
   }
-}
-
-/// Fails a push that makes no progress: no acknowledgement of our data and
-/// no byte from the device for a whole period. Acknowledgements keep coming
-/// while adbd drains its window to storage after our last write, so a slow
-/// disk is progress, not a stall.
-final class _PushWatchdog {
-  _PushWatchdog({
-    required this.clock,
-    required this.timeout,
-    required this.progress,
-    required this.onStall,
-  }) {
-    _last = progress();
-    _schedule();
-  }
-
-  final AdbClock clock;
-  final Duration timeout;
-  final int Function() progress;
-  final void Function() onStall;
-  late int _last;
-  Timer? _timer;
-  bool stalled = false;
-
-  void _schedule() {
-    _timer = clock.timer(timeout, () {
-      final now = progress();
-      if (now == _last) {
-        stalled = true;
-        onStall();
-        return;
-      }
-      _last = now;
-      _schedule();
-    });
-  }
-
-  void stop() => _timer?.cancel();
 }

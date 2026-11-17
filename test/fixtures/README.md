@@ -44,6 +44,12 @@ Fixtures contain no private keys. `AUTH` signatures are public by nature and use
 | `streams/delayed_ack_missing_window` | With delayed acknowledgements, an `OPEN` without a window is refused |
 | `streams/banner_nul_hides_last_feature` | A host banner ending in NUL loses its last feature |
 
+## Other fixtures
+
+- `apks/`: tiny test APKs and their manifests, built by `tool/build_test_apks.sh`.
+- `pm/`: package manager answers recorded from a device (see `pm/README.md`).
+- `keys/`: test-only key pairs made with `adb keygen`.
+
 ## Recording
 
 Recorded on 2026-11-17 from the Google TV emulator (Android 14). Re-record when adbd behaviour changes, keep the old files when the difference matters (devices in the field run old adbd), and never edit packets by hand.

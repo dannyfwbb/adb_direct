@@ -73,13 +73,15 @@ States: **planned** (designed, not written), **in progress**, **built** (impleme
 
 | Area | `adb` equivalent | State |
 | --- | --- | --- |
-| Streamed install with progress | `adb install` | planned |
-| Split APKs in one session | `adb install-multiple` | planned |
-| Several packages atomically | `adb install-multi-package` | planned |
-| Install options (replace, downgrade, grant, test, user) | `adb install -r -d -g -t --user` | planned |
-| Uninstall, keep data | `adb uninstall [-k]` | planned |
+| Streamed install with progress | `adb install` | built |
+| Split APKs in one session | `adb install-multiple` | built |
+| Several packages atomically | `adb install-multi-package` | built |
+| Install options (replace, downgrade, grant, test, user) | `adb install -r -d -g -t --user` | built |
+| Uninstall, keep data | `adb uninstall [-k]` | built |
 | Incremental install | `adb install --incremental` | planned |
-| `cmd` and `abb_exec` where the device has them, `pm` otherwise | — | planned |
+| `cmd` and `abb_exec` where the device has them, `pm` otherwise | — | built |
+| APEX modules | `adb install --apex` | planned |
+| App management (list, enable, disable, clear data, permissions) as typed helpers over `pm` | `adb shell pm …` | planned |
 
 ### Networking
 

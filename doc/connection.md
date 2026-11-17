@@ -32,7 +32,7 @@ A device without authentication (userdebug builds, some emulators) connects at s
 
 ## Streams
 
-`adb.open(service)` opens a stream to any device service (`shell:…`, `exec:…`, `sync:`, `tcp:8080`, …). Read `stream.input`; write with `stream.write`; `stream.close()` ends both directions (ADB streams have no half-close). Many streams share one connection.
+`adb.open(service)` opens a stream to any device service (`shell:…`, `exec:…`, `sync:`, `tcp:8080`, …). Read `stream.input`; write with `stream.write`; `stream.flush()` completes when the device has acknowledged everything written; `stream.acknowledgedBytes` counts it. `stream.close()` ends both directions (ADB streams have no half-close). Many streams share one connection.
 
 Flow control is ADB's own: the device is told it may send more only when your listener has received the data, so pausing the subscription slows the device down (whatever arrives while it is paused waits, unacknowledged, until it resumes); `write` completes when the data is on its way within the device's window. With delayed acknowledgements (devices that list `delayed_ack`, Android 14 and recent adbd updates), several writes are in flight at once.
 
@@ -57,9 +57,10 @@ The check opens a service that does not exist, which adbd refuses at once (well 
 | `allowPrompt` | true | Whether the key may be offered |
 | `acknowledgementTimeout` | 20 s | Waiting this long for an acknowledgement triggers a check of the device; a check without an answer for this long fails the connection |
 | `livenessInterval` | 10 s | Silence before checking the device is there; null turns it off |
+| `packageManagerTimeout` | 5 min | How long the package manager may take to answer (it verifies apps in silence) |
 | `transferStallTimeout` | 30 s | A file transfer with no progress for this long fails (see [files.md](files.md)) |
 | `receiveWindow` | 4 MiB | How much a device may send ahead on one stream (delayed acknowledgements); 1 B to 2 GiB |
-| `hostFeatures` | `shell_v2`, `stat_v2`, `ls_v2`, `sendrecv_v2`, `fixed_push_mkdir`, `delayed_ack` (what the library implements so far) | Features announced in `CNXN` |
+| `hostFeatures` | `shell_v2`, `cmd`, `abb_exec`, `stat_v2`, `ls_v2`, `sendrecv_v2`, `fixed_push_mkdir`, `delayed_ack` (what the library implements so far) | Features announced in `CNXN` |
 
 ## Tracing
 

@@ -21,6 +21,7 @@ export 'src/errors.dart';
 export 'src/probe/probe.dart' show AdbEndpoint, AdbEndpointKind, AdbProbe;
 export 'src/protocol/banner.dart' show AdbBanner, AdbDeviceState, AdbFeature;
 export 'src/protocol/sync_protocol.dart' show AdbDirectoryEntry, AdbFileStat;
+export 'src/services/packages.dart' show AdbApk, AdbInstallOptions, AdbPackages;
 export 'src/services/shell.dart'
     show AdbShell, AdbShellResult, AdbShellSession, shellQuote;
 export 'src/services/sync.dart' show AdbProgress, AdbSync;

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Copyright 2026 The adb_direct authors. SPDX-License-Identifier: Apache-2.0 -->
+<!-- An app without code, for install tests. Built by tool/build_test_apks.sh. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="app.adbdirect.testapp"
+    android:versionCode="1"
+    android:versionName="1.0">
+    <uses-sdk android:minSdkVersion="21" android:targetSdkVersion="34" />
+    <!-- debuggable: Android 12+ allows -d (downgrade) only for debuggable apps on user builds. -->
+    <application android:hasCode="false" android:debuggable="true" android:label="adb_direct test" />
+</manifest>

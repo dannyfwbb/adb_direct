@@ -9,5 +9,6 @@
 | [connection.md](connection.md) | Connecting, the approval prompt, probes, streams, flow control, a device that goes away, options, tracing |
 | [shell.md](shell.md) | Running commands, raw `exec`, interactive sessions |
 | [files.md](files.md) | Stat, list, read and write files; local files and directories |
+| [apps.md](apps.md) | Install, split APKs, several apps at once, uninstall, results |
 
 API documentation is generated from the code with `dart doc` once the package has an API.

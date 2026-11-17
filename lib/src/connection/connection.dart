@@ -11,6 +11,7 @@ import '../crypto/adb_key_pair.dart';
 import '../errors.dart';
 import '../protocol/banner.dart';
 import '../protocol/message.dart';
+import '../services/packages.dart';
 import '../services/shell.dart';
 import '../services/sync.dart';
 import '../stream/adb_stream.dart';
@@ -135,6 +136,13 @@ final class AdbConnection {
 
   /// Shell commands.
   late final AdbShell shell = AdbShell(this);
+
+  /// Apps: install, install several APKs or apps, uninstall.
+  late final AdbPackages packages = AdbPackages(
+    this,
+    stallTimeout: _options.transferStallTimeout,
+    answerTimeout: _options.packageManagerTimeout,
+  );
 
   /// Files: stat, list, read and write over the sync protocol.
   late final AdbSync sync = AdbSync(
