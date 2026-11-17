@@ -7,6 +7,7 @@
 | [errors.md](errors.md) | The error type, its codes and when each one is raised |
 | [keys.md](keys.md) | Key pairs: creating, storing, reusing adb's own keys, fingerprints |
 | [connection.md](connection.md) | Connecting, the approval prompt, wireless debugging (TLS), probes, streams, flow control, a device that goes away, options, tracing |
+| [discovery.md](discovery.md) | Finding devices: mDNS browsing, platform browsers, scanning |
 | [pairing.md](pairing.md) | Pairing with a code or a QR code (Android 11+ wireless debugging) |
 | [shell.md](shell.md) | Running commands, raw `exec`, interactive sessions |
 | [files.md](files.md) | Stat, list, read and write files; local files and directories |

@@ -17,10 +17,22 @@ export 'src/connection/connection.dart' show AdbConnection;
 export 'src/connection/options.dart' show AdbConnectOptions;
 export 'src/crypto/adb_key_pair.dart' show AdbKeyPair;
 export 'src/crypto/adb_public_key.dart' show AdbPublicKey;
+export 'src/discovery/adb_service.dart'
+    show
+        AdbService,
+        AdbServiceBrowser,
+        AdbServiceBrowserPairing,
+        AdbServiceEvent,
+        AdbServiceFound,
+        AdbServiceLost,
+        AdbServiceType,
+        AdbServiceUpdated;
+export 'src/discovery/mdns_browser.dart' show AdbMdnsBrowser;
 export 'src/errors.dart';
 export 'src/pairing/pairing.dart' show AdbPairedDevice, AdbPairing;
 export 'src/pairing/pairing_qr.dart' show AdbPairingQr, AdbPairingService;
-export 'src/probe/probe.dart' show AdbEndpoint, AdbEndpointKind, AdbProbe;
+export 'src/probe/probe.dart'
+    show AdbEndpoint, AdbEndpointKind, AdbProbe, AdbScanResult;
 export 'src/protocol/banner.dart' show AdbBanner, AdbDeviceState, AdbFeature;
 export 'src/protocol/sync_protocol.dart' show AdbDirectoryEntry, AdbFileStat;
 export 'src/services/backup.dart' show AdbBackup;

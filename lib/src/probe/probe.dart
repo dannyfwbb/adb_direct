@@ -1,7 +1,10 @@
 // Copyright 2026 The adb_direct authors
 // SPDX-License-Identifier: Apache-2.0
 
+import 'dart:async';
 import 'dart:convert';
+
+import 'package:meta/meta.dart';
 
 import '../clock.dart';
 import '../connection/handshake.dart';
@@ -137,4 +140,92 @@ abstract final class AdbProbe {
       link.fail(const AdbCancelledException('Probe finished'));
     }
   }
+
+  /// Identifies many endpoints at once, for a scan: at most [concurrency]
+  /// connections open together; [timeout] bounds the connect and then the
+  /// answer, so a silent endpoint costs up to twice it. Pausing the
+  /// subscription stops new probes; cancelling lets running ones finish
+  /// their timeout and close. Emits a result for
+  /// each target where adbd answered (any [AdbEndpointKind] but
+  /// [AdbEndpointKind.notAdb]), in the order they answer; targets that
+  /// refuse, time out or speak something else are left out.
+  ///
+  /// Like [identify] it never authenticates, so no device shows a prompt.
+  /// Which targets to try (a subnet, a port list) is the caller's policy.
+  static Stream<AdbScanResult> scan(
+    Iterable<(Object host, int port)> targets, {
+    int concurrency = 32,
+    Duration timeout = const Duration(seconds: 1),
+    AdbClock clock = AdbClock.system,
+  }) {
+    if (concurrency < 1) {
+      throw ArgumentError.value(concurrency, 'concurrency', 'must be >= 1');
+    }
+    late final StreamController<AdbScanResult> controller;
+    final pending = targets.iterator;
+    var running = 0;
+    var cancelled = false;
+
+    var exhausted = false;
+    void next() {
+      while (!cancelled &&
+          !controller.isPaused &&
+          !exhausted &&
+          running < concurrency) {
+        try {
+          if (!pending.moveNext()) {
+            exhausted = true;
+            break;
+          }
+        } on Object catch (e, s) {
+          // The caller's target list failed: report it, stop taking more.
+          controller.addError(e, s);
+          exhausted = true;
+          break;
+        }
+        final (host, port) = pending.current;
+        running++;
+        identify(host, port, timeout: timeout, clock: clock)
+            .then<AdbEndpoint?>((e) => e, onError: (Object _) => null)
+            .then((endpoint) {
+              running--;
+              if (cancelled) return;
+              if (endpoint != null && endpoint.isAdb) {
+                controller.add(AdbScanResult(host, port, endpoint));
+              }
+              next();
+            })
+            .ignore();
+      }
+      if (exhausted && running == 0 && !cancelled && !controller.isClosed) {
+        unawaited(controller.close());
+      }
+    }
+
+    controller = StreamController<AdbScanResult>(
+      onListen: next,
+      onResume: next,
+      onCancel: () => cancelled = true,
+    );
+    return controller.stream;
+  }
+}
+
+/// An endpoint a scan found speaking ADB.
+@immutable
+final class AdbScanResult {
+  /// Creates one.
+  const AdbScanResult(this.host, this.port, this.endpoint);
+
+  /// The host tried.
+  final Object host;
+
+  /// The port tried.
+  final int port;
+
+  /// How it answered.
+  final AdbEndpoint endpoint;
+
+  @override
+  String toString() => 'AdbScanResult($host:$port ${endpoint.kind.name})';
 }

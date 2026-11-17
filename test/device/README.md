@@ -56,3 +56,11 @@ ADB_DIRECT_TEST_KEY=$HOME/.android/adbkey dart test -t device test/device/daemon
 ```
 
 Set `ADB_DIRECT_TEST_ROOTABLE=1` only for a device that may be rooted and unrooted (the phone emulator). Reboot has no test: a rebooted emulator listens on TCP only after `adb tcpip` again. JDWP needs a debuggable app running; `ADB_DIRECT_TEST_BUGREPORT=1` adds the bug report (minutes on a real device).
+
+## mDNS
+
+`test/device/mdns_device_test.dart` browses a service that `tool/mdns_publish.py` publishes through the local Avahi daemon (Linux, `python3` with the `dbus` module, no root). It uses its own type `_adbdirect-test._tcp`, so it touches no device:
+
+```bash
+ADB_DIRECT_TEST_MDNS=1 dart test -t device test/device/mdns_device_test.dart
+```
