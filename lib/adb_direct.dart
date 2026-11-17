@@ -7,5 +7,7 @@
 library;
 
 export 'src/clock.dart' show AdbClock;
+export 'src/crypto/adb_key_pair.dart' show AdbKeyPair;
+export 'src/crypto/adb_public_key.dart' show AdbPublicKey;
 export 'src/errors.dart';
 export 'src/protocol/banner.dart' show AdbBanner, AdbDeviceState, AdbFeature;

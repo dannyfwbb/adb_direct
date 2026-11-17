@@ -2,7 +2,7 @@
 
 `adb_direct` aims to do everything a user of `adb` needs from a device, from pure Dart, with every device that speaks ADB: Android 4.4 to the newest, phones, TVs, emulators, watches and cars. This page lists every area and its state. Anything that cannot be done in pure Dart gets an interface so it can be plugged in.
 
-States: **planned** (designed, not written), **in progress**, **done** (with the version that shipped it).
+States: **planned** (designed, not written), **in progress**, **built** (implemented and tested, not yet released), **done** (with the version that shipped it).
 
 ## Coverage
 
@@ -21,10 +21,10 @@ States: **planned** (designed, not written), **in progress**, **done** (with the
 
 | Area | `adb` equivalent | State |
 | --- | --- | --- |
-| RSA key pair, ADB public key format | `adb keygen` | planned |
+| RSA key pair, ADB public key format | `adb keygen` | built |
 | Signing the device's token, offering the public key | the "Allow debugging?" flow | planned |
-| Self-signed certificate for TLS and pairing | — | planned |
-| Reading and writing `adbkey` / `adbkey.pub` files | `~/.android/adbkey` | planned |
+| Self-signed certificate for TLS and pairing | — | built |
+| Reading and writing `adbkey` / `adbkey.pub` files | `~/.android/adbkey` | built |
 
 ### Discovery
 

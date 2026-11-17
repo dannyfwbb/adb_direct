@@ -1,6 +1,8 @@
 # Errors
 
-Every failure is an `AdbException`. It is a sealed class, so a `switch` over its subclasses is exhaustive; `code` gives the same information as a stable value for logs, and `cause` keeps the underlying error (an `OSError`, a TLS error, …) when there is one.
+Every failure of an operation on a device is an `AdbException`. Parsing input the caller gives (a PEM key, an `adbkey.pub` line) throws `FormatException` instead, as Dart's own parsers do; invalid arguments throw `ArgumentError`.
+
+An `AdbException` is a sealed class, so a `switch` over its subclasses is exhaustive; `code` gives the same information as a stable value for logs, and `cause` keeps the underlying error (an `OSError`, a TLS error, …) when there is one.
 
 | Subclass | `code` | When |
 | --- | --- | --- |
