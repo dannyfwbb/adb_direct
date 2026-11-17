@@ -1,0 +1,7 @@
+{"fixture": "shell/v1", "device": "Google TV emulator, Android 14 (API 34), user build", "adbd": "com.google.android.adbd 340090000", "recorded": "2026-11-17", "note": "shell: merges stdout and stderr and has no exit code. The device sends CLSE twice.", "starts": "online", "host_features": "shell_v2,cmd,stat_v2,ls_v2"}
+{"dir": ">", "cmd": "OPEN", "arg0": 1, "arg1": 0, "data": "7368656c6c3a6563686f2068693b206563686f20657272203e26323b2065786974203300", "raw": "4f50454e010000000000000024000000630b0000b0afbab17368656c6c3a6563686f2068693b206563686f20657272203e26323b2065786974203300"}
+{"dir": "<", "cmd": "OKAY", "arg0": 4, "arg1": 1, "data": "", "raw": "4f4b415904000000010000000000000000000000b0b4bea6"}
+{"dir": "<", "cmd": "WRTE", "arg0": 4, "arg1": 1, "data": "68690a6572720a", "raw": "5752544504000000010000000700000000000000a8adabba68690a6572720a"}
+{"dir": ">", "cmd": "OKAY", "arg0": 1, "arg1": 4, "data": "", "raw": "4f4b415901000000040000000000000000000000b0b4bea6"}
+{"dir": "<", "cmd": "CLSE", "arg0": 4, "arg1": 1, "data": "", "raw": "434c534504000000010000000000000000000000bcb3acba"}
+{"dir": "<", "cmd": "CLSE", "arg0": 4, "arg1": 1, "data": "", "raw": "434c534504000000010000000000000000000000bcb3acba"}

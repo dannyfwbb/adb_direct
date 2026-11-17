@@ -1,0 +1,3 @@
+{"fixture": "streams/banner_nul_hides_last_feature", "device": "Google TV emulator, Android 14 (API 34), user build", "adbd": "com.google.android.adbd 340090000", "recorded": "2026-11-17", "note": "Host banner ends with NUL: adbd reads the last feature as \"delayed_ack\\0\", so delayed ACK is off and an OPEN with a window is refused.", "starts": "online", "host_features": "shell_v2,cmd,stat_v2,ls_v2,delayed_ack\\0"}
+{"dir": ">", "cmd": "OPEN", "arg0": 1, "arg1": 33554432, "data": "7368656c6c3a6563686f20686900", "raw": "4f50454e01000000000000020e000000e2040000b0afbab17368656c6c3a6563686f20686900"}
+{"dir": "<", "cmd": "CLSE", "arg0": 0, "arg1": 1, "data": "", "raw": "434c534500000000010000000000000000000000bcb3acba"}

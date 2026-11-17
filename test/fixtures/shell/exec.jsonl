@@ -1,0 +1,7 @@
+{"fixture": "shell/exec", "device": "Google TV emulator, Android 14 (API 34), user build", "adbd": "com.google.android.adbd 340090000", "recorded": "2026-11-17", "note": "exec: raw bytes, no protocol.", "starts": "online", "host_features": "shell_v2,cmd,stat_v2,ls_v2"}
+{"dir": ">", "cmd": "OPEN", "arg0": 1, "arg1": 0, "data": "657865633a6563686f2072617700", "raw": "4f50454e01000000000000000e000000e8040000b0afbab1657865633a6563686f2072617700"}
+{"dir": "<", "cmd": "OKAY", "arg0": 8, "arg1": 1, "data": "", "raw": "4f4b415908000000010000000000000000000000b0b4bea6"}
+{"dir": "<", "cmd": "WRTE", "arg0": 8, "arg1": 1, "data": "7261770a", "raw": "5752544508000000010000000400000000000000a8adabba7261770a"}
+{"dir": ">", "cmd": "OKAY", "arg0": 1, "arg1": 8, "data": "", "raw": "4f4b415901000000080000000000000000000000b0b4bea6"}
+{"dir": "<", "cmd": "CLSE", "arg0": 8, "arg1": 1, "data": "", "raw": "434c534508000000010000000000000000000000bcb3acba"}
+{"dir": "<", "cmd": "CLSE", "arg0": 8, "arg1": 1, "data": "", "raw": "434c534508000000010000000000000000000000bcb3acba"}

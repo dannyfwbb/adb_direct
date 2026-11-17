@@ -1,0 +1,7 @@
+{"fixture": "streams/delayed_ack_open", "device": "Google TV emulator, Android 14 (API 34), user build", "adbd": "com.google.android.adbd 340090000", "recorded": "2026-11-17", "note": "Both sides list delayed_ack: OPEN carries our window, the device OKAY carries its window (32 MiB), our OKAYs carry consumed bytes.", "starts": "online", "host_features": "delayed_ack,shell_v2,cmd,stat_v2,ls_v2"}
+{"dir": ">", "cmd": "OPEN", "arg0": 1, "arg1": 33554432, "data": "7368656c6c3a6563686f20686900", "raw": "4f50454e01000000000000020e000000e2040000b0afbab17368656c6c3a6563686f20686900"}
+{"dir": "<", "cmd": "OKAY", "arg0": 11, "arg1": 1, "data": "00000002", "raw": "4f4b41590b000000010000000400000000000000b0b4bea600000002"}
+{"dir": "<", "cmd": "WRTE", "arg0": 11, "arg1": 1, "data": "68690a", "raw": "575254450b000000010000000300000000000000a8adabba68690a"}
+{"dir": ">", "cmd": "OKAY", "arg0": 1, "arg1": 11, "data": "03000000", "raw": "4f4b4159010000000b0000000400000003000000b0b4bea603000000"}
+{"dir": "<", "cmd": "CLSE", "arg0": 11, "arg1": 1, "data": "", "raw": "434c53450b000000010000000000000000000000bcb3acba"}
+{"dir": "<", "cmd": "CLSE", "arg0": 11, "arg1": 1, "data": "", "raw": "434c53450b000000010000000000000000000000bcb3acba"}
