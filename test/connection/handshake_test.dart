@@ -1,7 +1,9 @@
 // Copyright 2026 The adb_direct authors
 // SPDX-License-Identifier: Apache-2.0
 
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:adb_direct/adb_direct.dart';
@@ -373,5 +375,90 @@ void main() {
       throwsA(isA<AdbTimeoutException>()),
     );
     await adbd.done();
+  });
+
+  group('cancelling a connection attempt', () {
+    test('while "Allow debugging?" waits: at once, socket closed', () async {
+      final adbd = await FakeAdbd.start((session) async {
+        await session.receive();
+        session.send(AdbMessage.auth(AdbAuthType.token, randomToken()));
+        await session.receive();
+        session.send(AdbMessage.auth(AdbAuthType.token, randomToken()));
+        await session.receive(); // the public key
+        await session.expectClientClose(timeout: const Duration(seconds: 2));
+      });
+      final cancel = Completer<void>();
+      final watch = Stopwatch()..start();
+      final connecting = AdbConnection.connect(
+        adbd.address,
+        adbd.port,
+        key: testKey,
+        cancelOn: cancel.future,
+        onWaitingForApproval: cancel.complete,
+      );
+      await expectLater(connecting, throwsA(isA<AdbCancelledException>()));
+      expect(watch.elapsed, lessThan(const Duration(seconds: 2)));
+      await adbd.done();
+    });
+
+    test('already cancelled: no connection is made', () async {
+      final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      var accepted = 0;
+      server.listen((socket) {
+        accepted++;
+        socket.destroy();
+      });
+      await expectLater(
+        AdbConnection.connect(
+          InternetAddress.loopbackIPv4,
+          server.port,
+          key: testKey,
+          cancelOn: Future<void>.value(),
+        ),
+        throwsA(isA<AdbCancelledException>()),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(accepted, 0);
+      await server.close();
+    });
+
+    test('a TCP connect that hangs stops when cancelled', () async {
+      // A listening socket that never accepts still completes the TCP
+      // handshake, so use one that is full: backlog 0 and one waiting
+      // client. Where that is not enough the connect simply succeeds and
+      // the handshake is cancelled instead; either way it is cancelled.
+      final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      final cancel = Completer<void>();
+      Timer(const Duration(milliseconds: 100), cancel.complete);
+      await expectLater(
+        AdbConnection.connect(
+          InternetAddress.loopbackIPv4,
+          server.port,
+          key: testKey,
+          cancelOn: cancel.future,
+        ),
+        throwsA(isA<AdbCancelledException>()),
+      );
+      await server.close();
+    });
+
+    test('after the connection is up, cancelling does nothing', () async {
+      final adbd = await FakeAdbd.start((session) async {
+        await acceptHandshake(session);
+        await session.expectQuiet(const Duration(milliseconds: 100));
+      });
+      final cancel = Completer<void>();
+      final adb = await AdbConnection.connect(
+        adbd.address,
+        adbd.port,
+        key: testKey,
+        cancelOn: cancel.future,
+      );
+      cancel.complete();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(adb.isClosed, isFalse);
+      await adbd.done();
+      await adb.close(drain: false);
+    });
   });
 }

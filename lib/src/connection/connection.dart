@@ -51,10 +51,15 @@ final class AdbConnection {
   /// shows "Allow debugging?"; [onWaitingForApproval] is called then, and
   /// the call waits up to [AdbConnectOptions.approvalTimeout] for the user.
   ///
+  /// When [cancelOn] completes before the connection is up (the user backed
+  /// out of "Allow debugging?", say), the attempt stops at once, the socket
+  /// is closed, and the call throws [AdbCancelledException].
+  ///
   /// Throws [AdbUnreachableException], [AdbRefusedException],
   /// [AdbUnauthorizedException], [AdbTimeoutException],
-  /// [AdbProtocolException], or [AdbNotSupportedException] for a TLS
-  /// (wireless debugging) port; [ArgumentError] for invalid [options].
+  /// [AdbProtocolException], [AdbCancelledException], or
+  /// [AdbNotSupportedException] for a TLS (wireless debugging) port;
+  /// [ArgumentError] for invalid [options].
   static Future<AdbConnection> connect(
     Object host,
     int port, {
@@ -62,6 +67,7 @@ final class AdbConnection {
     List<AdbKeyPair> extraKeys = const [],
     AdbConnectOptions options = const AdbConnectOptions(),
     void Function()? onWaitingForApproval,
+    Future<void>? cancelOn,
     AdbClock clock = AdbClock.system,
     AdbTracer? tracer,
   }) async {
@@ -70,8 +76,19 @@ final class AdbConnection {
       host,
       port,
       timeout: options.connectTimeout,
+      cancelOn: cancelOn,
     );
     final link = MessageLink(transport, clock: clock, tracer: tracer)..start();
+    var connected = false;
+    void cancel() {
+      if (!connected) {
+        link.fail(
+          const AdbCancelledException('The connection attempt was cancelled'),
+        );
+      }
+    }
+
+    cancelOn?.then((_) => cancel(), onError: (Object _) => cancel()).ignore();
     try {
       final result = await Handshake(
         link,
@@ -79,6 +96,8 @@ final class AdbConnection {
         options: options,
         onWaitingForApproval: onWaitingForApproval,
       ).run();
+      if (link.failure case final failure?) throw failure;
+      connected = true;
       return AdbConnection._(link, result, options);
     } on Object catch (e) {
       link.fail(
@@ -168,13 +187,16 @@ final class AdbConnection {
   AdbStream openStream(String service) => AdbStream(_openEndpoint(service));
 
   /// Closes the connection. Open streams end; their pending calls fail with
-  /// [AdbCancelledException]. What is queued is sent first, for at most
-  /// [AdbConnectOptions.acknowledgementTimeout].
-  Future<void> close() async {
+  /// [AdbCancelledException].
+  ///
+  /// With [drain] (the default) bytes already written are sent first, for
+  /// up to [AdbConnectOptions.acknowledgementTimeout]; without it the socket
+  /// closes at once, which is what to do when the device may be gone.
+  Future<void> close({bool drain = true}) async {
     if (_closeReason == null) {
       await _link.close(
         const AdbCancelledException('The connection was closed by the caller'),
-        drainTimeout: _options.acknowledgementTimeout,
+        drainTimeout: drain ? _options.acknowledgementTimeout : Duration.zero,
       );
     }
     return done;

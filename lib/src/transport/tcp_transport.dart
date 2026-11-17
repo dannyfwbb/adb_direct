@@ -22,19 +22,48 @@ final class TcpTransport implements AdbTransport {
   /// Throws [AdbRefusedException] when the device actively refused (nothing
   /// listens on the port), [AdbUnreachableException] for everything else:
   /// no route, no network, or no answer in time.
+  ///
+  /// When [cancelOn] completes first, the attempt stops and the call throws
+  /// [AdbCancelledException].
   static Future<TcpTransport> connect(
     Object host,
     int port, {
     required Duration timeout,
+    Future<void>? cancelOn,
   }) async {
+    var cancelled = false;
+    ConnectionTask<RawSocket>? task;
+    void cancel() {
+      cancelled = true;
+      task?.cancel();
+    }
+
+    cancelOn?.then((_) => cancel(), onError: (Object _) => cancel()).ignore();
     try {
-      final socket = await RawSocket.connect(host, port, timeout: timeout);
+      task = await RawSocket.startConnect(host, port);
+      if (cancelled) task.cancel();
+      final socket = await task.socket.timeout(
+        timeout,
+        onTimeout: () {
+          task?.cancel();
+          throw const SocketException('Connection timed out');
+        },
+      );
+      if (cancelled) {
+        socket.close().ignore();
+        throw _cancelled;
+      }
       socket.setOption(SocketOption.tcpNoDelay, true);
       return TcpTransport._(socket);
     } on SocketException catch (e) {
+      if (cancelled) throw _cancelled;
       throw mapConnectError(e, '$host:$port');
     }
   }
+
+  static const _cancelled = AdbCancelledException(
+    'The connection attempt was cancelled',
+  );
 
   /// The [AdbException] for a failed connect to [target].
   static AdbException mapConnectError(SocketException e, String target) {

@@ -19,6 +19,8 @@ await adb.close();
 3. If none is trusted and `AdbConnectOptions.allowPrompt` is true (the default), it offers `key`'s public key. The device shows "Allow debugging?" with the key's fingerprint (`key.publicKey.md5Fingerprint`), and `onWaitingForApproval` is called. The call then waits up to `approvalTimeout` (2 minutes) for the user.
    - "Allow" connects. "Always allow from this computer" also makes the device trust the key from then on.
    - "Cancel" sends nothing back: the device simply stays silent, so a refusal and a user who has not answered yet look the same. The call fails with `AdbUnauthorizedException` when `approvalTimeout` runs out.
+
+To stop an attempt early (the user backed out, or the app wants another device), pass `cancelOn`: when that future completes before the connection is up, the TCP connect or the handshake stops at once, the socket closes, and `connect` throws `AdbCancelledException`. Once connected, `cancelOn` is ignored.
 4. With `allowPrompt: false`, an untrusted key fails at once with `AdbUnauthorizedException`, and the device's user sees nothing.
 
 A device without authentication (userdebug builds, some emulators) connects at step 1. A wireless-debugging port answers with `STLS` (TLS), which this version reports as `AdbNotSupportedException`.
@@ -45,7 +47,7 @@ A switched-off TV or a dropped Wi-Fi leaves a socket that never fails by itself.
 
 The check opens a service that does not exist, which adbd refuses at once (well under a millisecond, nothing logged on the device). An answer means the device is fine and the waiting stream is simply slow: enforce your own deadline there (`AdbShell.run` has one). No answer within `acknowledgementTimeout` means the device is gone: the connection fails with `AdbTimeoutException`, and so does every stream and pending call on it, so nothing is left waiting. `adb.done` completes and `adb.closeReason` says why. Measured on a frozen emulator: noticed after 28 s.
 
-`close()` sends what is queued for at most `acknowledgementTimeout`, then drops the connection.
+`close()` sends what is queued for at most `acknowledgementTimeout`, then drops the connection. `close(drain: false)` drops it at once: use it when the device may be gone, so closing does not wait on it.
 
 ## Options
 
