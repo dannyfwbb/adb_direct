@@ -4,6 +4,7 @@
 import 'dart:async';
 import 'dart:collection';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:adb_direct/src/errors.dart';
 import 'package:adb_direct/src/protocol/message.dart';
@@ -122,9 +123,21 @@ final class FakeAdbd {
 /// test bug and throw [StateError].
 final class FakeAdbdSession {
   FakeAdbdSession._(this._socket) {
+    // Writes to a client that already went away fail on `done`; the session
+    // learns about the close from the read side, so these are expected.
+    unawaited(_socket.done.then((_) {}, onError: (Object _) {}));
     _subscription = _socket.listen(
       _onData,
-      onError: (Object error) => _fail(FakeAdbdFailure('socket error: $error')),
+      onError: (Object error) {
+        // A client that closes with unread data gets reset: still a close.
+        if (error is SocketException &&
+            const {104, 54, 10054}.contains(error.osError?.errorCode)) {
+          _clientClosed = true;
+          _wake();
+          return;
+        }
+        _fail(FakeAdbdFailure('socket error: $error'));
+      },
       onDone: () {
         _clientClosed = true;
         _wake();
@@ -134,7 +147,10 @@ final class FakeAdbdSession {
 
   final Socket _socket;
   late final StreamSubscription<List<int>> _subscription;
-  final AdbMessageReader _reader = AdbMessageReader();
+  late final AdbMessageReader _reader = AdbMessageReader(
+    onRawMessage: _receivedRaw.add,
+  );
+  final List<Uint8List> _receivedRaw = [];
   final Queue<AdbMessage> _inbox = Queue<AdbMessage>();
   final List<AdbMessage> _received = [];
   Completer<void>? _waiter;
@@ -146,6 +162,10 @@ final class FakeAdbdSession {
 
   /// Every message the client sent so far.
   List<AdbMessage> get received => List.unmodifiable(_received);
+
+  /// The exact bytes of every message the client sent, in [received] order
+  /// (header included, so checksums can be checked).
+  List<Uint8List> get receivedRaw => List.unmodifiable(_receivedRaw);
 
   /// Sends [message] to the client.
   void send(AdbMessage message) =>
@@ -281,10 +301,12 @@ final class FakeAdbdSession {
   /// Ends the session: sends what is queued, then closes. A client that
   /// went away makes the flush fail; then the socket is just dropped.
   Future<void> _dispose() async {
+    const grace = Duration(seconds: 1);
     try {
-      await _socket.flush();
-      await _socket.close();
-    } on SocketException {
+      // flush() never completes on a socket whose peer is gone: bound it.
+      await _socket.flush().timeout(grace);
+      await _socket.close().timeout(grace);
+    } on Object {
       // The client is gone; nothing left to deliver.
     } finally {
       await _subscription.cancel();

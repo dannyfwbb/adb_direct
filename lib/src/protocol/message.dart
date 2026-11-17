@@ -283,6 +283,7 @@ final class AdbMessageReader {
   AdbMessageReader({
     this.maxPayload = AdbProtocol.maxPayload,
     this.onUnknownCommand,
+    this.onRawMessage,
   });
 
   /// The largest payload accepted. A larger `data_length` is a protocol
@@ -292,6 +293,10 @@ final class AdbMessageReader {
   /// Receives the messages that were skipped because their command is
   /// unknown.
   final AdbUnknownCommandCallback? onUnknownCommand;
+
+  /// Receives the exact bytes (header and payload) of each message
+  /// returned, for tracing and recording. Costs a copy per message when set.
+  final void Function(Uint8List raw)? onRawMessage;
 
   final ByteQueue _buffer = ByteQueue();
 
@@ -347,8 +352,21 @@ final class AdbMessageReader {
       }
       final arg0 = _buffer.peekUint32Le(4);
       final arg1 = _buffer.peekUint32Le(8);
-      _buffer.skip(AdbProtocol.headerLength);
-      return AdbMessage(command, arg0, arg1, _buffer.take(length));
+      final onRaw = onRawMessage;
+      if (onRaw == null) {
+        _buffer.skip(AdbProtocol.headerLength);
+        return AdbMessage(command, arg0, arg1, _buffer.take(length));
+      }
+      final raw = Uint8List(AdbProtocol.headerLength + length)
+        ..setRange(
+          0,
+          AdbProtocol.headerLength,
+          _buffer.take(AdbProtocol.headerLength),
+        );
+      final payload = _buffer.take(length);
+      raw.setRange(AdbProtocol.headerLength, raw.length, payload);
+      onRaw(raw);
+      return AdbMessage(command, arg0, arg1, payload);
     }
     return null;
   }

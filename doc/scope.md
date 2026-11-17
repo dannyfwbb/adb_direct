@@ -10,7 +10,7 @@ States: **planned** (designed, not written), **in progress**, **built** (impleme
 
 | Area | `adb` equivalent | State |
 | --- | --- | --- |
-| TCP, classic network debugging | `adb connect host:5555` | planned |
+| TCP, classic network debugging | `adb connect host:5555` | built |
 | TLS (Android 11+ wireless debugging) | `adb connect` to an `_adb-tls-connect` service | planned |
 | Pairing with a six-digit code | `adb pair host:port code` | planned |
 | Pairing by QR code | the QR flow in Android Studio | planned |
@@ -22,7 +22,7 @@ States: **planned** (designed, not written), **in progress**, **built** (impleme
 | Area | `adb` equivalent | State |
 | --- | --- | --- |
 | RSA key pair, ADB public key format | `adb keygen` | built |
-| Signing the device's token, offering the public key | the "Allow debugging?" flow | planned |
+| Signing the device's token, offering the public key | the "Allow debugging?" flow | built |
 | Self-signed certificate for TLS and pairing | — | built |
 | Reading and writing `adbkey` / `adbkey.pub` files | `~/.android/adbkey` | built |
 
@@ -33,14 +33,14 @@ States: **planned** (designed, not written), **in progress**, **built** (impleme
 | mDNS service names, parsing announcements | — | planned |
 | Built-in mDNS browsing on platforms where multicast works from `dart:io` | `adb mdns services` | planned |
 | A hook for platform discovery (iOS `NWBrowser`) | — | planned |
-| A probe that tells whether an address speaks ADB, without authenticating | — | planned |
-| A check whether a device already trusts a key, without asking its user | — | planned |
+| A probe that tells whether an address speaks ADB, without authenticating | — | built |
+| A check whether a device already trusts a key, without asking its user | — | built |
 
 ### Device state
 
 | Area | `adb` equivalent | State |
 | --- | --- | --- |
-| Identity and features from the connection banner | `adb get-state`, `adb features` | planned |
+| Identity and features from the connection banner | `adb get-state`, `adb features` | built |
 | Serial, properties | `adb get-serialno`, `getprop` | planned |
 | Reboot to system, bootloader, recovery, sideload | `adb reboot …` | planned |
 | Restart adbd as root, back as user | `adb root`, `adb unroot` | planned |
@@ -52,12 +52,12 @@ States: **planned** (designed, not written), **in progress**, **built** (impleme
 
 | Area | `adb` equivalent | State |
 | --- | --- | --- |
-| Shell protocol v2: stdout, stderr, exit code | `adb shell cmd` | planned |
-| Fallback for devices without `shell_v2` | — | planned |
-| Interactive shell with a PTY, window size, stdin | `adb shell` | planned |
-| Raw exec without a PTY | `adb exec-out` | planned |
-| Streaming output (logcat and the like) | `adb logcat` | planned |
-| Deadlines per command, output limits | — | planned |
+| Shell protocol v2: stdout, stderr, exit code | `adb shell cmd` | built |
+| Fallback for devices without `shell_v2` | — | built |
+| Interactive shell with a PTY, window size, stdin | `adb shell` | built |
+| Raw exec without a PTY | `adb exec-out` | built |
+| Streaming output (logcat and the like) | `adb logcat` | built |
+| Deadlines per command, output limits | — | built |
 
 ### Files
 
@@ -87,7 +87,7 @@ States: **planned** (designed, not written), **in progress**, **built** (impleme
 | --- | --- | --- |
 | Forward a local port to the device (`tcp:`, `localabstract:`, `localreserved:`, `localfilesystem:`, `jdwp:`) | `adb forward` | planned |
 | Reverse forwarding | `adb reverse` | planned |
-| Opening any device service as a stream | — | planned |
+| Opening any device service as a stream | — | built |
 
 ### Other services
 

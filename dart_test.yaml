@@ -1,0 +1,5 @@
+tags:
+  device:
+    # Needs a real adbd; see test/device/README.md. Skipped unless
+    # ADB_DIRECT_TEST_HOST is set.
+  openssl:
