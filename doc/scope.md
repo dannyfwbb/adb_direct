@@ -95,6 +95,9 @@ States: **planned** (designed, not written), **in progress**, **done** (with the
 | --- | --- | --- |
 | Bug report | `adb bugreport` | planned |
 | JDWP process list | `adb jdwp`, `track-jdwp` | planned |
+| App process tracking (pid, debuggable, profileable, architecture, packages) | `adb track-app` | planned |
+| Device files opened directly | `dev:`, `dev-raw:` services | planned |
+| Screenshots and log streaming helpers | `adb exec-out screencap -p`, `adb logcat` | planned |
 | Sideload an OTA in recovery | `adb sideload` | planned |
 | Backup and restore (deprecated on the device side) | `adb backup`, `adb restore` | planned |
 
