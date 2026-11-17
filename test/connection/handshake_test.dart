@@ -223,19 +223,6 @@ void main() {
     await adbd.done();
   });
 
-  test('a TLS port is reported as not supported yet', () async {
-    final adbd = await FakeAdbd.start((session) async {
-      await session.receive();
-      session.send(AdbMessage.stls());
-      await session.expectClientClose();
-    });
-    await expectLater(
-      AdbConnection.connect(adbd.address, adbd.port, key: testKey),
-      throwsA(isA<AdbNotSupportedException>()),
-    );
-    await adbd.done();
-  });
-
   test('a silent device fails the handshake after its timeout', () async {
     final clock = FakeClock();
     final adbd = await FakeAdbd.start((session) async {

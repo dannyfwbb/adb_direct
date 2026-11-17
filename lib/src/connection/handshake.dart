@@ -1,7 +1,10 @@
 // Copyright 2026 The adb_direct authors
 // SPDX-License-Identifier: Apache-2.0
 
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
 
 import '../crypto/adb_key_pair.dart';
 import '../errors.dart';
@@ -20,6 +23,8 @@ final class HandshakeResult {
     required this.maxPayload,
     required this.delayedAck,
     required this.key,
+    this.tls = false,
+    this.deviceCertificate,
   });
 
   /// The device's banner.
@@ -36,6 +41,24 @@ final class HandshakeResult {
 
   /// The key the device accepted, or null when it did not ask for one.
   final AdbKeyPair? key;
+
+  /// Whether the connection runs over TLS (a wireless debugging port).
+  final bool tls;
+
+  /// The device's TLS certificate (DER), when [tls].
+  final Uint8List? deviceCertificate;
+}
+
+/// Thrown by [Handshake.run] when the device closed the TLS session before
+/// `CNXN`: it does not trust the key presented, and the caller may try the
+/// next key on a new connection.
+final class TlsKeyRejected implements Exception {
+  /// Creates the signal; [cause] is how the session ended.
+  const TlsKeyRejected(this.cause);
+
+  /// The close or error seen. A dropped network looks the same from here,
+  /// so callers keep it for the final error.
+  final AdbException cause;
 }
 
 /// The classic `CNXN`/`AUTH` handshake.
@@ -48,7 +71,15 @@ final class HandshakeResult {
 /// ```
 ///
 /// A device without authentication answers `CNXN` with `CNXN`. A device on
-/// a wireless-debugging port answers with `STLS`, which needs TLS.
+/// a wireless-debugging port answers with `STLS`:
+///
+/// ```
+/// < STLS                   > STLS, then TLS 1.3 with the key's certificate
+/// < CNXN(…) inside TLS     (no AUTH: the certificate is the authentication)
+/// ```
+///
+/// One TLS handshake presents one key ([tlsKey]); a device that does not
+/// trust it closes the session, and [run] throws [TlsKeyRejected].
 final class Handshake {
   /// Prepares a handshake over [link] trying [keys] in order.
   Handshake(
@@ -56,7 +87,11 @@ final class Handshake {
     required this.keys,
     required this.options,
     this.onWaitingForApproval,
+    this.tlsKey = 0,
   });
+
+  /// The index in [keys] of the key to present if the device asks for TLS.
+  final int tlsKey;
 
   /// The link, started and not yet routed.
   final MessageLink link;
@@ -95,31 +130,68 @@ final class Handshake {
     var nextKey = 0;
     var offered = false;
     AdbKeyPair? accepted;
+    var tls = false;
+    Uint8List? deviceCertificate;
     // One deadline per phase (before the offer, then the user's answer):
     // messages that do not move the handshake on cannot extend it.
     var deadline = link.clock.elapsed + options.handshakeTimeout;
     while (true) {
       final left = deadline - link.clock.elapsed;
-      final message = await link.next(
-        timeout: left > Duration.zero ? left : Duration.zero,
-        onTimeout: () => offered
-            ? AdbUnauthorizedException(
-                'The device did not accept the key within '
-                '${options.approvalTimeout}',
-              )
-            : AdbTimeoutException(
-                'The device did not answer the handshake within '
-                '${options.handshakeTimeout}',
-              ),
-      );
+      final AdbMessage message;
+      try {
+        message = await link.next(
+          timeout: left > Duration.zero ? left : Duration.zero,
+          onTimeout: () => offered
+              ? AdbUnauthorizedException(
+                  'The device did not accept the key within '
+                  '${options.approvalTimeout}',
+                )
+              : AdbTimeoutException(
+                  'The device did not answer the handshake within '
+                  '${options.handshakeTimeout}',
+                ),
+        );
+      } on AdbClosedException catch (e) {
+        // After TLS the device closes a session whose key it does not
+        // trust (TLS 1.3 completes on our side before it decides).
+        if (tls) throw TlsKeyRejected(e);
+        rethrow;
+      }
       switch (message.command) {
         case AdbCommand.connect:
-          return _connected(message, accepted ?? (offered ? keys.first : null));
-        case AdbCommand.stls:
-          throw const AdbNotSupportedException(
-            'The device asks for TLS (a wireless debugging port); TLS '
-            'connections are not supported yet',
+          return _connected(
+            message,
+            accepted ?? (offered ? keys.first : null),
+            tls: tls,
+            deviceCertificate: deviceCertificate,
           );
+        case AdbCommand.stls:
+          if (tls || nextKey > 0 || offered) {
+            throw const AdbProtocolException('STLS out of order');
+          }
+          if (tlsKey >= keys.length) {
+            throw const AdbUnauthorizedException(
+              'The device wants TLS and there is no key to present',
+            );
+          }
+          final key = keys[tlsKey];
+          link
+            ..note('Handshake: STLS; TLS with key ${tlsKey + 1}')
+            ..send(AdbMessage.stls());
+          final identity = key.tls;
+          final context = SecurityContext(withTrustedRoots: false)
+            ..useCertificateChainBytes(utf8.encode(identity.certificatePem))
+            ..usePrivateKeyBytes(utf8.encode(identity.privateKeyPem));
+          final left = deadline - link.clock.elapsed;
+          final certificate = await _within(
+            link.startTls(context: context),
+            left > Duration.zero ? left : Duration.zero,
+          );
+          tls = true;
+          accepted = key;
+          deviceCertificate = certificate?.der;
+          link.note('Handshake: TLS up; waiting for CNXN');
+          deadline = link.clock.elapsed + options.handshakeTimeout;
         case AdbCommand.auth:
           if (message.arg0 != AdbAuthType.token.value) {
             throw AdbProtocolException(
@@ -130,6 +202,9 @@ final class Handshake {
             throw AdbProtocolException(
               'AUTH token of ${message.payload.length} bytes',
             );
+          }
+          if (tls) {
+            throw const AdbProtocolException('AUTH after TLS');
           }
           if (offered) {
             throw const AdbUnauthorizedException('The device refused the key');
@@ -174,7 +249,40 @@ final class Handshake {
     }
   }
 
-  HandshakeResult _connected(AdbMessage cnxn, AdbKeyPair? key) {
+  /// [future] or a timeout on the link's clock; the caller destroys the
+  /// link on failure.
+  Future<T> _within<T>(Future<T> future, Duration timeout) {
+    final done = Completer<T>();
+    final timer = link.clock.timer(timeout, () {
+      if (!done.isCompleted) {
+        done.completeError(
+          AdbTimeoutException(
+            'The TLS handshake did not finish within $timeout',
+          ),
+        );
+      }
+    });
+    future
+        .then(
+          (value) {
+            timer.cancel();
+            if (!done.isCompleted) done.complete(value);
+          },
+          onError: (Object e, StackTrace s) {
+            timer.cancel();
+            if (!done.isCompleted) done.completeError(e, s);
+          },
+        )
+        .ignore();
+    return done.future;
+  }
+
+  HandshakeResult _connected(
+    AdbMessage cnxn,
+    AdbKeyPair? key, {
+    required bool tls,
+    required Uint8List? deviceCertificate,
+  }) {
     final version = cnxn.arg0 < AdbProtocol.version
         ? cnxn.arg0
         : AdbProtocol.version;
@@ -206,6 +314,8 @@ final class Handshake {
       maxPayload: maxPayload,
       delayedAck: delayedAck,
       key: key,
+      tls: tls,
+      deviceCertificate: deviceCertificate,
     );
   }
 }

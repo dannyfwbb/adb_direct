@@ -11,9 +11,9 @@ States: **planned** (designed, not written), **in progress**, **built** (impleme
 | Area | `adb` equivalent | State |
 | --- | --- | --- |
 | TCP, classic network debugging | `adb connect host:5555` | built |
-| TLS (Android 11+ wireless debugging) | `adb connect` to an `_adb-tls-connect` service | planned |
-| Pairing with a six-digit code | `adb pair host:port code` | planned |
-| Pairing by QR code | the QR flow in Android Studio | planned |
+| TLS (Android 11+ wireless debugging) | `adb connect` to an `_adb-tls-connect` service | built |
+| Pairing with a six-digit code | `adb pair host:port code` | built |
+| Pairing by QR code | the QR flow in Android Studio | built, not yet checked on a device (the caller supplies mDNS results) |
 | A transport interface for anything that moves bytes (USB through a platform plugin, a tunnel) | `adb -d` | planned |
 | Client for a running adb server (port 5037) | `adb -H`, `-P` | planned |
 

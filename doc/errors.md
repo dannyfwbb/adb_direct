@@ -9,7 +9,7 @@ An `AdbException` is a sealed class, so a `switch` over its subclasses is exhaus
 | `AdbUnreachableException` | `unreachable` | The socket could not be opened in time, or the network is unreachable |
 | `AdbRefusedException` | `refused` | The device answered and refused the connection |
 | `AdbUnauthorizedException` | `unauthorized` | The device has not accepted the key, or its user denied it |
-| `AdbPairingException` | `pairingFailed` | Pairing ended without a trusted key: a wrong code, an expired pairing session, or a failed handshake |
+| `AdbPairingException` | `pairingFailed` | Pairing ended without a trusted key; `reason` is `wrongCode` (the code did not match) or `protocol` (a malformed exchange or a failed TLS handshake) |
 | `AdbTimeoutException` | `timeout` | The socket is open but no answer came in time: a command past its deadline, a transfer that stalled |
 | `AdbClosedException` | `closed` | The connection or the stream was closed by the other side |
 | `AdbProtocolException` | `protocol` | The device sent something that breaks the protocol; the connection is unusable afterwards |

@@ -3,6 +3,7 @@
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
 
@@ -72,6 +73,45 @@ final class AdbConnection {
     AdbTracer? tracer,
   }) async {
     options.validate();
+    // Classic ports try every key in one handshake. A TLS port takes one
+    // key per TLS session, so a key the device does not trust costs a new
+    // connection to try the next.
+    for (var tlsKey = 0; ; tlsKey++) {
+      try {
+        return await _attempt(
+          host,
+          port,
+          keys: [key, ...extraKeys],
+          tlsKey: tlsKey,
+          options: options,
+          onWaitingForApproval: onWaitingForApproval,
+          cancelOn: cancelOn,
+          clock: clock,
+          tracer: tracer,
+        );
+      } on TlsKeyRejected catch (e) {
+        if (tlsKey + 1 < 1 + extraKeys.length) continue;
+        throw AdbUnauthorizedException(
+          'The device closed the TLS session before CNXN: most likely it '
+          'does not trust the key (on a wireless debugging port, pair it '
+          'first), or the connection dropped',
+          cause: e.cause,
+        );
+      }
+    }
+  }
+
+  static Future<AdbConnection> _attempt(
+    Object host,
+    int port, {
+    required List<AdbKeyPair> keys,
+    required int tlsKey,
+    required AdbConnectOptions options,
+    required void Function()? onWaitingForApproval,
+    required Future<void>? cancelOn,
+    required AdbClock clock,
+    required AdbTracer? tracer,
+  }) async {
     final transport = await TcpTransport.connect(
       host,
       port,
@@ -92,19 +132,33 @@ final class AdbConnection {
     try {
       final result = await Handshake(
         link,
-        keys: [key, ...extraKeys],
+        keys: keys,
         options: options,
         onWaitingForApproval: onWaitingForApproval,
+        tlsKey: tlsKey,
       ).run();
       if (link.failure case final failure?) throw failure;
       connected = true;
       return AdbConnection._(link, result, options);
+    } on TlsKeyRejected {
+      link.fail(
+        const AdbUnauthorizedException('The key was not accepted over TLS'),
+      );
+      // A cancel that raced the rejection wins.
+      if (link.failure case final AdbCancelledException failure) throw failure;
+      rethrow;
     } on Object catch (e) {
       link.fail(
         e is AdbException
             ? e
             : AdbCancelledException('The handshake was abandoned', cause: e),
       );
+      // The link's own failure (a cancel, a lost socket) explains more than
+      // the handshake's view of it.
+      if (link.failure case final AdbCancelledException failure
+          when e is AdbException && e is! AdbCancelledException) {
+        throw failure;
+      }
       rethrow;
     }
   }
@@ -132,6 +186,14 @@ final class AdbConnection {
 
   /// The negotiated protocol version.
   int get protocolVersion => _handshake.protocolVersion;
+
+  /// Whether the connection runs over TLS (a wireless debugging port).
+  bool get isTls => _handshake.tls;
+
+  /// The device's TLS certificate (DER) on a TLS connection, else null.
+  /// adb has nothing to verify it against; an app can remember it (or its
+  /// public key) after the first connection and compare it later.
+  Uint8List? get deviceCertificate => _handshake.deviceCertificate;
 
   /// The largest payload either side sends in one message.
   int get maxPayload => _handshake.maxPayload;

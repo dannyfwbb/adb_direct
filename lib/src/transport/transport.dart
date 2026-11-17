@@ -1,7 +1,10 @@
 // Copyright 2026 The adb_direct authors
 // SPDX-License-Identifier: Apache-2.0
 
+import 'dart:io';
 import 'dart:typed_data';
+
+import '../errors.dart';
 
 /// Receives what a transport delivers. Exactly one of [AdbTransportListener.onClosed]
 /// or [AdbTransportListener.onError] ends the delivery.
@@ -40,4 +43,15 @@ abstract interface class AdbTransport {
   /// Drops the connection at once; queued bytes are lost. No more events
   /// are delivered.
   void destroy();
+
+  /// Switches the live connection to TLS 1.3 as a client presenting the
+  /// certificate in [context]; the server's certificate is accepted as it
+  /// is (adb has nothing to check it against) and returned. Queued bytes
+  /// go out in plain text first. [keyLog] receives the NSS key-log lines
+  /// (the exporter secret among them). Throws [AdbException] on failure;
+  /// the transport is destroyed then.
+  Future<X509Certificate?> startTls({
+    required SecurityContext context,
+    void Function(String line)? keyLog,
+  });
 }

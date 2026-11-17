@@ -3,6 +3,7 @@
 
 import 'dart:async';
 import 'dart:collection';
+import 'dart:io';
 import 'dart:typed_data';
 
 import '../clock.dart';
@@ -135,6 +136,16 @@ final class MessageLink implements AdbTransportListener {
 
   /// Writes a note to the tracer.
   void note(String message) => _note(message);
+
+  /// Switches the transport to TLS (after `STLS`); see
+  /// [AdbTransport.startTls].
+  Future<X509Certificate?> startTls({
+    required SecurityContext context,
+    void Function(String line)? keyLog,
+  }) {
+    note('TLS: handshake');
+    return _transport.startTls(context: context, keyLog: keyLog);
+  }
 
   @override
   void onData(Uint8List data) {

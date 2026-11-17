@@ -23,7 +23,13 @@ await adb.close();
 To stop an attempt early (the user backed out, or the app wants another device), pass `cancelOn`: when that future completes before the connection is up, the TCP connect or the handshake stops at once, the socket closes, and `connect` throws `AdbCancelledException`. Once connected, `cancelOn` is ignored.
 4. With `allowPrompt: false`, an untrusted key fails at once with `AdbUnauthorizedException`, and the device's user sees nothing.
 
-A device without authentication (userdebug builds, some emulators) connects at step 1. A wireless-debugging port answers with `STLS` (TLS), which this version reports as `AdbNotSupportedException`.
+A device without authentication (userdebug builds, some emulators) connects at step 1.
+
+## Wireless debugging (TLS)
+
+Connect to the wireless debugging port (the one under "IP address & Port" on the device, announced as `_adb-tls-connect._tcp`) exactly as to a classic one: the device answers `STLS` and the package switches the socket to TLS 1.3, presenting the key's certificate. There is no prompt on this port: the key must be paired first (see [pairing.md](pairing.md)) or allowed earlier over a classic connection. A key the device does not trust fails with `AdbUnauthorizedException`; with `extraKeys` each key costs one more connection.
+
+`adb.isTls` tells which kind of connection it is. `adb.deviceCertificate` is the device's certificate (DER): adb has nothing to verify it against, so an app that wants to notice a different device behind the same address can remember it after the first connection and compare it later.
 
 ## Probes
 

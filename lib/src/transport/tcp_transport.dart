@@ -77,7 +77,7 @@ final class TcpTransport implements AdbTransport {
   // ECONNREFUSED on Linux and Android, macOS and iOS, Windows.
   static const Set<int> _refusedCodes = {111, 61, 10061};
 
-  final RawSocket _socket;
+  RawSocket _socket;
   final Queue<Uint8List> _pending = Queue<Uint8List>();
   int _pendingOffset = 0;
   int _pendingBytes = 0;
@@ -126,6 +126,63 @@ final class TcpTransport implements AdbTransport {
     _end();
     unawaited(_socket.close());
   }
+
+  @override
+  Future<X509Certificate?> startTls({
+    required SecurityContext context,
+    void Function(String line)? keyLog,
+  }) async {
+    if (_ended) throw const AdbClosedException('The connection is closed');
+    if (_pendingBytes > 0) {
+      // STLS must leave before the ClientHello.
+      await (_drained ??= Completer<void>()).future;
+      if (_ended) throw const AdbClosedException('The connection is closed');
+    }
+    // The subscription must stay active: RawSecureSocket takes it over and
+    // refuses a paused one. adbd sends nothing between STLS and our
+    // ClientHello, so no plain bytes are lost here.
+    final upgrade = _upgrade = Completer<X509Certificate?>();
+    // Its outcome is delivered through [upgrade].
+    // ignore: discarded_futures
+    RawSecureSocket.secure(
+          _socket,
+          subscription: _subscription,
+          context: context,
+          onBadCertificate: (_) => true,
+          keyLog: keyLog,
+        )
+        .then(
+          (secure) {
+            if (upgrade.isCompleted) {
+              // Closed meanwhile.
+              unawaited(secure.close());
+              return;
+            }
+            _upgrade = null;
+            _socket = secure;
+            _subscription = secure.listen(
+              _onEvent,
+              onError: _fail,
+              onDone: _onDone,
+            );
+            upgrade.complete(secure.peerCertificate);
+          },
+          onError: (Object e) {
+            if (upgrade.isCompleted) return;
+            _upgrade = null;
+            destroy();
+            upgrade.completeError(
+              AdbProtocolException('The TLS handshake failed: $e', cause: e),
+            );
+          },
+        )
+        .ignore();
+    return upgrade.future;
+  }
+
+  /// A TLS upgrade in progress; a close or destroy fails it at once (the
+  /// TLS layer owns the subscription then and would wait forever).
+  Completer<X509Certificate?>? _upgrade;
 
   void _onEvent(RawSocketEvent event) {
     switch (event) {
@@ -188,6 +245,15 @@ final class TcpTransport implements AdbTransport {
 
   void _end() {
     _ended = true;
+    final upgrade = _upgrade;
+    _upgrade = null;
+    if (upgrade != null && !upgrade.isCompleted) {
+      upgrade.completeError(
+        const AdbClosedException(
+          'The connection closed during the TLS handshake',
+        ),
+      );
+    }
     _pending.clear();
     _pendingBytes = 0;
     _pendingOffset = 0;

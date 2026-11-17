@@ -9,10 +9,8 @@ import 'package:adb_direct/src/crypto/adb_key_pair.dart';
 import 'package:adb_direct/src/crypto/tls_exporter.dart';
 import 'package:test/test.dart';
 
+import '../support/hex.dart';
 import '../support/tools.dart';
-
-String hex(List<int> bytes) =>
-    bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join().toUpperCase();
 
 void main() {
   group('TlsExporter.fromKeyLog', () {
@@ -60,7 +58,7 @@ void main() {
     test('matches OpenSSL’s exporter on a live TLS 1.3 connection from dart:io '
         '($hash, $suite)', () async {
       final expected = await _exportWithOpenSsl(suite);
-      expect(hex(expected.ours), expected.openssl);
+      expect(hex(expected.ours), expected.openssl.toLowerCase());
     }, skip: Tools.skipUnless(Tools.openssl, 'openssl'));
   }
 }

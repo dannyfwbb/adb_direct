@@ -98,10 +98,29 @@ final class AdbUnauthorizedException extends AdbException {
   AdbErrorCode get code => AdbErrorCode.unauthorized;
 }
 
+/// Why pairing failed.
+enum AdbPairingFailure {
+  /// The device did not accept the code: its answer did not decrypt, or it
+  /// closed the session after our encrypted key (what a wrong code looks
+  /// like from here). The device usually shows the failed attempt.
+  wrongCode,
+
+  /// The device broke the pairing protocol (a malformed packet or point),
+  /// or the TLS handshake on the pairing port failed.
+  protocol,
+}
+
 /// Pairing ended without a trusted key.
 final class AdbPairingException extends AdbException {
   /// Creates the exception.
-  const AdbPairingException(super.message, {super.cause});
+  const AdbPairingException(
+    super.message, {
+    this.reason = AdbPairingFailure.protocol,
+    super.cause,
+  });
+
+  /// Why it failed.
+  final AdbPairingFailure reason;
 
   @override
   AdbErrorCode get code => AdbErrorCode.pairingFailed;

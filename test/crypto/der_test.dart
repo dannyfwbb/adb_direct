@@ -4,8 +4,7 @@
 import 'package:adb_direct/src/crypto/der.dart';
 import 'package:test/test.dart';
 
-String hex(List<int> bytes) =>
-    bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+import '../support/hex.dart';
 
 void main() {
   test('object identifiers', () {
