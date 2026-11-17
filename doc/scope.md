@@ -63,11 +63,11 @@ States: **planned** (designed, not written), **in progress**, **built** (impleme
 
 | Area | `adb` equivalent | State |
 | --- | --- | --- |
-| stat, list, pull, push (sync v1) | `adb pull`, `adb push`, `adb ls` | planned |
-| Sync v2 (`stat_v2`, `ls_v2`, `sendrecv_v2`) | — | planned |
+| stat, list, pull, push (sync v1) | `adb pull`, `adb push`, `adb ls` | built |
+| Sync v2 (`stat_v2`, `ls_v2`, `sendrecv_v2`) | — | built |
 | Compression in sync where pure Dart allows it | `adb push -z` | planned |
-| Directories, timestamps, modes | `adb push -a`, `adb sync` | planned |
-| Progress and stall detection on every transfer | — | planned |
+| Directories, timestamps, modes | `adb push -a`, `adb sync` | built |
+| Progress and stall detection on every transfer | — | built |
 
 ### Apps
 

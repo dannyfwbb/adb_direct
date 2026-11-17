@@ -8,5 +8,6 @@
 | [keys.md](keys.md) | Key pairs: creating, storing, reusing adb's own keys, fingerprints |
 | [connection.md](connection.md) | Connecting, the approval prompt, probes, streams, flow control, a device that goes away, options, tracing |
 | [shell.md](shell.md) | Running commands, raw `exec`, interactive sessions |
+| [files.md](files.md) | Stat, list, read and write files; local files and directories |
 
 API documentation is generated from the code with `dart doc` once the package has an API.

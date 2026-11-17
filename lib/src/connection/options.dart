@@ -17,6 +17,7 @@ final class AdbConnectOptions {
     this.allowPrompt = true,
     this.acknowledgementTimeout = const Duration(seconds: 20),
     this.livenessInterval = const Duration(seconds: 10),
+    this.transferStallTimeout = const Duration(seconds: 30),
     this.receiveWindow = 4 * 1024 * 1024,
     this.hostFeatures = defaultHostFeatures,
   });
@@ -27,6 +28,10 @@ final class AdbConnectOptions {
   /// implemented ones are announced; the set grows with the library.
   static const Set<AdbFeature> defaultHostFeatures = {
     AdbFeature.shellV2,
+    AdbFeature.statV2,
+    AdbFeature.lsV2,
+    AdbFeature.sendRecvV2,
+    AdbFeature.fixedPushMkdir,
     AdbFeature.delayedAck,
   };
 
@@ -67,6 +72,11 @@ final class AdbConnectOptions {
   /// off. No probe is sent while no stream is open.
   final Duration? livenessInterval;
 
+  /// How long a file transfer may make no progress (no byte arriving, no
+  /// write acknowledged) before it fails with `AdbTimeoutException`. The
+  /// connection stays up: a slow transfer is not a dead device.
+  final Duration transferStallTimeout;
+
   /// Bytes the device may send on a stream before we acknowledge, when
   /// delayed acknowledgements are in use. Bounds the memory a stream whose
   /// reader is slow can take.
@@ -89,6 +99,7 @@ final class AdbConnectOptions {
     positive(handshakeTimeout, 'handshakeTimeout');
     positive(approvalTimeout, 'approvalTimeout');
     positive(acknowledgementTimeout, 'acknowledgementTimeout');
+    positive(transferStallTimeout, 'transferStallTimeout');
     if (livenessInterval case final interval?) {
       positive(interval, 'livenessInterval');
     }

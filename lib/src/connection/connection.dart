@@ -12,6 +12,7 @@ import '../errors.dart';
 import '../protocol/banner.dart';
 import '../protocol/message.dart';
 import '../services/shell.dart';
+import '../services/sync.dart';
 import '../stream/adb_stream.dart';
 import '../trace.dart';
 import '../transport/tcp_transport.dart';
@@ -134,6 +135,12 @@ final class AdbConnection {
 
   /// Shell commands.
   late final AdbShell shell = AdbShell(this);
+
+  /// Files: stat, list, read and write over the sync protocol.
+  late final AdbSync sync = AdbSync(
+    this,
+    stallTimeout: _options.transferStallTimeout,
+  );
 
   /// Opens a stream to [service] on the device, such as `shell:ls` or
   /// `sync:`.

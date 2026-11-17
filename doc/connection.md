@@ -57,8 +57,9 @@ The check opens a service that does not exist, which adbd refuses at once (well 
 | `allowPrompt` | true | Whether the key may be offered |
 | `acknowledgementTimeout` | 20 s | Waiting this long for an acknowledgement triggers a check of the device; a check without an answer for this long fails the connection |
 | `livenessInterval` | 10 s | Silence before checking the device is there; null turns it off |
+| `transferStallTimeout` | 30 s | A file transfer with no progress for this long fails (see [files.md](files.md)) |
 | `receiveWindow` | 4 MiB | How much a device may send ahead on one stream (delayed acknowledgements); 1 B to 2 GiB |
-| `hostFeatures` | `shell_v2`, `delayed_ack` (what the library implements so far) | Features announced in `CNXN` |
+| `hostFeatures` | `shell_v2`, `stat_v2`, `ls_v2`, `sendrecv_v2`, `fixed_push_mkdir`, `delayed_ack` (what the library implements so far) | Features announced in `CNXN` |
 
 ## Tracing
 

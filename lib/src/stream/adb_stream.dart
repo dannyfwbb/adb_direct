@@ -53,6 +53,11 @@ final class AdbStream {
   /// the connection failed, or the device refused to open it.
   AdbException? get closeReason => _endpoint.closeReason;
 
+  /// Bytes of our writes the device has acknowledged: what it has taken,
+  /// as opposed to what [write] handed to the connection. Use it for
+  /// progress that means "arrived".
+  int get acknowledgedBytes => _endpoint.acknowledgedBytes;
+
   /// Sends [data] to the device.
   ///
   /// Splits it to the payload limit and sends within the flow-control
@@ -137,6 +142,7 @@ final class StreamEndpoint {
   bool _readyToSend = false;
   int _sendBudget = 0;
   int _inFlight = 0;
+  int _acknowledged = 0;
 
   // Receiving: data received from the device and not yet acknowledged.
   int _unacknowledgedWrites = 0;
@@ -158,6 +164,9 @@ final class StreamEndpoint {
 
   /// See [AdbStream.closeReason].
   AdbException? get closeReason => _closeReason;
+
+  /// See [AdbStream.acknowledgedBytes].
+  int get acknowledgedBytes => _acknowledged;
 
   /// Whether a message from the device's stream [remoteId] belongs to this
   /// stream: any id while opening (the first `OKAY` tells it), the known
@@ -293,8 +302,10 @@ final class StreamEndpoint {
       final bytes = acknowledged ?? 0;
       _sendBudget += bytes;
       _inFlight -= bytes;
+      _acknowledged += bytes;
     } else {
       _readyToSend = true;
+      _acknowledged += _inFlight;
       _inFlight = 0;
     }
     _disarmAcknowledgementTimer();
