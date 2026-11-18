@@ -110,7 +110,8 @@ void main() {
     );
     expect(result.stdoutText, 'hello from the device\n');
     await forward.remove();
-    expect(await adb.reverse.list(), isEmpty);
+    // Other tests may hold forwards on the same device: only ours must be gone.
+    expect(await adb.reverse.list(), isNot(contains(AdbReverseEntry(forward.deviceSpec, 'tcp:${echo.port}'))));
     await echo.close();
   }, skip: skip);
 
