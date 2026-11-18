@@ -362,6 +362,10 @@ final class _SyncSession {
       // An entry the device could not lstat carries an errno: left out.
       if (v2 && data.u32(4) != 0) continue;
       if (name == '.' || name == '..') continue;
+      // A file name never holds these: a device that sends one is broken, or wants a caller to write elsewhere.
+      if (name.isEmpty || name.contains('/') || name.contains('\u0000')) {
+        throw AdbProtocolException('A directory entry named "$name" in $path');
+      }
       entries.add(AdbDirectoryEntry(name, v2 ? AdbFileStat.fromV2(data, 8) : AdbFileStat.fromV1(data, 4)));
     }
   }

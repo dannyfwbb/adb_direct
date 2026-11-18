@@ -20,3 +20,4 @@
 - Incremental installs: `AdbPackages.installIncremental` with `AdbIncrementalApk` (v4 signatures from `.idsig` files) and `AdbIncrementalInstall` (serving in the background, `done`, `close`).
 - Compression in sync v2: `AdbCompression` and `AdbCompressionMethod` for `AdbSync.read`, `write` and the `dart:io` helpers; LZ4 built in (own codec), Brotli and Zstandard pluggable. Host features now include `sendrecv_v2_lz4` and `apex`.
 - Test APKs come with their `.idsig` files.
+- `pushDirectory` skips pipes and sockets, makes empty directories on every version, and reports a directory it cannot make (`AdbSyncException`); `list` refuses entry names with `/` or NUL, so `pullDirectory` cannot be led outside its folder.

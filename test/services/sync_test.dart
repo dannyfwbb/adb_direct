@@ -173,6 +173,25 @@ void main() {
       await adb.close();
     });
 
+    test('an entry name with a slash or NUL is a protocol error (pullDirectory must not leave its folder)', () async {
+      for (final name in ['../escape', 'a/b', 'nul\u0000x', '']) {
+        final (adb, adbd) = await connectTo(banner: oldBanner, (session) async {
+          final peer = await SyncPeer.accept(session);
+          await peer.request();
+          peer
+            ..send(dent1('ok', 0x81a4, 1))
+            ..send(dent1(name, 0x81a4, 3))
+            ..send(SyncRequest.header(SyncId.done, 0, Uint8List(12)));
+          await peer.settle(anything: true);
+        });
+        final target = Directory.systemTemp.createTempSync('pull');
+        addTearDown(() => target.deleteSync(recursive: true));
+        await expectLater(adb.sync.pullDirectory('/d', target), throwsA(isA<AdbProtocolException>()), reason: name);
+        await adb.close();
+        await adbd.done();
+      }
+    });
+
     test('LIST, RECV and SEND "path,mode"', () async {
       final (adb, adbd) = await connectTo(banner: oldBanner, (session) async {
         final peer = await SyncPeer.accept(session);
