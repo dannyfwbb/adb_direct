@@ -21,54 +21,54 @@ import '../protocol/message.dart';
 final class AdbStream {
   /// Wraps a stream's core; streams are created by the connection.
   @internal
-  AdbStream(this._endpoint);
+  AdbStream(this._core);
 
-  final StreamCore _endpoint;
+  final StreamCore _core;
 
   /// The service name sent in `OPEN`.
-  String get service => _endpoint.service;
+  String get service => _core.service;
 
   /// Bytes from the device. Single subscription. Ends when the stream closes; carries an [AdbException] error first
   /// when the connection failed. Cancelling the subscription closes the stream.
-  Stream<Uint8List> get input => _endpoint.input;
+  Stream<Uint8List> get input => _core.input;
 
   /// Completes when the stream is open, or fails when the device refused it ([AdbServiceUnavailableException]), it was
   /// closed first ([AdbCancelledException]) or the connection failed.
-  Future<void> get opened => _endpoint.opened;
+  Future<void> get opened => _core.opened;
 
   /// Completes when the stream is closed, by either side or by a failure. Never fails: see [closeReason] for why it
   /// closed.
-  Future<void> get done => _endpoint.done;
+  Future<void> get done => _core.done;
 
   /// Whether the stream is closed.
-  bool get isClosed => _endpoint.isClosed;
+  bool get isClosed => _core.isClosed;
 
   /// Why the stream closed when it was not a normal close by either side: the connection failed, or the device refused
   /// to open it.
-  AdbException? get closeReason => _endpoint.closeReason;
+  AdbException? get closeReason => _core.closeReason;
 
   /// Bytes of our writes the device has acknowledged: what it has taken, as opposed to what [write] handed to the
   /// connection. Use it for progress that means "arrived".
-  int get acknowledgedBytes => _endpoint.acknowledgedBytes;
+  int get acknowledgedBytes => _core.acknowledgedBytes;
 
   /// Sends [data] to the device.
   ///
   /// Splits it to the payload limit and sends within the flow-control window. Completes when the last piece is handed
   /// to the connection (not when the device has processed it). Writes are sent in order. Fails with the reason when the
   /// stream closes first.
-  Future<void> write(List<int> data) => _endpoint.write(data);
+  Future<void> write(List<int> data) => _core.write(data);
 
   /// Completes when the device has acknowledged every byte written before this call (later writes do not delay it).
   /// Fails like [write] when the stream closes first.
-  Future<void> flush() => _endpoint.flush();
+  Future<void> flush() => _core.flush();
 
   /// [acknowledgedBytes] each time the device acknowledges more, for progress that means "arrived". Broadcast; ends
   /// when the stream closes.
-  Stream<int> get acknowledgements => _endpoint.acknowledgements;
+  Stream<int> get acknowledgements => _core.acknowledgements;
 
   /// Closes the stream in both directions. Pending writes fail with [AdbCancelledException]. Data already received
   /// stays readable.
-  Future<void> close() => _endpoint.close();
+  Future<void> close() => _core.close();
 
   @override
   String toString() => 'AdbStream($service${isClosed ? ', closed' : ''})';
@@ -183,27 +183,21 @@ final class StreamEndpoint implements StreamCore {
   final List<(int, Completer<void>)> _flushes = [];
   final StreamController<int> _acknowledgements = StreamController<int>.broadcast();
 
-  /// See [AdbStream.input].
   @override
   Stream<Uint8List> get input => _input.stream;
 
-  /// See [AdbStream.opened].
   @override
   Future<void> get opened => _opened.future;
 
-  /// See [AdbStream.done].
   @override
   Future<void> get done => _done.future;
 
-  /// See [AdbStream.isClosed].
   @override
   bool get isClosed => _state == _State.closed;
 
-  /// See [AdbStream.closeReason].
   @override
   AdbException? get closeReason => _closeReason;
 
-  /// See [AdbStream.acknowledgedBytes].
   @override
   int get acknowledgedBytes => _acknowledged;
 
@@ -211,12 +205,9 @@ final class StreamEndpoint implements StreamCore {
   /// `OKAY` tells it), the known one after.
   bool acceptsFrom(int remoteId) => _remoteId == 0 || _remoteId == remoteId;
 
-  /// See [AdbStream.write].
   @override
   Future<void> write(List<int> data) {
-    if (_state == _State.closed) {
-      return Future.error(_closeReason ?? AdbClosedException('The stream to "$service" is closed'));
-    }
+    if (_state == _State.closed) return _closedError();
     if (data.isEmpty) return Future.value();
     final pending = _PendingWrite(data is Uint8List ? data : Uint8List.fromList(data));
     _queued += pending.data.length;
@@ -225,12 +216,9 @@ final class StreamEndpoint implements StreamCore {
     return pending.completer.future;
   }
 
-  /// See [AdbStream.flush].
   @override
   Future<void> flush() {
-    if (_state == _State.closed) {
-      return Future.error(_closeReason ?? AdbClosedException('The stream to "$service" is closed'));
-    }
+    if (_state == _State.closed) return _closedError();
     final target = _queued;
     if (_acknowledged >= target) return Future.value();
     final completer = Completer<void>();
@@ -238,9 +226,10 @@ final class StreamEndpoint implements StreamCore {
     return completer.future;
   }
 
-  /// See [AdbStream.acknowledgements].
   @override
   Stream<int> get acknowledgements => _acknowledgements.stream;
+
+  Future<void> _closedError() => Future.error(_closeReason ?? AdbClosedException('The stream to "$service" is closed'));
 
   void _completeFlushes() {
     _flushes.removeWhere((entry) {
@@ -251,7 +240,6 @@ final class StreamEndpoint implements StreamCore {
     });
   }
 
-  /// See [AdbStream.close].
   @override
   Future<void> close() {
     const reason = AdbCancelledException('The stream was closed by the caller');

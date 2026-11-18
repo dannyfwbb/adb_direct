@@ -29,3 +29,38 @@ final class _SystemClock implements AdbClock {
   @override
   Timer timer(Duration duration, void Function() callback) => Timer(duration, callback);
 }
+
+/// Waiting on an [AdbClock].
+extension AdbClockWaits on AdbClock {
+  /// [future]'s outcome, or the error [onTimeout] makes when it takes longer than [timeout].
+  Future<T> deadline<T>(Future<T> future, Duration timeout, Object Function() onTimeout) {
+    final result = Completer<T>();
+    final timer = this.timer(timeout, () {
+      if (!result.isCompleted) result.completeError(onTimeout());
+    });
+    future
+        .then(
+          (value) {
+            if (!result.isCompleted) result.complete(value);
+          },
+          onError: (Object e, StackTrace s) {
+            if (!result.isCompleted) result.completeError(e, s);
+          },
+        )
+        .whenComplete(timer.cancel)
+        .ignore();
+    return result.future;
+  }
+
+  /// Completes after [duration], or as soon as [cancelOn] completes.
+  Future<void> sleep(Duration duration, {Future<void>? cancelOn}) {
+    final done = Completer<void>();
+    void wake() {
+      if (!done.isCompleted) done.complete();
+    }
+
+    final timer = this.timer(duration, wake);
+    cancelOn?.whenComplete(wake).ignore();
+    return done.future.whenComplete(timer.cancel);
+  }
+}

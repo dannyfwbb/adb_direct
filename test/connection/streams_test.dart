@@ -6,7 +6,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:adb_direct/adb_direct.dart';
-import 'package:adb_direct/src/connection/connection.dart' show livenessService;
+import 'package:adb_direct/src/connection/packet_connection.dart' show livenessService;
 import 'package:adb_direct/src/protocol/constants.dart';
 import 'package:adb_direct/src/protocol/message.dart';
 import 'package:test/test.dart';

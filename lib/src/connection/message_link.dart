@@ -31,7 +31,7 @@ final class MessageLink implements AdbTransportListener {
   MessageLink(this._transport, {required this.clock, this.tracer}) {
     _reader = AdbMessageReader(
       onUnknownCommand: (command, length) =>
-          _note('Skipped a message with unknown command 0x${command.toRadixString(16)} ($length bytes)'),
+          note('Skipped a message with unknown command 0x${command.toRadixString(16)} ($length bytes)'),
       onRawMessage: tracer == null ? null : _traceIncoming,
     );
   }
@@ -105,26 +105,16 @@ final class MessageLink implements AdbTransportListener {
 
   /// Ends the link because of [reason] and drops the connection.
   void fail(AdbException reason) {
-    if (_failure != null) return;
-    _failure = reason;
-    _note('Link closed: ${reason.message}');
-    _transport.destroy();
-    _wake();
-    _handler?.onLinkClosed(reason);
+    if (_end(reason, 'Link closed: ${reason.message}')) _transport.destroy();
   }
 
   /// Sends what is queued (for at most [drainTimeout]) and closes the connection; the link ends with [reason].
   Future<void> close(AdbException reason, {Duration drainTimeout = const Duration(seconds: 10)}) async {
-    if (_failure != null) return;
-    _failure = reason;
-    _note('Link closed: ${reason.message}');
-    _wake();
-    _handler?.onLinkClosed(reason);
-    await _transport.close(drainTimeout: drainTimeout);
+    if (_end(reason, 'Link closed: ${reason.message}')) await _transport.close(drainTimeout: drainTimeout);
   }
 
   /// Writes a note to the tracer.
-  void note(String message) => _note(message);
+  void note(String message) => tracer?.call(AdbNoteTrace(at: clock.elapsed, message: message));
 
   /// Switches the transport to TLS (after `STLS`); see [AdbTransport.startTls].
   Future<X509Certificate?> startTls({required SecurityContext context, void Function(String line)? keyLog}) {
@@ -154,21 +144,22 @@ final class MessageLink implements AdbTransportListener {
   }
 
   @override
-  void onClosed() {
-    if (_failure != null) return;
-    _failure = const AdbClosedException('The device closed the connection');
-    _note('Link closed by the device');
-    _wake();
-    _handler?.onLinkClosed(_failure!);
-  }
+  void onClosed() => _end(const AdbClosedException('The device closed the connection'), 'Link closed by the device');
 
   @override
-  void onError(Object error) {
-    if (_failure != null) return;
-    _failure = error is AdbException ? error : AdbClosedException('The connection failed', cause: error);
-    _note('Link failed: $error');
+  void onError(Object error) => _end(
+    error is AdbException ? error : AdbClosedException('The connection failed', cause: error),
+    'Link failed: $error',
+  );
+
+  /// Ends the link with [reason] unless it already ended; true when it did end now.
+  bool _end(AdbException reason, String why) {
+    if (_failure != null) return false;
+    _failure = reason;
+    note(why);
     _wake();
-    _handler?.onLinkClosed(_failure!);
+    _handler?.onLinkClosed(reason);
+    return true;
   }
 
   void _wake() {
@@ -176,8 +167,6 @@ final class MessageLink implements AdbTransportListener {
     _waiter = null;
     if (waiter != null && !waiter.isCompleted) waiter.complete();
   }
-
-  void _note(String message) => tracer?.call(AdbNoteTrace(at: clock.elapsed, message: message));
 
   /// The raw bytes of the message the reader is about to return; set by the reader's callback just before the message
   /// comes out of `drain`.

@@ -25,7 +25,7 @@ import 'package:pointycastle/export.dart' as pc;
 import '../crypto/hkdf.dart';
 import '../crypto/spake2.dart';
 import '../errors.dart';
-import '../protocol/byte_queue.dart';
+import '../protocol/byte_reader.dart';
 
 /// Packet types.
 @internal
@@ -96,67 +96,32 @@ final List<int> pairingServerName = [...utf8.encode('adb pair server'), 0];
 @internal
 final class PairingReader {
   /// Reads from [input].
-  PairingReader(Stream<List<int>> input) {
-    _subscription = input.listen(
-      (data) {
-        _buffer.add(data);
-        _wake();
-      },
-      onError: (Object e) {
-        _error = e;
-        _wake();
-      },
-      onDone: () {
-        _closed = true;
-        _wake();
-      },
-    );
-  }
+  PairingReader(Stream<List<int>> input)
+    : _reader = ByteReader(
+        input,
+        onEnd: (error) => switch (error) {
+          null => const AdbClosedException('The device closed the pairing session'),
+          AdbException() => error,
+          _ => AdbClosedException('The pairing connection failed', cause: error),
+        },
+      );
 
-  late final StreamSubscription<List<int>> _subscription;
-  final ByteQueue _buffer = ByteQueue();
-  Completer<void>? _waiting;
-  Object? _error;
-  bool _closed = false;
+  final ByteReader _reader;
 
   /// The next packet as (type, payload). Throws [AdbClosedException] when the stream ends first, [AdbPairingException]
   /// for a malformed header.
   Future<(int, Uint8List)> next() async {
-    final header = await _take(PairingPacket.headerLength);
-    final view = ByteData.sublistView(header);
-    final version = view.getUint8(0);
-    final type = view.getUint8(1);
-    final size = view.getUint32(2);
-    if (version != PairingPacket.version) {
-      throw AdbPairingException('Pairing packet version $version');
-    }
-    if (size == 0 || size > PairingPacket.maxPayload) {
-      throw AdbPairingException('Pairing packet of $size bytes');
-    }
-    return (type, await _take(size));
+    final header = ByteData.sublistView(await _reader.take(PairingPacket.headerLength));
+    final version = header.getUint8(0);
+    final type = header.getUint8(1);
+    final size = header.getUint32(2);
+    if (version != PairingPacket.version) throw AdbPairingException('Pairing packet version $version');
+    if (size == 0 || size > PairingPacket.maxPayload) throw AdbPairingException('Pairing packet of $size bytes');
+    return (type, await _reader.take(size));
   }
 
   /// Stops reading.
-  Future<void> cancel() => _subscription.cancel();
-
-  Future<Uint8List> _take(int count) async {
-    while (_buffer.length < count) {
-      if (_error case final error?) {
-        throw error is AdbException ? error : AdbClosedException('The pairing connection failed', cause: error);
-      }
-      if (_closed) {
-        throw const AdbClosedException('The device closed the pairing session');
-      }
-      await (_waiting = Completer<void>()).future;
-    }
-    return _buffer.take(count);
-  }
-
-  void _wake() {
-    final waiting = _waiting;
-    _waiting = null;
-    waiting?.complete();
-  }
+  Future<void> cancel() => _reader.cancel();
 }
 
 /// One packet's bytes.
