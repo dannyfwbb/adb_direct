@@ -32,7 +32,9 @@ Future<(AdbConnection, FakeAdbd, Completer<String>)> serve(String text, {bool cl
       session.send(AdbMessage.close(localId: 9, remoteId: open.arg0));
       await session.expectClientClose(timeout: const Duration(seconds: 2)).catchError((Object _) {});
     } else {
-      session.destroy();
+      // adbd restarting: its process ends and the socket closes after what was written. A reset here would let
+      // Windows drop the answer before it is read.
+      await session.close();
     }
   });
   final adb = await AdbConnection.connect(adbd.address, adbd.port, key: testKey);

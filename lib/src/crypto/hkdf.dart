@@ -5,7 +5,7 @@ import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 
-/// HKDF (RFC 5869) over an HMAC [hash].
+/// HKDF (RFC 5869) over HMAC with a given hash function.
 abstract final class Hkdf {
   /// HKDF-Extract: a pseudorandom key from [inputKeyMaterial] and [salt] (all-zero, hash-sized, when empty).
   static Uint8List extract(Hash hash, List<int> inputKeyMaterial, {List<int> salt = const []}) {

@@ -69,8 +69,9 @@ final class TcpTransport implements AdbTransport {
     return AdbUnreachableException('Could not reach $target', cause: e);
   }
 
-  // ECONNREFUSED on Linux and Android, macOS and iOS, Windows.
-  static const Set<int> _refusedCodes = {111, 61, 10061};
+  // ECONNREFUSED on Linux and Android (111), macOS and iOS (61); on Windows WSAECONNREFUSED (10061) and
+  // ERROR_CONNECTION_REFUSED (1225), which dart:io reports for an asynchronous connect.
+  static const Set<int> _refusedCodes = {111, 61, 10061, 1225};
 
   RawSocket _socket;
   final Queue<Uint8List> _pending = Queue<Uint8List>();
