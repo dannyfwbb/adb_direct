@@ -167,6 +167,7 @@ final class AdbPackages {
     AdbProgress? onProgress,
   }) async {
     if (apks.isEmpty) throw ArgumentError.value(apks, 'apks', 'is empty');
+    _checkSessionNames(apks);
     if (apks.any((apk) => apk.isApex)) {
       throw ArgumentError.value(apks, 'apks', 'contains an APEX module: install it alone or with installMultiPackage');
     }
@@ -196,6 +197,7 @@ final class AdbPackages {
     if (packages.isEmpty || packages.any((p) => p.isEmpty)) {
       throw ArgumentError.value(packages, 'packages', 'has an empty entry');
     }
+    packages.forEach(_checkSessionNames);
     if (packages.any((apks) => apks.length > 1 && apks.any((apk) => apk.isApex))) {
       throw ArgumentError.value(packages, 'packages', 'has an APEX module together with other files in one entry');
     }
@@ -446,6 +448,20 @@ final class AdbPackages {
         ? lines[1].trim()
         : lines.first.trim();
     return AdbCommandException('Could not $what: $summary', command: 'pm', output: output, exitCode: exitCode);
+  }
+
+  /// The APKs of one session are written under their names: they must be distinct, and usable as one argument.
+  static void _checkSessionNames(List<AdbApk> apks) {
+    final names = <String>{};
+    for (final apk in apks) {
+      if (apk.name.isEmpty || apk.name.contains('\u0000') || apk.name.contains('/') || !names.add(apk.name)) {
+        throw ArgumentError.value(
+          apk.name,
+          'apks',
+          'names in one session must be distinct, non-empty, without / or NUL',
+        );
+      }
+    }
   }
 
   void _checkApex(_Channel channel) {
@@ -726,7 +742,15 @@ enum _Channel {
   /// `shell:pm …` (older; no binary stdin).
   pm;
 
-  String service(List<String> arguments) => switch (this) {
+  String service(List<String> arguments) {
+    // abb_exec separates arguments with NULs: one inside an argument would split it into two.
+    if (this == abbExec && arguments.any((a) => a.contains('\u0000'))) {
+      throw ArgumentError.value(arguments, 'arguments', 'an argument contains a NUL');
+    }
+    return _service(arguments);
+  }
+
+  String _service(List<String> arguments) => switch (this) {
     abbExec => 'abb_exec:${['package', ...arguments].join('\u0000')}',
     cmd => 'exec:cmd package ${arguments.map(shellQuote).join(' ')}',
     pm => 'shell:pm ${arguments.map(shellQuote).join(' ')}',

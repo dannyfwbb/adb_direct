@@ -428,6 +428,35 @@ void main() {
     await adb2.close();
   });
 
+  test('a NUL in an argument would split it for abb_exec or cut a shell command: refused', () async {
+    for (final banner in [abbBanner, cmdBanner]) {
+      final (adb, adbd) = await connectTo(
+        banner: banner,
+        (session) => session.expectClientClose(timeout: const Duration(seconds: 5)),
+      );
+      await expectLater(adb.packages.uninstall('a.b\u0000-k'), throwsArgumentError);
+      await expectLater(
+        adb.packages.installMultiple([
+          AdbApk.bytes('x\u0000y.apk', [1]),
+        ]),
+        throwsArgumentError,
+      );
+      await expectLater(adb.packages.installMultiple([tiny, tiny]), throwsArgumentError);
+      await expectLater(
+        adb.packages.installMultiPackage([
+          [
+            AdbApk.bytes('', [1]),
+          ],
+        ]),
+        throwsArgumentError,
+      );
+      await expectLater(adb.open('shell:echo a\u0000rm'), throwsArgumentError);
+      expect(() => adb.openStream('exec:x\u0000y'), throwsArgumentError);
+      await adb.close();
+      await adbd.done();
+    }
+  });
+
   group('APEX modules', () {
     final apexBanner = utf8.encode('${utf8.decode(abbBanner)},apex');
     final module = AdbApk.bytes('com.example.module.apex', List.filled(10, 2));

@@ -109,6 +109,7 @@ final class PacketConnection extends AdbConnection {
   int? get _ourWindow => delayedAck ? options.receiveWindow : null;
 
   StreamEndpoint _openEndpoint(String service) {
+    AdbConnection.checkServiceName(service);
     if (_closeReason case final reason?) throw reason;
     if (utf8.encode(service).length + 1 > maxPayload) {
       throw ArgumentError.value(service, 'service', 'longer than the payload limit of $maxPayload bytes');

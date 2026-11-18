@@ -294,7 +294,18 @@ abstract base class AdbConnection {
 
   /// Like [open], but returns the stream at once, before the device answered; [AdbStream.opened] tells how the open
   /// went. Writes made before then wait.
+  ///
+  /// Throws [ArgumentError] for a name with a NUL, which would cut it short on the device; only `abb:` and `abb_exec:`
+  /// use NULs, to separate their arguments.
   AdbStream openStream(String service);
+
+  /// Throws [ArgumentError] when [service] cannot be sent as it is (see [openStream]).
+  @internal
+  static void checkServiceName(String service) {
+    if (service.contains('\u0000') && !service.startsWith('abb:') && !service.startsWith('abb_exec:')) {
+      throw ArgumentError.value(service, 'service', 'contains a NUL, which would end it on the device');
+    }
+  }
 
   /// Closes the connection. Open streams end; their pending calls fail with [AdbCancelledException].
   ///

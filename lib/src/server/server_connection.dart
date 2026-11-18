@@ -86,6 +86,7 @@ final class ServerConnection extends AdbConnection {
 
   @override
   AdbStream openStream(String service) {
+    AdbConnection.checkServiceName(service);
     if (_closeReason case final reason?) throw reason;
     final stream = _RelayedStream(service);
     _streams.add(stream);
