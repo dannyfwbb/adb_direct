@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:meta/meta.dart';
 
@@ -13,7 +12,6 @@ import '../connection/options.dart';
 import '../crypto/adb_key_pair.dart';
 import '../errors.dart';
 import '../protocol/banner.dart';
-import '../protocol/constants.dart';
 import '../protocol/message.dart';
 import '../trace.dart';
 import '../transport/tcp_transport.dart';
@@ -70,14 +68,7 @@ abstract final class AdbProbe {
     final transport = await TcpTransport.connect(host, port, timeout: timeout);
     final link = MessageLink(transport, clock: clock, tracer: tracer)..start();
     try {
-      link.send(
-        AdbMessage(
-          AdbCommand.connect,
-          AdbProtocol.version,
-          AdbProtocol.maxPayload,
-          utf8.encode(AdbBanner.host(const {}).encode()),
-        ),
-      );
+      link.send(AdbMessage.connect(banner: AdbBanner.host(const {}).encode()));
       final AdbMessage answer;
       try {
         answer = await link.next(timeout: timeout, onTimeout: () => const AdbTimeoutException('No answer'));

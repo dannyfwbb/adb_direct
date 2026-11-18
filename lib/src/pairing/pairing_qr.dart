@@ -35,9 +35,8 @@ final class AdbPairingQr {
   /// A code with a fresh random service name and password.
   factory AdbPairingQr.random() {
     final random = Random.secure();
-    String pick(int n) => String.fromCharCodes([
-      for (var i = 0; i < n; i++) _alphabet.codeUnitAt(random.nextInt(_alphabet.length)),
-    ]);
+    String pick(int n) =>
+        String.fromCharCodes([for (var i = 0; i < n; i++) _alphabet.codeUnitAt(random.nextInt(_alphabet.length))]);
     return AdbPairingQr(serviceName: 'studio-${pick(10)}', password: pick(12));
   }
 
@@ -81,12 +80,9 @@ final class AdbPairingQr {
       if (!found.isCompleted) found.completeError(error);
     }
 
-    final subscription = services.listen(
-      (service) {
-        if (service.name == serviceName && !found.isCompleted) found.complete(service);
-      },
-      onError: (Object e) => fail(AdbUnreachableException('The service browser failed', cause: e)),
-    );
+    final subscription = services.listen((service) {
+      if (service.name == serviceName && !found.isCompleted) found.complete(service);
+    }, onError: (Object e) => fail(AdbUnreachableException('The service browser failed', cause: e)));
     final timer = clock.timer(
       waitTimeout,
       () => fail(AdbTimeoutException('No device announced $serviceName within $waitTimeout')),

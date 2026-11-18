@@ -3,6 +3,7 @@
 
 import 'dart:convert';
 
+import 'package:collection/collection.dart';
 import 'package:meta/meta.dart';
 
 /// A capability named in a `CNXN` banner.
@@ -113,12 +114,8 @@ enum AdbDeviceState {
   unknown;
 
   /// The state for a banner's system type.
-  static AdbDeviceState fromSystemType(String systemType) {
-    for (final state in values) {
-      if (state != unknown && state.name == systemType) return state;
-    }
-    return unknown;
-  }
+  static AdbDeviceState fromSystemType(String systemType) =>
+      systemType == unknown.name ? unknown : values.asNameMap()[systemType] ?? unknown;
 }
 
 /// The identity string carried in a `CNXN` message: `<systemtype>:<serial>:<key>=<value>;…;features=<a>,<b>,…`.
@@ -209,9 +206,8 @@ final class AdbBanner {
       other is AdbBanner &&
       other.systemType == systemType &&
       other.serial == serial &&
-      _mapEquals(other.properties, properties) &&
-      other.features.length == features.length &&
-      other.features.containsAll(features);
+      const MapEquality<String, String>().equals(other.properties, properties) &&
+      const SetEquality<AdbFeature>().equals(other.features, features);
 
   @override
   int get hashCode => Object.hash(
@@ -223,12 +219,4 @@ final class AdbBanner {
 
   @override
   String toString() => 'AdbBanner(${encode()})';
-}
-
-bool _mapEquals(Map<String, String> a, Map<String, String> b) {
-  if (a.length != b.length) return false;
-  for (final MapEntry(:key, :value) in a.entries) {
-    if (b[key] != value) return false;
-  }
-  return true;
 }

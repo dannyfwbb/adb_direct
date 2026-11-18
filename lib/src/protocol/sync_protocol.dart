@@ -6,10 +6,11 @@ import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
 
+import '../bytes.dart';
+
 /// Sync protocol ids (adbd's `file_sync_protocol.h`), four ASCII letters as a little-endian integer.
 abstract final class SyncId {
-  static int _id(String s) =>
-      s.codeUnitAt(0) | (s.codeUnitAt(1) << 8) | (s.codeUnitAt(2) << 16) | (s.codeUnitAt(3) << 24);
+  static int _id(String letters) => fourCc(letters);
 
   /// `STAT`: lstat, 32-bit fields.
   static final int stat = _id('STAT');
@@ -60,8 +61,7 @@ abstract final class SyncId {
   static final int quit = _id('QUIT');
 
   /// The four letters of [id].
-  static String name(int id) =>
-      String.fromCharCodes([id & 0xff, (id >> 8) & 0xff, (id >> 16) & 0xff, (id >> 24) & 0xff]);
+  static String name(int id) => fourCcName(id);
 }
 
 /// Limits of the sync protocol.

@@ -115,14 +115,14 @@ final class Handshake {
 
   /// Runs the handshake. Throws an [AdbException] when it fails; the caller closes the link then.
   Future<HandshakeResult> run() async {
-    final banner = utf8.encode(AdbBanner.host(options.hostFeatures).encode());
-    if (banner.length > AdbProtocol.maxPayloadV1) {
+    final cnxn = AdbMessage.connect(banner: AdbBanner.host(options.hostFeatures).encode());
+    if (cnxn.payload.length > AdbProtocol.maxPayloadV1) {
       throw ArgumentError('Host banner exceeds ${AdbProtocol.maxPayloadV1} B');
     }
     link
       ..withChecksum = true
       ..note('Handshake: sending CNXN')
-      ..send(AdbMessage(AdbCommand.connect, AdbProtocol.version, AdbProtocol.maxPayload, banner));
+      ..send(cnxn);
     _deadline = link.clock.elapsed + options.handshakeTimeout;
 
     while (true) {

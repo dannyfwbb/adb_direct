@@ -43,16 +43,12 @@ enum AdbCommand {
   final int value;
 
   /// The four letters, such as `CNXN`.
-  String get wireName =>
-      String.fromCharCodes([value & 0xff, (value >> 8) & 0xff, (value >> 16) & 0xff, (value >> 24) & 0xff]);
+  String get wireName => fourCcName(value);
 
   /// The command for a wire [value], or null for an unknown one.
-  static AdbCommand? fromValue(int value) {
-    for (final command in values) {
-      if (command.value == value) return command;
-    }
-    return null;
-  }
+  static AdbCommand? fromValue(int value) => _byValue[value];
+
+  static final Map<int, AdbCommand> _byValue = {for (final command in values) command.value: command};
 }
 
 /// The kinds of `AUTH` messages, carried in `arg0`.
@@ -72,12 +68,7 @@ enum AdbAuthType {
   final int value;
 
   /// The type for [value], or null for an unknown one.
-  static AdbAuthType? fromValue(int value) {
-    for (final type in values) {
-      if (type.value == value) return type;
-    }
-    return null;
-  }
+  static AdbAuthType? fromValue(int value) => values.where((type) => type.value == value).firstOrNull;
 }
 
 /// One message of the ADB protocol: a command, two arguments and a payload.

@@ -29,5 +29,16 @@ Uint8List hexDecode(String hex) {
   return Uint8List.fromList([for (var i = 0; i < hex.length; i += 2) int.parse(hex.substring(i, i + 2), radix: 16)]);
 }
 
+/// Four ASCII letters as the little-endian 32-bit value ADB and sync ids use on the wire (`CNXN`, `STAT`).
+int fourCc(String letters) =>
+    letters.codeUnitAt(0) |
+    (letters.codeUnitAt(1) << 8) |
+    (letters.codeUnitAt(2) << 16) |
+    (letters.codeUnitAt(3) << 24);
+
+/// The letters of a [fourCc] value.
+String fourCcName(int value) =>
+    String.fromCharCodes([value & 0xff, (value >> 8) & 0xff, (value >> 16) & 0xff, (value >> 24) & 0xff]);
+
 /// Whether [a] and [b] hold the same bytes.
 bool sameBytes(List<int> a, List<int> b) => const ListEquality<int>().equals(a, b);
