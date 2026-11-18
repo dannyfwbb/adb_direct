@@ -90,8 +90,11 @@ final class AdbReverse {
   /// `adb reverse <device> tcp:<port>` does. A local connection that fails closes the device's connection.
   Future<AdbReverseForward> toLocalPort(String deviceSpec, int port, {Object host = '127.0.0.1', bool rebind = true}) {
     if (port < 1 || port > 65535) throw ArgumentError.value(port, 'port', 'not a TCP port');
-    // adb's own name for the default; another host gets its own name, so two targets never share one.
-    final label = host == '127.0.0.1' ? 'tcp:$port' : 'tcp:$port:$host';
+    // adb's own name for the default; another host gets its own name, so two targets never share one. The name is a
+    // plain address or host name: the device lists forwards as space-separated words.
+    final name = host is InternetAddress ? host.address : '$host';
+    if (name.isEmpty || name.contains(RegExp(r'[\s;]'))) throw ArgumentError.value(host, 'host', 'is not a host name');
+    final label = name == '127.0.0.1' ? 'tcp:$port' : 'tcp:$port:$name';
     return _add(deviceSpec, label, (stream) async {
       final Socket socket;
       try {

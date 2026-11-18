@@ -223,8 +223,9 @@ void main() {
       final services = <String>[];
       final closed = Completer<void>();
       final (adb, adbd) = await connectTo((session) async {
-        services.add(await answer(session, 'OKAY'));
-        services.add(await answer(session, 'OKAY'));
+        for (var i = 0; i < 4; i++) {
+          services.add(await answer(session, 'OKAY'));
+        }
         final failing = await answer(session, 'OKAY');
         session.send(AdbMessage.open(localId: 90, service: failing.split(';').last));
         final okay = await next(session, (m) => m.arg1 == 90);
@@ -235,7 +236,16 @@ void main() {
       });
       await adb.reverse.toLocalPort('tcp:1', 3000);
       await adb.reverse.toLocalPort('tcp:2', 3000, host: '10.0.0.5');
-      expect(services, ['reverse:forward:tcp:1;tcp:3000', 'reverse:forward:tcp:2;tcp:3000:10.0.0.5']);
+      // An InternetAddress names itself by its address, and the loopback one is the default.
+      await adb.reverse.toLocalPort('tcp:5', 3000, host: InternetAddress('10.0.0.6'));
+      await adb.reverse.toLocalPort('tcp:6', 3000, host: InternetAddress.loopbackIPv4);
+      expect(services, [
+        'reverse:forward:tcp:1;tcp:3000',
+        'reverse:forward:tcp:2;tcp:3000:10.0.0.5',
+        'reverse:forward:tcp:5;tcp:3000:10.0.0.6',
+        'reverse:forward:tcp:6;tcp:3000',
+      ]);
+      expect(() => adb.reverse.toLocalPort('tcp:7', 3000, host: 'a b'), throwsArgumentError);
       await adb.reverse.add('tcp:3', (stream) async {
         await Future<void>.delayed(Duration.zero);
         throw StateError('handler failed');
