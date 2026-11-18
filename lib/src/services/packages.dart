@@ -317,62 +317,20 @@ final class AdbPackages {
   /// [AdbTimeoutException] when neither the source nor the device moves for [stallTimeout].
   Future<void> _upload(AdbStream stream, AdbApk apk, AdbProgress? onProgress) async {
     final start = stream.acknowledgedBytes;
-    final result = Completer<void>();
-    var sent = 0;
-    late final StreamSubscription<List<int>> source;
-
-    void fail(Object error, [StackTrace? stackTrace]) {
-      if (result.isCompleted) return;
-      result.completeError(error, stackTrace);
-      unawaited(source.cancel());
-    }
-
-    final acknowledgements = stream.acknowledgements.listen((acknowledged) {
-      onProgress?.call(acknowledged - start, apk.size);
-    });
+    final acknowledgements = stream.acknowledgements.listen((acked) => onProgress?.call(acked - start, apk.size));
+    final copy = _ApkCopy(apk, stream);
     final watchdog = ProgressWatchdog(
       clock: _connection.clock,
       timeout: stallTimeout,
       // Movement of the source or of the device.
-      progress: () => sent + stream.acknowledgedBytes,
+      progress: () => copy.sent + stream.acknowledgedBytes,
       onStall: () {
         unawaited(stream.close());
-        fail(AdbTimeoutException('The upload of ${apk.name} made no progress for $stallTimeout'));
+        copy.fail(AdbTimeoutException('The upload of ${apk.name} made no progress for $stallTimeout'));
       },
-    );
-
-    source = apk.open().listen(
-      (chunk) {
-        sent += chunk.length;
-        if (sent > apk.size) {
-          fail(ArgumentError('${apk.name} yielded more than the ${apk.size} bytes announced'));
-          return;
-        }
-        source.pause();
-        unawaited(
-          stream.write(chunk).then((_) {
-            if (!result.isCompleted) source.resume();
-          }, onError: fail),
-        );
-      },
-      onError: fail,
-      onDone: () {
-        if (result.isCompleted) return;
-        if (sent != apk.size) {
-          fail(ArgumentError('${apk.name} yielded $sent bytes, not the ${apk.size} announced'));
-          return;
-        }
-        // The device has to take the last bytes before the silent verification phase starts.
-        unawaited(
-          stream.flush().then((_) {
-            if (!result.isCompleted) result.complete();
-          }, onError: fail),
-        );
-      },
-      cancelOnError: true,
     );
     try {
-      await result.future;
+      await copy.done;
       onProgress?.call(stream.acknowledgedBytes - start, apk.size);
     } finally {
       watchdog.stop();
@@ -409,6 +367,53 @@ AdbInstallException? pmFailure(String output, String what) {
 int? pmSessionId(String output) {
   final match = RegExp(r'^\s*Success.*\[(\d+)\]', multiLine: true).firstMatch(output);
   return match == null ? null : int.parse(match.group(1)!);
+}
+
+/// Copies an APK into a stream, one chunk in flight at a time, and ends once the device has taken the last byte.
+final class _ApkCopy {
+  _ApkCopy(this._apk, this._stream) {
+    _source = _apk.open().listen(_onChunk, onError: fail, onDone: _onDone, cancelOnError: true);
+  }
+
+  final AdbApk _apk;
+  final AdbStream _stream;
+  final Completer<void> _result = Completer<void>();
+  late final StreamSubscription<List<int>> _source;
+
+  /// Bytes taken from the source so far.
+  int sent = 0;
+
+  /// Completes when everything was sent and acknowledged; fails with the first error.
+  Future<void> get done => _result.future;
+
+  /// Ends the copy with [error] unless it ended already.
+  void fail(Object error, [StackTrace? stackTrace]) {
+    if (_result.isCompleted) return;
+    _result.completeError(error, stackTrace);
+    unawaited(_source.cancel());
+  }
+
+  void _onChunk(List<int> chunk) {
+    sent += chunk.length;
+    if (sent > _apk.size) {
+      return fail(ArgumentError('${_apk.name} yielded more than the ${_apk.size} bytes announced'));
+    }
+    _source.pause();
+    _stream.write(chunk).then((_) {
+      if (!_result.isCompleted) _source.resume();
+    }, onError: fail).ignore();
+  }
+
+  void _onDone() {
+    if (_result.isCompleted) return;
+    if (sent != _apk.size) {
+      return fail(ArgumentError('${_apk.name} yielded $sent bytes, not the ${_apk.size} announced'));
+    }
+    // The device has to take the last bytes before the silent verification phase starts.
+    _stream.flush().then((_) {
+      if (!_result.isCompleted) _result.complete();
+    }, onError: fail).ignore();
+  }
 }
 
 /// How package manager commands reach the device.
