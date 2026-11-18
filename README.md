@@ -1,6 +1,6 @@
 # adb_direct
 
-[![pub package](https://img.shields.io/pub/v/adb_direct.svg)](https://pub.dev/packages/adb_direct) [![pub points](https://img.shields.io/pub/points/adb_direct)](https://pub.dev/packages/adb_direct/score)
+[![pub package](https://img.shields.io/pub/v/adb_direct.svg)](https://pub.dev/packages/adb_direct) [![pub points](https://img.shields.io/pub/points/adb_direct)](https://pub.dev/packages/adb_direct/score) [![CI](https://github.com/dannyfwbb/adb_direct/actions/workflows/ci.yml/badge.svg)](https://github.com/dannyfwbb/adb_direct/actions/workflows/ci.yml)
 
 An ADB client in pure Dart that talks to `adbd` on Android devices over the network. No `adb` binary, no adb server, no platform channels, no native code: one `dart:io` implementation for Android, iOS, macOS, Windows and Linux.
 

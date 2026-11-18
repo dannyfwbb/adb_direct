@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Streams: a write from the device is acknowledged only once the listener has received it. Data the device sent together with its answer to `OPEN` (common for command output) was acknowledged as soon as someone listened, so a listener that paused at once could not hold the device back.
+- Windows: a refused connection (`ERROR_CONNECTION_REFUSED`, 1225) is an `AdbRefusedException`, not an `AdbUnreachableException`.
+- Repository: CI on Linux, macOS and Windows; `SECURITY.md`.
+
 ## 1.0.0 (2026-11-18)
 
 First release: an ADB client in pure Dart for `adbd` over the network.
