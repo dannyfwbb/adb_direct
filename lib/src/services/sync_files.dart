@@ -74,8 +74,7 @@ extension AdbSyncFiles on AdbSync {
     var count = 0;
     await _makeDirectories(local, remote);
     await for (final entity in local.list(recursive: true, followLinks: false)) {
-      final relative = p.relative(entity.path, from: local.path).split(p.separator).join('/');
-      final target = _join(remote, relative);
+      final target = _join(remote, _relative(entity, local));
       if (entity is Link) {
         await writeLink(target, await entity.target());
         count++;
@@ -92,23 +91,24 @@ extension AdbSyncFiles on AdbSync {
   /// pushed file (`secure_mkdirs failed`): make the tree first, as adb does. Failures are ignored (a directory that
   /// exists already).
   Future<void> _makeDirectories(Directory local, String remote) async {
-    final c = connection;
-    if (c.supports(AdbFeature.fixedPushMkdir) || !c.supports(AdbFeature.shellV2)) {
-      return;
-    }
-    final dirs = <String>[remote];
-    await for (final entity in local.list(recursive: true, followLinks: false)) {
-      if (entity is Directory) {
-        dirs.add(_join(remote, p.relative(entity.path, from: local.path).split(p.separator).join('/')));
-      }
-    }
-    dirs.sort((a, b) => a.length.compareTo(b.length));
+    if (connection.supports(AdbFeature.fixedPushMkdir) || !connection.supports(AdbFeature.shellV2)) return;
+
+    final dirs = [
+      remote,
+      await for (final entity in local.list(recursive: true, followLinks: false))
+        if (entity is Directory) _join(remote, _relative(entity, local)),
+    ]..sort((a, b) => a.length.compareTo(b.length));
+
     // Batches under adb's own limit for one command line.
     var batch = <String>[];
     var length = 0;
     Future<void> flush() async {
       if (batch.isEmpty) return;
-      await c.shell.run('mkdir -p ${batch.map(shellQuote).join(' ')}').then<void>((_) {}, onError: (Object _) {});
+      try {
+        await connection.shell.run('mkdir -p ${batch.map(shellQuote).join(' ')}');
+      } on Object {
+        // An existing directory, say: the push itself tells what really fails.
+      }
       batch = [];
       length = 0;
     }
@@ -137,6 +137,10 @@ extension AdbSyncFiles on AdbSync {
     return device.size == mine.size &&
         device.modified.millisecondsSinceEpoch ~/ 1000 == mine.modified.millisecondsSinceEpoch ~/ 1000;
   }
+
+  /// [entity]'s path under [root], with `/` separators.
+  static String _relative(FileSystemEntity entity, Directory root) =>
+      p.relative(entity.path, from: root.path).split(p.separator).join('/');
 
   static String _join(String directory, String name) =>
       directory.endsWith('/') ? '$directory$name' : '$directory/$name';

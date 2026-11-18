@@ -4,6 +4,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
@@ -96,13 +97,11 @@ Future<void> serveBlocks(AdbStream stream, RandomAccessFile file, int size, AdbP
           service: 'sideload-host',
         );
       }
-      final block = RegExp(r'^[0-9]{8}$').hasMatch(request) ? int.parse(request) : null;
-      final offset = block == null ? -1 : block * AdbRecovery.blockSize;
-      if (block == null || offset >= size) {
-        throw AdbProtocolException('The device asked for block "$request"');
-      }
+      final offset = RegExp(r'^[0-9]{8}$').hasMatch(request) ? int.parse(request) * AdbRecovery.blockSize : size;
+      if (offset >= size) throw AdbProtocolException('The device asked for block "$request"');
+
       await file.setPosition(offset);
-      final length = offset + AdbRecovery.blockSize > size ? size - offset : AdbRecovery.blockSize;
+      final length = min(AdbRecovery.blockSize, size - offset);
       final data = Uint8List(length);
       await file.readInto(data);
       await stream.write(data);

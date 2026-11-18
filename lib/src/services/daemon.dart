@@ -3,6 +3,7 @@
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
 
@@ -72,9 +73,7 @@ final class AdbDaemon {
 
   /// Restarts adbd listening on TCP [port] (5555 is the usual one).
   Future<AdbDaemonAnswer> tcpip(int port) {
-    if (port < 1 || port > 65535) {
-      throw ArgumentError.value(port, 'port', 'not a TCP port');
-    }
+    if (port < 1 || port > 65535) throw ArgumentError.value(port, 'port', 'not a TCP port');
     return _run('tcpip:$port', const {'restarting in TCP mode': AdbDaemonOutcome.restarting});
   }
 
@@ -131,22 +130,19 @@ final class AdbDaemon {
     } on AdbServiceUnavailableException {
       throw AdbNotSupportedException('The device has no "$service" service');
     }
+
     // adbd may restart before it closes the stream: keep what arrived.
-    final bytes = <int>[];
+    final bytes = BytesBuilder(copy: false);
     var cutOff = false;
     try {
-      await stream.input.forEach(bytes.addAll);
+      await stream.input.forEach(bytes.add);
     } on AdbException {
       cutOff = true;
     }
-    final output = utf8.decode(bytes, allowMalformed: true);
-    var outcome = AdbDaemonOutcome.done;
-    for (final MapEntry(:key, :value) in outcomes.entries) {
-      if (output.contains(key)) {
-        outcome = value;
-        break;
-      }
-    }
+
+    final output = utf8.decode(bytes.takeBytes(), allowMalformed: true);
+    var outcome =
+        outcomes.entries.where((e) => output.contains(e.key)).map((e) => e.value).firstOrNull ?? AdbDaemonOutcome.done;
     if (cutOff && outcome == AdbDaemonOutcome.done && outcomes.containsValue(AdbDaemonOutcome.restarting)) {
       // A service that restarts adbd, cut off before it answered.
       outcome = AdbDaemonOutcome.restarting;

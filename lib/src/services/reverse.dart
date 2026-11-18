@@ -74,6 +74,9 @@ final class AdbReverse {
   final AdbConnection _connection;
   int _nextLabel = 1;
 
+  /// Device spec → our label, for what this object set up.
+  final Map<String, String> _labels = {};
+
   /// Listens on the device at [deviceSpec] (`tcp:8080`, `tcp:0` for any free port, `localabstract:name`, …) and calls
   /// [onConnection] with a stream for each connection made to it. With [rebind] false an existing forward on
   /// [deviceSpec] is an error instead of being replaced.
@@ -86,9 +89,7 @@ final class AdbReverse {
   /// Like [add], with each connection copied to a new TCP connection to [host]:[port] here, as
   /// `adb reverse <device> tcp:<port>` does. A local connection that fails closes the device's connection.
   Future<AdbReverseForward> toLocalPort(String deviceSpec, int port, {Object host = '127.0.0.1', bool rebind = true}) {
-    if (port < 1 || port > 65535) {
-      throw ArgumentError.value(port, 'port', 'not a TCP port');
-    }
+    if (port < 1 || port > 65535) throw ArgumentError.value(port, 'port', 'not a TCP port');
     // adb's own name for the default; another host gets its own name, so two targets never share one.
     final label = host == '127.0.0.1' ? 'tcp:$port' : 'tcp:$port:$host';
     return _add(deviceSpec, label, (stream) async {
@@ -105,8 +106,7 @@ final class AdbReverse {
 
   /// The reverse forwards the device holds for this connection.
   Future<List<AdbReverseEntry>> list() async {
-    final raw = await readAll(_connection, 'reverse:list-forward');
-    final text = SmartAnswer.hexPrefixed(raw);
+    final text = SmartAnswer.hexPrefixed(await readAll(_connection, 'reverse:list-forward'));
     return [
       for (final line in text.split('\n'))
         if (line.trim().split(' ') case [_, final device, final host]) AdbReverseEntry(device, host),
@@ -126,9 +126,6 @@ final class AdbReverse {
     _labels.clear();
     labels.forEach(_release);
   }
-
-  /// Device spec → our label, for what this object set up.
-  final Map<String, String> _labels = {};
 
   /// Stops accepting [label] unless another forward still uses it.
   void _release(String? label) {
