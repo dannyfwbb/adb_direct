@@ -33,7 +33,9 @@ final class AdbConnectOptions {
     AdbFeature.statV2,
     AdbFeature.lsV2,
     AdbFeature.sendRecvV2,
+    AdbFeature.sendRecvV2Lz4,
     AdbFeature.fixedPushMkdir,
+    AdbFeature.apex,
     AdbFeature.delayedAck,
   };
 

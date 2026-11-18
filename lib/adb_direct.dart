@@ -44,6 +44,7 @@ export 'src/services/recovery.dart' show AdbRecovery;
 export 'src/services/reverse.dart' show AdbReverse, AdbReverseEntry, AdbReverseForward, AdbReverseHandler;
 export 'src/services/shell.dart' show AdbShell, AdbShellResult, AdbShellSession, shellQuote;
 export 'src/services/sync.dart' show AdbProgress, AdbSync;
+export 'src/services/sync_compression.dart' show AdbCompression, AdbCompressionMethod;
 export 'src/services/sync_files.dart' show AdbSyncFiles;
 export 'src/stream/adb_stream.dart' show AdbStream;
 export 'src/trace.dart' show AdbNoteTrace, AdbPacketTrace, AdbTraceEvent, AdbTracer;

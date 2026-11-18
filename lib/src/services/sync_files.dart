@@ -11,18 +11,22 @@ import '../protocol/banner.dart';
 import '../protocol/sync_protocol.dart';
 import 'shell.dart';
 import 'sync.dart';
+import 'sync_compression.dart';
 
 /// Local files and directories with [AdbSync], like `adb pull` and `adb push`.
 extension AdbSyncFiles on AdbSync {
   /// Copies the device file [remote] to [local], replacing it.
   ///
   /// The local file gets the device file's modification time. A failed transfer leaves no partial file behind.
-  Future<void> pullFile(String remote, File local, {AdbProgress? onProgress}) async {
+  /// [compression] as in [AdbSync.read].
+  Future<void> pullFile(String remote, File local, {AdbProgress? onProgress, AdbCompression? compression}) async {
     final info = await _target(remote);
     final partial = File('${local.path}.${randomHex()}.part');
     final sink = partial.openWrite();
     try {
-      await sink.addStream(read(remote, onProgress: (done, _) => onProgress?.call(done, info?.size)));
+      await sink.addStream(
+        read(remote, compression: compression, onProgress: (done, _) => onProgress?.call(done, info?.size)),
+      );
       await sink.close();
       await partial.rename(local.path);
     } on Object {
@@ -34,8 +38,8 @@ extension AdbSyncFiles on AdbSync {
   }
 
   /// Copies [local] to the device path [remote], keeping its modification time and owner permission bits. On Android 7
-  /// to 9 the parent directory must exist ([pushDirectory] makes the tree).
-  Future<void> pushFile(File local, String remote, {AdbProgress? onProgress}) async {
+  /// to 9 the parent directory must exist ([pushDirectory] makes the tree). [compression] as in [AdbSync.write].
+  Future<void> pushFile(File local, String remote, {AdbProgress? onProgress, AdbCompression? compression}) async {
     final localStat = await local.stat();
     await write(
       remote,
@@ -44,21 +48,22 @@ extension AdbSyncFiles on AdbSync {
       modified: localStat.modified,
       size: localStat.size,
       onProgress: onProgress,
+      compression: compression,
     );
   }
 
   /// Copies the device directory [remote] into [local] (created as needed), recursively. Links on the device are
-  /// skipped. Returns the number of files copied.
-  Future<int> pullDirectory(String remote, Directory local) async {
+  /// skipped. Returns the number of files copied. [compression] as in [AdbSync.read].
+  Future<int> pullDirectory(String remote, Directory local, {AdbCompression? compression}) async {
     await local.create(recursive: true);
     var count = 0;
     for (final entry in await list(remote)) {
       final from = _join(remote, entry.name);
       final to = p.join(local.path, entry.name);
       if (entry.stat.isDirectory) {
-        count += await pullDirectory(from, Directory(to));
+        count += await pullDirectory(from, Directory(to), compression: compression);
       } else if (entry.stat.isFile) {
-        await pullFile(from, File(to));
+        await pullFile(from, File(to), compression: compression);
         count++;
       }
     }
@@ -69,8 +74,13 @@ extension AdbSyncFiles on AdbSync {
   /// land in them. Links are created as links (pointing where they point locally), not followed.
   ///
   /// With [onlyChanged], a file whose device copy has the same size and modification time (to the second) is skipped,
-  /// like `adb sync`. Returns the number of files and links copied.
-  Future<int> pushDirectory(Directory local, String remote, {bool onlyChanged = false}) async {
+  /// like `adb sync`. Returns the number of files and links copied. [compression] as in [AdbSync.write].
+  Future<int> pushDirectory(
+    Directory local,
+    String remote, {
+    bool onlyChanged = false,
+    AdbCompression? compression,
+  }) async {
     var count = 0;
     await _makeDirectories(local, remote);
     await for (final entity in local.list(recursive: true, followLinks: false)) {
@@ -80,7 +90,7 @@ extension AdbSyncFiles on AdbSync {
         count++;
       } else if (entity is File) {
         if (onlyChanged && await _sameAs(entity, target)) continue;
-        await pushFile(entity, target);
+        await pushFile(entity, target, compression: compression);
         count++;
       }
     }

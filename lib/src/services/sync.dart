@@ -16,6 +16,7 @@ import '../protocol/sync_protocol.dart';
 import '../stream/adb_stream.dart';
 import '../stream/progress_watchdog.dart';
 import '../stream/stream_reader.dart';
+import 'sync_compression.dart';
 
 /// Called as a transfer progresses with the bytes done so far and the total when known.
 typedef AdbProgress = void Function(int done, int? total);
@@ -52,6 +53,16 @@ final class AdbSync {
   /// Whether [stat] can follow links (`stat_v2`, Android 8 and later).
   bool get canFollowLinks => _v2Stat;
 
+  /// Whether transfers can be compressed with [method] (sync v2 and the method's feature; Android 11 and later).
+  bool supportsCompression(AdbCompressionMethod method) => _v2Transfer && _connection.supports(method.feature);
+
+  /// The flag for a transfer with [compression], or 0 when it cannot be used.
+  int _flag(AdbCompression? compression, {required bool push}) {
+    if (compression == null || !supportsCompression(compression.method)) return 0;
+    if (push && compression.encoder == null) return 0;
+    return compression.method.flag;
+  }
+
   /// Information about [path], or null when it does not exist.
   ///
   /// With [followLinks] false (the default, like `lstat`) a link is described itself; with true its target is, which
@@ -78,21 +89,29 @@ final class AdbSync {
 
   /// The content of the file [path], as it arrives.
   ///
-  /// Throws [AdbSyncException] (for example permission denied) when the device refuses. Cancelling the subscription
-  /// stops the transfer.
-  Stream<Uint8List> read(String path, {AdbProgress? onProgress}) async* {
+  /// With [compression] the device compresses the file and it is decoded here, when the device supports the method
+  /// (see [supportsCompression]); otherwise it comes uncompressed. [onProgress] counts decoded bytes.
+  ///
+  /// Throws [AdbSyncException] (for example permission denied) when the device refuses, and [AdbProtocolException]
+  /// when compressed data does not decode. Cancelling the subscription stops the transfer.
+  Stream<Uint8List> read(String path, {AdbProgress? onProgress, AdbCompression? compression}) async* {
     _checkPath(path);
+    final flag = _flag(compression, push: false);
+    final decoder = flag == 0 ? null : _Decoding(compression!, path);
     final session = await _acquire();
     var clean = false;
     try {
-      session.startRead(path, v2: _v2Transfer);
+      session.startRead(path, v2: _v2Transfer, flags: flag);
       var done = 0;
       while (true) {
         final chunk = await session.nextReadChunk(path);
+        final decoded = decoder == null ? [?chunk] : decoder.feed(chunk);
+        for (final piece in decoded) {
+          done += piece.length;
+          onProgress?.call(done, null);
+          yield piece;
+        }
         if (chunk == null) break;
-        done += chunk.length;
-        onProgress?.call(done, null);
-        yield chunk;
       }
       clean = true;
     } finally {
@@ -102,10 +121,10 @@ final class AdbSync {
     }
   }
 
-  /// Reads the whole file [path] into memory.
-  Future<Uint8List> readAll(String path) async {
+  /// Reads the whole file [path] into memory; [compression] as in [read].
+  Future<Uint8List> readAll(String path, {AdbCompression? compression}) async {
     final builder = BytesBuilder(copy: false);
-    await for (final chunk in read(path)) {
+    await for (final chunk in read(path, compression: compression)) {
       builder.add(chunk);
     }
     return builder.takeBytes();
@@ -118,6 +137,10 @@ final class AdbSync {
   /// its modification time (now when null; seconds from 1970 to 2106). [size], when given, is passed to [onProgress] as
   /// the total; progress counts bytes the device has acknowledged.
   ///
+  /// With [compression] the data is compressed here and decoded by the device, when it supports the method (see
+  /// [supportsCompression]) and [AdbCompression.encoder] is set; otherwise it goes uncompressed. Progress then counts
+  /// bytes of [data] whose compressed form the device acknowledged.
+  ///
   /// Throws [AdbSyncException] when the device refuses (read-only file system, no space, permission denied) — as soon
   /// as it does, not after the whole file was sent. Fails if [data] fails; adbd then removes the partial file.
   Future<void> write(
@@ -127,15 +150,28 @@ final class AdbSync {
     DateTime? modified,
     int? size,
     AdbProgress? onProgress,
-  }) => _send(path, data, 0x8000 | (permissions & 0xfff), modified, size, onProgress);
+    AdbCompression? compression,
+  }) => _send(path, data, 0x8000 | (permissions & 0xfff), modified, size, onProgress, compression);
 
-  /// Writes [bytes] to the file [path] on the device.
-  Future<void> writeAll(String path, List<int> bytes, {int permissions = 0x1a4, DateTime? modified}) =>
-      write(path, Stream.value(bytes), permissions: permissions, modified: modified, size: bytes.length);
+  /// Writes [bytes] to the file [path] on the device; [compression] as in [write].
+  Future<void> writeAll(
+    String path,
+    List<int> bytes, {
+    int permissions = 0x1a4,
+    DateTime? modified,
+    AdbCompression? compression,
+  }) => write(
+    path,
+    Stream.value(bytes),
+    permissions: permissions,
+    modified: modified,
+    size: bytes.length,
+    compression: compression,
+  );
 
   /// Creates the symbolic link [path] pointing at [target], as `adb push` does for links.
   Future<void> writeLink(String path, String target, {DateTime? modified}) =>
-      _send(path, Stream.value(utf8.encode(target)), 0xa000 | 0x1ff, modified, null, null);
+      _send(path, Stream.value(utf8.encode(target)), 0xa000 | 0x1ff, modified, null, null, null);
 
   /// Closes the idle session, if any. Running operations are not affected.
   Future<void> close() async {
@@ -152,13 +188,24 @@ final class AdbSync {
     DateTime? modified,
     int? size,
     AdbProgress? onProgress,
+    AdbCompression? compression,
   ) async {
     // v1 sends the mode after the path, in the same length-limited field.
     _checkPath(_v2Transfer ? path : '$path,$mode');
     final mtime = _mtime(modified ?? DateTime.now());
+    final flag = _flag(compression, push: true);
     return _run(
-      (session) =>
-          session.write(path, data, mode: mode, mtime: mtime, v2: _v2Transfer, size: size, onProgress: onProgress),
+      (session) => session.write(
+        path,
+        data,
+        mode: mode,
+        mtime: mtime,
+        v2: _v2Transfer,
+        size: size,
+        onProgress: onProgress,
+        flags: flag,
+        encoder: flag == 0 ? null : compression!.encoder,
+      ),
     );
   }
 
@@ -319,10 +366,10 @@ final class _SyncSession {
     }
   }
 
-  void startRead(String path, {required bool v2}) {
+  void startRead(String path, {required bool v2, int flags = 0}) {
     _dirty = true;
     final request = v2
-        ? [...SyncRequest.withPath(SyncId.recv2, path), ...SyncRequest.header(SyncId.recv2, 0)]
+        ? [...SyncRequest.withPath(SyncId.recv2, path), ...SyncRequest.header(SyncId.recv2, flags)]
         : SyncRequest.withPath(SyncId.recv, path);
     // A failure of this write surfaces through the reader.
     unawaited(_stream.write(request).catchError((Object _) {}));
@@ -352,6 +399,8 @@ final class _SyncSession {
     required bool v2,
     required int? size,
     required AdbProgress? onProgress,
+    int flags = 0,
+    Converter<List<int>, List<int>>? encoder,
   }) => _exchange(() async {
     final watchdog = ProgressWatchdog(
       clock: clock,
@@ -360,7 +409,7 @@ final class _SyncSession {
       onStall: _stream.close,
     );
     try {
-      return await _write(path, data, mode, mtime, v2, size, onProgress);
+      return await _write(path, data, mode, mtime, v2, size, onProgress, flags, encoder);
     } on AdbException catch (e) {
       if (watchdog.stalled) throw AdbTimeoutException('The push to $path made no progress for $stallTimeout', cause: e);
       rethrow;
@@ -377,13 +426,14 @@ final class _SyncSession {
     bool v2,
     int? size,
     AdbProgress? onProgress,
+    int flags,
+    Converter<List<int>, List<int>>? encoder,
   ) async {
-    // Progress counts file bytes the device acknowledged, not the framing: each DATA frame records where its payload
-    // ends on the wire.
+    // Progress counts file bytes the device acknowledged, not the framing: each DATA frame records how much of the
+    // source it completes once it is on the wire.
     final start = _stream.acknowledgedBytes;
-    final frames = <(int, int)>[]; // (wire end, payload end)
+    final frames = <(int, int)>[]; // (wire end, source end)
     var wire = 0;
-    var payload = 0;
     var reported = 0;
     void progress() {
       final acknowledged = _stream.acknowledgedBytes - start;
@@ -393,29 +443,47 @@ final class _SyncSession {
       onProgress?.call(reported, size);
     }
 
+    /// Sends [bytes] as DATA frames; the source has reached [sourceEnd] once the last of them is through. Uncompressed,
+    /// every frame completes its own part of the source.
+    Future<void> send(List<int> bytes, int sourceStart, int sourceEnd) async {
+      for (var offset = 0; offset < bytes.length;) {
+        // adbd answers a write error with FAIL at once and then drains until DONE: stop sending as soon as anything
+        // comes back.
+        if (_reader.buffered > 0) await _finishEarly(path, mtime);
+        final end = min(offset + SyncLimits.maxData, bytes.length);
+        final frame = SyncRequest.data(bytes, offset, end);
+        wire += frame.length;
+        final done = end == bytes.length ? sourceEnd : (encoder == null ? sourceStart + end : sourceStart);
+        frames.add((wire, done));
+        await _stream.write(frame);
+        offset = end;
+        progress();
+      }
+    }
+
     try {
       final request = v2
           ? [
               ...SyncRequest.withPath(SyncId.send2, path),
-              ...SyncRequest.words([SyncId.send2, mode, 0]),
+              ...SyncRequest.words([SyncId.send2, mode, flags]),
             ]
           : SyncRequest.withPath(SyncId.send, '$path,$mode');
       wire += request.length;
       await _stream.write(request);
-      await for (final chunk in data) {
-        for (var offset = 0; offset < chunk.length;) {
-          // adbd answers a write error with FAIL at once and then drains until DONE: stop sending as soon as anything
-          // comes back.
-          if (_reader.buffered > 0) return await _finishEarly(path, mtime);
-          final end = min(offset + SyncLimits.maxData, chunk.length);
-          final frame = SyncRequest.data(chunk, offset, end);
-          wire += frame.length;
-          payload += end - offset;
-          frames.add((wire, payload));
-          await _stream.write(frame);
-          offset = end;
-          progress();
+      var source = 0;
+      if (encoder == null) {
+        await for (final chunk in data) {
+          await send(chunk, source, source += chunk.length);
         }
+      } else {
+        final encoded = BytesBuilder(copy: false);
+        final sink = encoder.startChunkedConversion(_BuilderSink(encoded));
+        await for (final chunk in data) {
+          sink.add(chunk);
+          await send(encoded.takeBytes(), source, source += chunk.length);
+        }
+        sink.close();
+        await send(encoded.takeBytes(), source, source);
       }
       await _stream.write(SyncRequest.header(SyncId.done, mtime));
     } on AdbClosedException {
@@ -471,5 +539,45 @@ final class _SyncSession {
   Future<void> abandon() async {
     await _reader.cancel();
     await _stream.close();
+  }
+}
+
+/// Collects a converter's output.
+final class _BuilderSink implements Sink<List<int>> {
+  _BuilderSink(this._builder);
+
+  final BytesBuilder _builder;
+
+  @override
+  void add(List<int> data) => _builder.add(data);
+
+  @override
+  void close() {}
+}
+
+/// Decodes a compressed pull as its chunks arrive.
+final class _Decoding {
+  _Decoding(AdbCompression compression, this._path) : _method = compression.method {
+    _sink = compression.decoder.startChunkedConversion(_BuilderSink(_output));
+  }
+
+  final AdbCompressionMethod _method;
+  final String _path;
+  final BytesBuilder _output = BytesBuilder(copy: false);
+  late final Sink<List<int>> _sink;
+
+  /// Decodes [chunk], or finishes at its end (null); returns what came out.
+  List<Uint8List> feed(Uint8List? chunk) {
+    try {
+      if (chunk == null) {
+        _sink.close();
+      } else {
+        _sink.add(chunk);
+      }
+    } on FormatException catch (e) {
+      throw AdbProtocolException('The ${_method.name} data of $_path did not decode: ${e.message}', cause: e);
+    }
+    final bytes = _output.takeBytes();
+    return bytes.isEmpty ? const [] : [bytes];
   }
 }
