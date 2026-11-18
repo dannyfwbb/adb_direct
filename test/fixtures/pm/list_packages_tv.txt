@@ -1,0 +1,5 @@
+package:/system/priv-app/InputDevices/InputDevices.apk=com.android.inputdevices versionCode:34  installer=null uid:1000
+package:/data/app/~~GXKjFEEIWPuDHhqsyIR-Og==/com.google.android.webview-crvzwxbL6i56jtcWeskOug==/base.apk=com.google.android.webview versionCode:810303806  installer=com.android.vending uid:10091,1010091
+package:/vendor/overlay/SystemUI__auto_generated_rro_vendor.apk=com.android.systemui.auto_generated_rro_vendor__ versionCode:1  installer=null uid:10055
+package:/apex/com.android.wifi/app/OsuLoginGoogle@UTT1.240131.001.F1/OsuLoginGoogle.apk=com.google.android.hotspot2.osulogin versionCode:34  installer=null uid:10112
+package:/product/overlay/GoogleWebViewOverlay.apk=com.google.android.overlay.googlewebview versionCode:1  installer=null uid:10002,1010002

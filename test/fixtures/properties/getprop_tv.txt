@@ -1,0 +1,17 @@
+[persist.device_config.runtime_native_boot.enable_uffd_gc_2]: [false]
+[persist.device_config.runtime_native_boot.force_disable_uffd_gc]: [false]
+[persist.device_config.runtime_native_boot.iorap_blacklisted_packages]: []
+[persist.device_config.runtime_native_boot.iorap_perfetto_enable]: [false]
+[persist.device_config.runtime_native_boot.iorap_readahead_enable]: [false]
+[persist.device_config.runtime_native_boot.iorapd_options]: []
+[persist.device_config.runtime_native_boot.use_generational_gc]: [true]
+[persist.sys.boot.reason]: []
+[persist.sys.boot.reason.history]: [reboot,shell,1794947900
+reboot,1794938482
+reboot,1794886928
+reboot,1794885289]
+[persist.sys.dalvik.vm.lib.2]: [libart.so]
+[persist.sys.displayinset.top]: [0]
+[persist.sys.fuse]: [true]
+[persist.sys.lmk.reportkills]: [true]
+[persist.sys.media.avsync]: [true]

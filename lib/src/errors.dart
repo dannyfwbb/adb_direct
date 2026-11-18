@@ -33,6 +33,9 @@ enum AdbErrorCode {
   /// The package manager refused the package.
   installFailed,
 
+  /// A device command behind a helper (`pm`, `setprop`, …) reported a failure.
+  commandFailed,
+
   /// A file operation failed on the device.
   syncFailed,
 
@@ -175,6 +178,24 @@ final class AdbInstallException extends AdbException {
 
   @override
   AdbErrorCode get code => AdbErrorCode.installFailed;
+}
+
+/// A device command behind a helper (`pm clear`, `pm grant`, `setprop`, …) reported a failure.
+final class AdbCommandException extends AdbException {
+  /// Creates the exception.
+  const AdbCommandException(super.message, {required this.command, required this.output, this.exitCode, super.cause});
+
+  /// The command that ran on the device.
+  final String command;
+
+  /// What it printed (stdout and stderr), exactly.
+  final String output;
+
+  /// Its exit status, when the device reported one.
+  final int? exitCode;
+
+  @override
+  AdbErrorCode get code => AdbErrorCode.commandFailed;
 }
 
 /// A file operation failed on the device.

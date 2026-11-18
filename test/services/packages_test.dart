@@ -8,13 +8,14 @@ import 'dart:typed_data';
 
 import 'package:adb_direct/adb_direct.dart';
 import 'package:adb_direct/src/protocol/message.dart';
-import 'package:adb_direct/src/services/packages.dart' show pmFailure, pmSessionId;
+import 'package:adb_direct/src/services/packages.dart' show parsePackageList, pmFailure, pmSessionId;
 import 'package:test/test.dart';
 
 import '../connection/streams_test.dart' show connectTo, noLiveness;
 import '../support/adbd_scripts.dart' show classicBanner, oldBanner;
 import '../support/fake_adbd.dart';
 import '../support/fake_clock.dart';
+import '../support/shell_device.dart';
 
 /// A device with `abb_exec` (Android 11+).
 final Uint8List abbBanner = utf8.encode('${utf8.decode(classicBanner)},cmd,abb_exec');
@@ -425,5 +426,178 @@ void main() {
     await expectLater(adb2.packages.installMultiple([tiny]), throwsA(isA<AdbInstallException>()));
     await adbd2.done();
     await adb2.close();
+  });
+
+  group('APEX modules', () {
+    final apexBanner = utf8.encode('${utf8.decode(abbBanner)},apex');
+    final module = AdbApk.bytes('com.example.module.apex', List.filled(10, 2));
+
+    test('install adds --apex after the size', () async {
+      late String service;
+      final (adb, adbd) = await connectTo(banner: apexBanner, (session) async {
+        service = await command(session, output: 'Success\n', expectInput: 10);
+      });
+      expect(module.isApex, isTrue);
+      await adb.packages.install(module);
+      expect(service, 'abb_exec:package\u0000install\u0000-r\u0000-S\u000010\u0000--apex');
+      await adbd.done();
+      await adb.close();
+    });
+
+    test('a device without the apex feature is refused before anything is sent', () async {
+      final (adb, adbd) = await connectTo(banner: abbBanner, (session) async {});
+      await expectLater(adb.packages.install(module), throwsA(isA<AdbNotSupportedException>()));
+      await adb.close();
+      await adbd.done();
+    });
+
+    test('installMultiple refuses APEX modules; installMultiPackage refuses one mixed with other files', () async {
+      final (adb, adbd) = await connectTo(banner: apexBanner, (session) async {});
+      expect(() => adb.packages.installMultiple([tiny, module]), throwsArgumentError);
+      expect(
+        () => adb.packages.installMultiPackage([
+          [tiny, module],
+        ]),
+        throwsArgumentError,
+      );
+      await adb.close();
+      await adbd.done();
+    });
+
+    test('installMultiPackage with a module stages everything; only its session gets --apex', () async {
+      final services = <String>[];
+      final (adb, adbd) = await connectTo(banner: apexBanner, (session) async {
+        services
+          ..add(await command(session, output: 'Success: created install session [1]\n'))
+          ..add(await command(session, output: 'Success: created install session [2]\n'))
+          ..add(await command(session, output: 'Success\n', expectInput: 10))
+          ..add(await command(session, output: 'Success: created install session [3]\n'))
+          ..add(await command(session, output: 'Success\n', expectInput: 10))
+          ..add(await command(session, output: 'Success\n'))
+          ..add(await command(session, output: 'Success. Reboot device to apply staged session\n'));
+      });
+      await adb.packages.installMultiPackage([
+        [tiny],
+        [module],
+      ]);
+      String args(int i) => services[i].replaceAll('\u0000', ' ');
+      expect(args(0), 'abb_exec:package install-create --multi-package -r --staged');
+      expect(args(1), 'abb_exec:package install-create -r --staged -S 10');
+      expect(args(3), 'abb_exec:package install-create -r --staged -S 10 --apex');
+      expect(args(4), 'abb_exec:package install-write -S 10 3 com.example.module.apex -');
+      expect(args(5), 'abb_exec:package install-add-session 1 2 3');
+      await adbd.done();
+      await adb.close();
+    });
+  });
+
+  group('app management', () {
+    test('parsePackageList: recorded lines, paths with "=", several user ids, APEX modules', () {
+      final apps = parsePackageList(File('test/fixtures/pm/list_packages_tv.txt').readAsStringSync());
+      final webview = apps.firstWhere((p) => p.name == 'com.google.android.webview');
+      expect(
+        webview.path,
+        '/data/app/~~GXKjFEEIWPuDHhqsyIR-Og==/com.google.android.webview-crvzwxbL6i56jtcWeskOug==/base.apk',
+      );
+      expect(webview.versionCode, 810303806);
+      expect(webview.installer, 'com.android.vending');
+      expect(webview.userIds, [10091, 1010091]);
+      final input = apps.firstWhere((p) => p.name == 'com.android.inputdevices');
+      expect(input.installer, isNull);
+      expect(input.userIds, [1000]);
+      expect(apps.map((p) => p.name), contains('com.android.systemui.auto_generated_rro_vendor__'));
+
+      final modules = parsePackageList(File('test/fixtures/pm/list_apex_tv.txt').readAsStringSync());
+      expect(
+        modules.first,
+        const AdbPackageInfo(
+          name: 'com.google.mainline.primary.libs',
+          path: '/system/apex/com.google.mainline.primary.libs.apex',
+          versionCode: 1,
+        ),
+      );
+
+      expect(parsePackageList('package:com.old.app\r\n'), [const AdbPackageInfo(name: 'com.old.app')]);
+      expect(parsePackageList('package:/data/app/x.apk=com.old.app  installer=null\n').single.path, '/data/app/x.apk');
+    });
+
+    test('list asks for what the SDK level knows', () async {
+      for (final (sdk, expected) in [
+        ('34', 'pm list packages -f -i -U --show-versioncode -3 -d --user 10'),
+        ('27', 'pm list packages -f -i -U -3 -d --user 10'),
+        ('19', 'pm list packages -f -i -3 -d --user 10'),
+      ]) {
+        final commands = <String>[];
+        final (adb, adbd) = await connectTo(
+          (session) => serveShellCommands(session, (command) {
+            if (command.startsWith('getprop')) return printed('$sdk\n');
+            return printed('package:/data/app/x.apk=a.b  installer=null\n');
+          }, commands),
+        );
+        final apps = await adb.packages.list(system: false, enabled: false, user: 10);
+        expect(apps.single.name, 'a.b');
+        expect(commands.last, expected);
+        if (sdk == '19') await expectLater(adb.packages.list(apex: true), throwsA(isA<AdbNotSupportedException>()));
+        await adb.close();
+        await adbd.done();
+      }
+    });
+
+    test('paths, enable, disable, clear, grant, revoke: success and recorded refusals', () async {
+      final stackTrace = File('test/fixtures/pm/stack_trace.txt').readAsStringSync();
+      final commands = <String>[];
+      final (adb, adbd) = await connectTo(
+        (session) => serveShellCommands(
+          session,
+          (command) => switch (command) {
+            'pm path a.b' => printed(File('test/fixtures/pm/path.txt').readAsStringSync()),
+            'pm path --user 10 a.b' => printed('', exit: 1),
+            'pm enable a.b' => printed('Package a.b new state: enabled\n'),
+            'pm disable-user --user 0 a.b' => printed('Package a.b new state: disabled-user\n'),
+            'pm disable-user no.such' => printed('', stderr: stackTrace, exit: 255),
+            'pm clear a.b' => printed('Success\n'),
+            'pm clear no.such' => printed(
+              '',
+              stderr: File('test/fixtures/pm/clear_unknown_stderr.txt').readAsStringSync(),
+              exit: 1,
+            ),
+            'pm grant a.b android.permission.CAMERA' => printed(''),
+            'pm revoke a.b android.permission.CAMERA' => printed(
+              '',
+              stderr: 'Exception occurred while executing \'revoke\':\njava.lang.SecurityException: no\n',
+              exit: 255,
+            ),
+            _ => printed('', stderr: 'unexpected', exit: 1),
+          },
+          commands,
+        ),
+      );
+      final packages = adb.packages;
+      expect(await packages.paths('a.b'), [File('test/fixtures/pm/path.txt').readAsStringSync().trim().substring(8)]);
+      expect(await packages.paths('a.b', user: 10), isEmpty);
+      await packages.setEnabled('a.b', enabled: true);
+      await packages.setEnabled('a.b', enabled: false, user: 0);
+      await expectLater(
+        packages.setEnabled('no.such', enabled: false),
+        throwsA(
+          isA<AdbCommandException>()
+              .having((e) => e.message, 'message', contains('java.lang.IllegalArgumentException: Unknown package'))
+              .having((e) => e.exitCode, 'exitCode', 255),
+        ),
+      );
+      await packages.clearData('a.b');
+      await expectLater(
+        packages.clearData('no.such'),
+        throwsA(isA<AdbCommandException>().having((e) => e.message, 'message', endsWith('Failed'))),
+      );
+      await packages.grantPermission('a.b', 'android.permission.CAMERA');
+      await expectLater(
+        packages.revokePermission('a.b', 'android.permission.CAMERA'),
+        throwsA(isA<AdbCommandException>().having((e) => e.message, 'message', contains('SecurityException'))),
+      );
+      expect(commands, isNot(contains(startsWith('pm uninstall'))));
+      await adb.close();
+      await adbd.done();
+    });
   });
 }

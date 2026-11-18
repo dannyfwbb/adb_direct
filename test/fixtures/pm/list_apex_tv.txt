@@ -1,0 +1,3 @@
+package:/system/apex/com.google.mainline.primary.libs.apex=com.google.mainline.primary.libs versionCode:1  installer=null
+package:/system/apex/com.android.runtime.apex=com.google.android.runtime versionCode:1  installer=null
+package:/data/apex/decompressed/com.android.mediaprovider@340090000.decompressed.apex=com.google.android.mediaprovider versionCode:340090000  installer=null

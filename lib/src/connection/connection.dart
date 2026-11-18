@@ -15,6 +15,7 @@ import '../services/daemon.dart';
 import '../services/debug.dart';
 import '../services/forward.dart';
 import '../services/packages.dart';
+import '../services/properties.dart';
 import '../services/recovery.dart';
 import '../services/reverse.dart';
 import '../services/shell.dart';
@@ -247,7 +248,10 @@ abstract base class AdbConnection {
   /// Shell commands.
   late final AdbShell shell = AdbShell(this);
 
-  /// Apps: install, install several APKs or apps, uninstall.
+  /// System properties: `getprop`, `setprop`, the serial number, the API level.
+  late final AdbProperties properties = AdbProperties(this);
+
+  /// Apps: install, install several APKs or apps, uninstall, list, enable, disable, clear, permissions.
   late final AdbPackages packages = AdbPackages(
     this,
     stallTimeout: options.transferStallTimeout,
