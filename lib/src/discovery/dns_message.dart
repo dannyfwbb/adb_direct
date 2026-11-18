@@ -62,18 +62,43 @@ final class DnsRecord {
   /// The cache-flush bit: this record replaces older ones of its set.
   final bool cacheFlush;
 
-  /// PTR: the target name (String). SRV: [DnsSrv]. TXT: `List<String>`. A/AAAA: [InternetAddress]. Others: the raw
-  /// bytes.
-  final Object data;
+  /// The record's content.
+  final DnsData data;
+
+  /// The same record with [ttl] seconds to live.
+  DnsRecord withTtl(int ttl) => DnsRecord(name: name, type: type, ttl: ttl, cacheFlush: cacheFlush, data: data);
 
   @override
   String toString() => 'DnsRecord($name type $type ttl $ttl: $data)';
 }
 
-/// SRV data.
+/// What a record holds.
 @internal
 @immutable
-final class DnsSrv {
+sealed class DnsData {
+  const DnsData();
+
+  /// Tells records of one set apart: names compare without case.
+  String get key;
+}
+
+/// PTR data: the name pointed at, without the trailing dot.
+@internal
+final class DnsPointer extends DnsData {
+  const DnsPointer(this.target);
+
+  final String target;
+
+  @override
+  String get key => target.toLowerCase();
+
+  @override
+  String toString() => target;
+}
+
+/// SRV data.
+@internal
+final class DnsSrv extends DnsData {
   const DnsSrv({required this.priority, required this.weight, required this.port, required this.target});
 
   final int priority;
@@ -84,7 +109,49 @@ final class DnsSrv {
   final String target;
 
   @override
+  String get key => '${target.toLowerCase()}:$port';
+
+  @override
   String toString() => '$target:$port';
+}
+
+/// TXT data: its strings, empty ones left out.
+@internal
+final class DnsText extends DnsData {
+  const DnsText(this.strings);
+
+  final List<String> strings;
+
+  @override
+  String get key => strings.join('\u0000');
+
+  @override
+  String toString() => strings.join(' ');
+}
+
+/// A or AAAA data.
+@internal
+final class DnsAddress extends DnsData {
+  const DnsAddress(this.address);
+
+  final InternetAddress address;
+
+  @override
+  String get key => address.address;
+
+  @override
+  String toString() => address.address;
+}
+
+/// Data of any other type, as it came.
+@internal
+final class DnsRaw extends DnsData {
+  const DnsRaw(this.bytes);
+
+  final Uint8List bytes;
+
+  @override
+  String get key => bytes.join(',');
 }
 
 /// A decoded message.
@@ -129,9 +196,7 @@ final class DnsMessage {
     for (final label in name.split('.')) {
       if (label.isEmpty) continue;
       final bytes = utf8.encode(label);
-      if (bytes.length > 63) {
-        throw ArgumentError.value(name, 'name', 'has a label over 63 bytes');
-      }
+      if (bytes.length > 63) throw ArgumentError.value(name, 'name', 'has a label over 63 bytes');
       out
         ..addByte(bytes.length)
         ..add(bytes);
@@ -182,10 +247,10 @@ final class _Reader {
     _offset += 10;
     _need(length);
     final end = _offset + length;
-    Object data;
+    final DnsData data;
     switch (type) {
       case DnsType.ptr:
-        data = _name();
+        data = DnsPointer(_name());
       case DnsType.srv:
         _need(6);
         final priority = _view.getUint16(_offset);
@@ -194,31 +259,34 @@ final class _Reader {
         _offset += 6;
         data = DnsSrv(priority: priority, weight: weight, port: port, target: _name());
       case DnsType.txt:
-        final strings = <String>[];
-        while (_offset < end) {
-          final n = _bytes[_offset++];
-          if (_offset + n > end) throw const FormatException('A bad TXT');
-          if (n > 0) {
-            strings.add(utf8.decode(_bytes.sublist(_offset, _offset + n), allowMalformed: true));
-          }
-          _offset += n;
-        }
-        data = strings;
+        data = DnsText(_strings(end));
       case DnsType.a when length == 4:
-        data = InternetAddress.fromRawAddress(_bytes.sublist(_offset, end), type: InternetAddressType.IPv4);
+        data = DnsAddress(InternetAddress.fromRawAddress(_bytes.sublist(_offset, end), type: InternetAddressType.IPv4));
       case DnsType.aaaa when length == 16:
-        data = InternetAddress.fromRawAddress(_bytes.sublist(_offset, end), type: InternetAddressType.IPv6);
+        data = DnsAddress(InternetAddress.fromRawAddress(_bytes.sublist(_offset, end), type: InternetAddressType.IPv6));
       case DnsType.a || DnsType.aaaa:
         // An address of the wrong size: skipped, never stored as one.
         _offset = end;
         return null;
       default:
-        data = Uint8List.fromList(_bytes.sublist(_offset, end));
+        data = DnsRaw(Uint8List.fromList(_bytes.sublist(_offset, end)));
     }
     if (_offset > end) throw const FormatException('A record overruns');
     _offset = end;
     if (klass & 0x7fff != 1) return null;
     return DnsRecord(name: name, type: type, ttl: ttl, cacheFlush: klass & 0x8000 != 0, data: data);
+  }
+
+  /// TXT character-strings up to [end].
+  List<String> _strings(int end) {
+    final strings = <String>[];
+    while (_offset < end) {
+      final n = _bytes[_offset++];
+      if (_offset + n > end) throw const FormatException('A bad TXT');
+      if (n > 0) strings.add(utf8.decode(_bytes.sublist(_offset, _offset + n), allowMalformed: true));
+      _offset += n;
+    }
+    return strings;
   }
 
   /// A name, following compression pointers (at most 64 of them).
@@ -235,18 +303,14 @@ final class _Reader {
         break;
       }
       if (length & 0xc0 == 0xc0) {
-        if (offset + 1 >= _bytes.length) {
-          throw const FormatException('A cut pointer');
-        }
+        if (offset + 1 >= _bytes.length) throw const FormatException('A cut pointer');
         resume ??= offset + 2;
         offset = ((length & 0x3f) << 8) | _bytes[offset + 1];
         if (++jumps > 64) throw const FormatException('A pointer loop');
         continue;
       }
       if (length & 0xc0 != 0) throw const FormatException('A bad label');
-      if (offset + 1 + length > _bytes.length) {
-        throw const FormatException('A cut label');
-      }
+      if (offset + 1 + length > _bytes.length) throw const FormatException('A cut label');
       labels.add(utf8.decode(_bytes.sublist(offset + 1, offset + 1 + length), allowMalformed: true));
       offset += 1 + length;
     }
@@ -255,8 +319,6 @@ final class _Reader {
   }
 
   void _need(int n) {
-    if (_offset + n > _bytes.length) {
-      throw const FormatException('A truncated DNS message');
-    }
+    if (_offset + n > _bytes.length) throw const FormatException('A truncated DNS message');
   }
 }

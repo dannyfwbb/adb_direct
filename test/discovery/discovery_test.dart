@@ -8,7 +8,7 @@ import 'dart:typed_data';
 
 import 'package:adb_direct/adb_direct.dart';
 import 'package:adb_direct/src/discovery/dns_message.dart';
-import 'package:adb_direct/src/discovery/mdns_browser.dart';
+import 'package:adb_direct/src/discovery/mdns_transport.dart';
 import 'package:test/test.dart';
 
 import '../support/fake_clock.dart';
@@ -109,10 +109,10 @@ void main() {
       expect(message.id, 0x1234);
       expect(message.questions.single.name, '_adbdirect-test._tcp.local');
       final byType = {for (final r in message.answers) r.type: r};
-      expect(byType[DnsType.ptr]!.data, 'adb-TESTSERIAL01-AbC123._adbdirect-test._tcp.local');
+      expect((byType[DnsType.ptr]!.data as DnsPointer).target, 'adb-TESTSERIAL01-AbC123._adbdirect-test._tcp.local');
       expect((byType[DnsType.srv]!.data as DnsSrv).port, 40123);
-      expect(byType[DnsType.txt]!.data, ['v=1']);
-      expect((byType[DnsType.a]!.data as InternetAddress).address, '192.168.0.20');
+      expect((byType[DnsType.txt]!.data as DnsText).strings, ['v=1']);
+      expect((byType[DnsType.a]!.data as DnsAddress).address.address, '192.168.0.20');
       expect(message.answers.every((r) => r.ttl <= 10), isTrue);
     });
 
