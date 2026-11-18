@@ -35,7 +35,7 @@ final class TcpTransport implements AdbTransport {
       task?.cancel();
     }
 
-    cancelOn?.then((_) => cancel(), onError: (Object _) => cancel()).ignore();
+    cancelOn?.whenComplete(cancel).ignore();
     try {
       task = await RawSocket.startConnect(host, port);
       if (cancelled) task.cancel();
@@ -81,6 +81,10 @@ final class TcpTransport implements AdbTransport {
   Completer<void>? _drained;
   bool _ended = false;
 
+  /// A TLS upgrade in progress; a close or destroy fails it at once (the TLS layer owns the subscription then and would
+  /// wait forever).
+  Completer<X509Certificate?>? _upgrade;
+
   @override
   int get pendingWriteBytes => _pendingBytes;
 
@@ -104,12 +108,8 @@ final class TcpTransport implements AdbTransport {
     if (_ended) return;
     if (_pendingBytes > 0) {
       final drained = (_drained ??= Completer<void>()).future;
-      var timedOut = false;
-      await drained.timeout(drainTimeout, onTimeout: () => timedOut = true);
-      if (timedOut) {
-        destroy();
-        return;
-      }
+      final timedOut = await drained.then((_) => false).timeout(drainTimeout, onTimeout: () => true);
+      if (timedOut) return destroy();
     }
     _end();
     await _socket.close();
@@ -164,10 +164,6 @@ final class TcpTransport implements AdbTransport {
         .ignore();
     return upgrade.future;
   }
-
-  /// A TLS upgrade in progress; a close or destroy fails it at once (the TLS layer owns the subscription then and would
-  /// wait forever).
-  Completer<X509Certificate?>? _upgrade;
 
   void _onEvent(RawSocketEvent event) {
     switch (event) {
