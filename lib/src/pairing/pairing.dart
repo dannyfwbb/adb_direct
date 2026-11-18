@@ -58,95 +58,25 @@ abstract final class AdbPairing {
     AdbClock clock = AdbClock.system,
   }) async {
     if (code.isEmpty) throw ArgumentError.value(code, 'code', 'is empty');
-    final publicKey = utf8.encode(key.publicKey.encode());
-    final myInfo = PeerInfo.build(PeerInfo.rsaPublicKey, publicKey);
-
-    final lines = <String>[];
-    final identity = key.tls;
-    final context = SecurityContext(withTrustedRoots: false)
-      ..useCertificateChainBytes(utf8.encode(identity.certificatePem))
-      ..usePrivateKeyBytes(utf8.encode(identity.privateKeyPem));
-
-    var cancelled = false;
-    SecureSocket? socket;
-    ConnectionTask<SecureSocket>? task;
-    void stop() {
-      cancelled = true;
-      task?.cancel();
-      socket?.destroy();
-    }
-
-    cancelOn?.then((_) => stop(), onError: (Object _) => stop()).ignore();
-    var timedOut = false;
+    final attempt = _Attempt(host, port, key, keyLog);
+    cancelOn?.whenComplete(attempt.stop).ignore();
     final deadline = clock.timer(timeout, () {
-      timedOut = true;
-      stop();
+      attempt.timedOut = true;
+      attempt.stop();
     });
-    AdbException interrupted() => timedOut
+    AdbException interrupted() => attempt.timedOut
         ? AdbTimeoutException('Pairing did not finish within $timeout')
         : const AdbCancelledException('Pairing was cancelled');
 
     try {
-      try {
-        task = await SecureSocket.startConnect(
-          host,
-          port,
-          context: context,
-          // Neither side checks the other's certificate: the code, bound to this TLS session by the exporter, is what
-          // authenticates.
-          onBadCertificate: (_) => true,
-          keyLog: (line) {
-            lines.add(line);
-            keyLog?.call(line);
-          },
-        );
-        if (cancelled) task.cancel();
-        socket = await task.socket.timeout(
-          connectTimeout,
-          onTimeout: () {
-            task?.cancel();
-            throw const SocketException('Connection timed out');
-          },
-        );
-      } on SocketException catch (e) {
-        if (cancelled) throw interrupted();
-        throw TcpTransport.mapConnectError(e, '$host:$port');
-      } on HandshakeException catch (e) {
-        if (cancelled) throw interrupted();
-        throw AdbPairingException('The TLS handshake on the pairing port failed', cause: e);
-      }
-      if (cancelled) throw interrupted();
-
-      final open = socket;
-      // Write failures surface here too; the reader reports the loss.
-      open.done.ignore();
-      final Uint8List exported;
-      try {
-        exported = await _exporter(lines);
-      } on FormatException catch (e) {
-        throw AdbNotSupportedException('This platform does not expose the TLS secrets pairing needs', cause: e);
-      }
-      final reader = PairingReader(open);
-      try {
-        final info = await runPairingExchange(
-          role: Spake2Role.alice,
-          password: [...utf8.encode(code), ...exported],
-          myInfo: myInfo,
-          reader: reader,
-          write: open.add,
-        );
-        final (type, guid) = PeerInfo.parse(info);
-        if (type != PeerInfo.deviceGuid) throw AdbPairingException('The device sent peer info of type $type');
-        return AdbPairedDevice(guid: guid, certificate: open.peerCertificate?.der ?? Uint8List(0));
-      } on AdbException {
-        if (cancelled) throw interrupted();
-        rethrow;
-      } finally {
-        await reader.cancel();
-      }
+      final socket = await attempt.connect(connectTimeout);
+      return await attempt.exchange(socket, code);
+    } on AdbException {
+      if (attempt.cancelled) throw interrupted();
+      rethrow;
     } finally {
       deadline.cancel();
-      socket?.destroy();
+      attempt.socket?.destroy();
     }
   }
 
@@ -160,6 +90,91 @@ abstract final class AdbPairing {
         if (attempt >= 2) rethrow;
         await Future<void>.delayed(Duration.zero);
       }
+    }
+  }
+}
+
+/// One pairing attempt: the TLS connection, then the exchange; [stop] ends it from outside.
+final class _Attempt {
+  _Attempt(this.host, this.port, this.key, this.keyLog);
+
+  final Object host;
+  final int port;
+  final AdbKeyPair key;
+  final void Function(String line)? keyLog;
+
+  /// The session's key-log lines, where the exporter secret comes from.
+  final List<String> _lines = [];
+  ConnectionTask<SecureSocket>? _task;
+  SecureSocket? socket;
+  bool cancelled = false;
+  bool timedOut = false;
+
+  void stop() {
+    cancelled = true;
+    _task?.cancel();
+    socket?.destroy();
+  }
+
+  Future<SecureSocket> connect(Duration timeout) async {
+    final context = SecurityContext(withTrustedRoots: false)
+      ..useCertificateChainBytes(utf8.encode(key.tls.certificatePem))
+      ..usePrivateKeyBytes(utf8.encode(key.tls.privateKeyPem));
+    try {
+      final task = _task = await SecureSocket.startConnect(
+        host,
+        port,
+        context: context,
+        // Neither side checks the other's certificate: the code, bound to this TLS session by the exporter, is what
+        // authenticates.
+        onBadCertificate: (_) => true,
+        keyLog: (line) {
+          _lines.add(line);
+          keyLog?.call(line);
+        },
+      );
+      if (cancelled) task.cancel();
+      socket = await task.socket.timeout(
+        timeout,
+        onTimeout: () {
+          task.cancel();
+          throw const SocketException('Connection timed out');
+        },
+      );
+    } on SocketException catch (e) {
+      if (cancelled) throw const AdbCancelledException('Pairing was stopped');
+      throw TcpTransport.mapConnectError(e, '$host:$port');
+    } on HandshakeException catch (e) {
+      if (cancelled) throw const AdbCancelledException('Pairing was stopped');
+      throw AdbPairingException('The TLS handshake on the pairing port failed', cause: e);
+    }
+    if (cancelled) throw const AdbCancelledException('Pairing was stopped');
+    // Write failures surface here too; the reader reports the loss.
+    return socket!..done.ignore();
+  }
+
+  Future<AdbPairedDevice> exchange(SecureSocket socket, String code) async {
+    final Uint8List exported;
+    try {
+      exported = await AdbPairing._exporter(_lines);
+    } on FormatException catch (e) {
+      throw AdbNotSupportedException('This platform does not expose the TLS secrets pairing needs', cause: e);
+    }
+
+    final reader = PairingReader(socket);
+    try {
+      final info = await runPairingExchange(
+        role: Spake2Role.alice,
+        password: [...utf8.encode(code), ...exported],
+        myInfo: PeerInfo.build(PeerInfo.rsaPublicKey, utf8.encode(key.publicKey.encode())),
+        reader: reader,
+        write: socket.add,
+      );
+      final (type, guid) = PeerInfo.parse(info);
+      if (type != PeerInfo.deviceGuid) throw AdbPairingException('The device sent peer info of type $type');
+      return AdbPairedDevice(guid: guid, certificate: socket.peerCertificate?.der ?? Uint8List(0));
+    } finally {
+      await reader.cancel();
     }
   }
 }
