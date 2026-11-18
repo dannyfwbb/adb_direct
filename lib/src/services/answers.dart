@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
 
@@ -16,20 +17,11 @@ final class SmartAnswer {
 
   /// Parses a complete answer. Throws [AdbProtocolException] when it is not one.
   factory SmartAnswer.parse(List<int> bytes) {
-    final raw = latin1.decode(bytes);
-    if (raw.length < 4) {
-      throw AdbProtocolException('A truncated service answer: "$raw"');
-    }
-    final status = raw.substring(0, 4);
+    final status = bytes.length < 4 ? null : latin1.decode(bytes.sublist(0, 4));
     if (status != 'OKAY' && status != 'FAIL') {
-      throw AdbProtocolException('An unexpected service answer: "$raw"');
+      throw AdbProtocolException('An unexpected service answer: "${latin1.decode(bytes)}"');
     }
-    final rest = raw.substring(4);
-    var text = '';
-    if (rest.isNotEmpty) {
-      text = hexPrefixed(rest);
-    }
-    return SmartAnswer(ok: status == 'OKAY', text: text);
+    return SmartAnswer(ok: status == 'OKAY', text: bytes.length == 4 ? '' : hexPrefixed(bytes.sublist(4)));
   }
 
   /// Whether the device said `OKAY`.
@@ -39,15 +31,12 @@ final class SmartAnswer {
   final String text;
 
   /// The text of a `<hex4><text>` frame; throws [AdbProtocolException] when the length does not match.
-  static String hexPrefixed(String frame) {
-    if (frame.length < 4) {
-      throw AdbProtocolException('A truncated length prefix: "$frame"');
-    }
-    final length = parseHex4(frame.substring(0, 4));
+  static String hexPrefixed(List<int> frame) {
+    final length = frame.length < 4 ? null : parseHex4(latin1.decode(frame.sublist(0, 4)));
     if (length == null || frame.length < 4 + length) {
-      throw AdbProtocolException('A bad length prefix: "$frame"');
+      throw AdbProtocolException('A bad length prefix: "${latin1.decode(frame)}"');
     }
-    return utf8.decode(latin1.encode(frame.substring(4, 4 + length)), allowMalformed: true);
+    return utf8.decode(frame.sublist(4, 4 + length), allowMalformed: true);
   }
 }
 
@@ -58,15 +47,15 @@ int? parseHex4(String text) => RegExp(r'^[0-9a-fA-F]{4}$').hasMatch(text) ? int.
 
 /// Opens [service], reads until the device closes it (at most [maxBytes]), and returns what it sent.
 @internal
-Future<List<int>> readAll(AdbConnection connection, String service, {int maxBytes = 1024 * 1024}) async {
+Future<Uint8List> readAll(AdbConnection connection, String service, {int maxBytes = 1024 * 1024}) async {
   final stream = await connection.open(service);
-  final bytes = <int>[];
+  final bytes = BytesBuilder(copy: false);
   await for (final chunk in stream.input) {
-    bytes.addAll(chunk);
+    bytes.add(chunk);
     if (bytes.length > maxBytes) {
       await stream.close();
       throw AdbProtocolException('"$service" answered more than $maxBytes B');
     }
   }
-  return bytes;
+  return bytes.takeBytes();
 }

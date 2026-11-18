@@ -97,24 +97,36 @@ abstract final class SyncRequest {
   }
 
   /// `{id, value}` followed by [payload].
-  static Uint8List header(int id, int value, [List<int> payload = const []]) {
-    final out = Uint8List(8 + payload.length);
-    ByteData.sublistView(out)
-      ..setUint32(0, id, Endian.little)
-      ..setUint32(4, value, Endian.little);
-    out.setRange(8, out.length, payload);
-    return out;
-  }
+  static Uint8List header(int id, int value, [List<int> payload = const []]) => words([id, value], payload);
 
-  /// `{id, a, b}`: the second part of `SND2` (mode, flags).
-  static Uint8List triple(int id, int a, int b) {
-    final out = Uint8List(12);
-    ByteData.sublistView(out)
-      ..setUint32(0, id, Endian.little)
-      ..setUint32(4, a, Endian.little)
-      ..setUint32(8, b, Endian.little);
-    return out;
+  /// A `DATA` frame with [chunk]`[start..end)`.
+  static Uint8List data(List<int> chunk, int start, int end) => words([
+    SyncId.data,
+    end - start,
+  ], chunk is Uint8List ? Uint8List.sublistView(chunk, start, end) : chunk.sublist(start, end));
+
+  /// [values] as little-endian 32-bit words, followed by [payload]. `{id, mode, flags}` is the second part of `SND2`.
+  static Uint8List words(List<int> values, [List<int> payload = const []]) {
+    final out = Uint8List(4 * values.length + payload.length);
+    final view = ByteData.sublistView(out);
+    for (final (i, value) in values.indexed) {
+      view.setUint32(4 * i, value, Endian.little);
+    }
+    return out..setRange(4 * values.length, out.length, payload);
   }
+}
+
+/// Little-endian reads: the byte order of every sync field.
+@internal
+extension SyncFields on ByteData {
+  /// The unsigned 32-bit field at [offset].
+  int u32(int offset) => getUint32(offset, Endian.little);
+
+  /// The unsigned 64-bit field at [offset].
+  int u64(int offset) => getUint64(offset, Endian.little);
+
+  /// The signed 64-bit field at [offset].
+  int i64(int offset) => getInt64(offset, Endian.little);
 }
 
 /// What a device knows about a file, from `STAT`, `STA2`, `LST2` or a directory entry.
@@ -136,25 +148,22 @@ final class AdbFileStat {
 
   /// Decodes a v1 `STAT` answer or `DENT` fields (mode, size, mtime).
   @internal
-  factory AdbFileStat.fromV1(ByteData data, int offset) => AdbFileStat(
-    mode: data.getUint32(offset, Endian.little),
-    size: data.getUint32(offset + 4, Endian.little),
-    modified: _time(data.getUint32(offset + 8, Endian.little)),
-  );
+  factory AdbFileStat.fromV1(ByteData data, int offset) =>
+      AdbFileStat(mode: data.u32(offset), size: data.u32(offset + 4), modified: _time(data.u32(offset + 8)));
 
   /// Decodes the fields of `sync_stat_v2` after `{id, error}`, at [offset].
   @internal
   factory AdbFileStat.fromV2(ByteData data, int offset) => AdbFileStat(
-    device: data.getUint64(offset, Endian.little),
-    inode: data.getUint64(offset + 8, Endian.little),
-    mode: data.getUint32(offset + 16, Endian.little),
-    links: data.getUint32(offset + 20, Endian.little),
-    uid: data.getUint32(offset + 24, Endian.little),
-    gid: data.getUint32(offset + 28, Endian.little),
-    size: data.getUint64(offset + 32, Endian.little),
-    accessed: _time(data.getInt64(offset + 40, Endian.little)),
-    modified: _time(data.getInt64(offset + 48, Endian.little)),
-    changed: _time(data.getInt64(offset + 56, Endian.little)),
+    device: data.u64(offset),
+    inode: data.u64(offset + 8),
+    mode: data.u32(offset + 16),
+    links: data.u32(offset + 20),
+    uid: data.u32(offset + 24),
+    gid: data.u32(offset + 28),
+    size: data.u64(offset + 32),
+    accessed: _time(data.i64(offset + 40)),
+    modified: _time(data.i64(offset + 48)),
+    changed: _time(data.i64(offset + 56)),
   );
 
   /// POSIX mode: file type and permission bits.

@@ -99,20 +99,10 @@ final class AdbDebug {
   /// The device log as lines (`logcat` with [arguments], for example `['-v', 'threadtime', '*:W']`). Without `-d` it
   /// follows the log until the subscription is cancelled.
   Stream<String> logcat({List<String> arguments = const []}) async* {
-    final command = 'logcat${arguments.map((a) => ' ${shellQuote(a)}').join()}';
-    AdbStream stream;
+    // The PTY of old devices ends lines with CR LF, which the line splitter takes as one break.
+    final (stream, _) = await _connection.shell.openRaw(['logcat', ...arguments].map(shellQuote).join(' '));
     try {
-      stream = await _connection.open('exec:$command');
-    } on AdbServiceUnavailableException {
-      // Before Android 5 there is no exec:; the shell's PTY ends lines with CR LF, which the line splitter takes as one
-      // break.
-      stream = await _connection.open('shell:$command');
-    }
-    try {
-      yield* stream.input
-          .cast<List<int>>()
-          .transform(const Utf8Decoder(allowMalformed: true))
-          .transform(const LineSplitter());
+      yield* _lines(stream);
     } finally {
       await stream.close();
     }
@@ -132,7 +122,7 @@ final class AdbDebug {
       bytes = await _screencapToFile(command);
     }
     const signature = [0x89, 0x50, 0x4e, 0x47];
-    if (bytes.length < 8 || !List.generate(4, (i) => bytes[i] == signature[i]).every((b) => b)) {
+    if (bytes.length < 8 || Iterable<int>.generate(4).any((i) => bytes[i] != signature[i])) {
       final text = utf8.decode(bytes.take(200).toList(), allowMalformed: true);
       throw AdbProtocolException('screencap did not return a PNG: $text');
     }
@@ -145,7 +135,7 @@ final class AdbDebug {
       await _connection.shell.run('$command ${shellQuote(path)}');
       return await _connection.sync.readAll(path);
     } finally {
-      await _connection.shell.run('rm -f ${shellQuote(path)}').then<void>((_) {}, onError: (Object _) {});
+      await _connection.shell.removeQuietly(path);
     }
   }
 
@@ -160,38 +150,31 @@ final class AdbDebug {
     } on AdbServiceUnavailableException {
       throw const AdbNotSupportedException('Bug reports as zip files need Android 7 or later');
     }
+
     String? path;
-    String? failure;
-    await for (final line
-        in stream.input
-            .cast<List<int>>()
-            .transform(const Utf8Decoder(allowMalformed: true))
-            .transform(const LineSplitter())) {
-      if (parseBugreportLine(line) case final status?) {
-        switch (status) {
-          case (final done?, final total?, null, null):
-            onProgress?.call(done, total);
-          case (null, null, final ok?, null):
-            path = ok;
-          case (null, null, null, final fail?):
-            failure = fail;
-          default:
-        }
+    await for (final line in _lines(stream)) {
+      switch (BugreportLine.parse(line)) {
+        case BugreportProgress(:final done, :final total):
+          onProgress?.call(done, total);
+        case BugreportDone(path: final written):
+          path = written;
+        case BugreportFailed(:final reason):
+          throw AdbServiceUnavailableException('The bug report failed: $reason', service: 'bugreportz');
+        case null:
+          break;
       }
     }
-    if (failure != null) {
-      throw AdbServiceUnavailableException('The bug report failed: $failure', service: 'bugreportz');
-    }
-    final remote = path;
-    if (remote == null) {
-      throw const AdbProtocolException('bugreportz gave no file');
-    }
+    if (path == null) throw const AdbProtocolException('bugreportz gave no file');
+
     try {
-      await _connection.sync.pullFile(remote, local);
+      await _connection.sync.pullFile(path, local);
     } finally {
-      await _connection.shell.run('rm -f ${shellQuote(remote)}').then<void>((_) {}, onError: (Object _) {});
+      await _connection.shell.removeQuietly(path);
     }
   }
+
+  static Stream<String> _lines(AdbStream stream) =>
+      const Utf8Decoder(allowMalformed: true).bind(stream.input).transform(const LineSplitter());
 
   /// The payloads of a `<hex4 length><payload>` stream, however the bytes are split into messages.
   Stream<Uint8List> _frames(String service) async* {
@@ -205,9 +188,7 @@ final class AdbDebug {
           if (want == null) {
             if (buffer.length < 4) break;
             want = parseHex4(ascii.decode(buffer.take(4), allowInvalid: true));
-            if (want == null) {
-              throw AdbProtocolException('A bad frame length on "$service"');
-            }
+            if (want == null) throw AdbProtocolException('A bad frame length on "$service"');
           }
           if (buffer.length < want) break;
           yield buffer.take(want);
@@ -220,23 +201,54 @@ final class AdbDebug {
   }
 }
 
-/// One line of `bugreportz -p`: (done, total) for `PROGRESS:n/total`, the path for `OK:path`, the reason for
-/// `FAIL:reason`; null otherwise.
+/// One meaningful line of `bugreportz -p`.
 @internal
-(int?, int?, String?, String?)? parseBugreportLine(String line) {
-  final text = line.trim();
-  if (text.startsWith('PROGRESS:')) {
-    final parts = text.substring(9).split('/');
-    if (parts.length == 2) {
-      final done = int.tryParse(parts[0]);
-      final total = int.tryParse(parts[1]);
-      if (done != null && total != null) return (done, total, null, null);
+sealed class BugreportLine {
+  const BugreportLine();
+
+  /// `PROGRESS:done/total`, `OK:path` or `FAIL:reason`; null for anything else.
+  static BugreportLine? parse(String line) {
+    final text = line.trim();
+    if (text.startsWith('OK:')) return BugreportDone(text.substring(3));
+    if (text.startsWith('FAIL:')) return BugreportFailed(text.substring(5));
+    if (RegExp(r'^PROGRESS:(\d+)/(\d+)$').firstMatch(text) case final m?) {
+      return BugreportProgress(int.parse(m[1]!), int.parse(m[2]!));
     }
     return null;
   }
-  if (text.startsWith('OK:')) return (null, null, text.substring(3), null);
-  if (text.startsWith('FAIL:')) return (null, null, null, text.substring(5));
-  return null;
+}
+
+/// `PROGRESS:done/total`.
+@internal
+final class BugreportProgress extends BugreportLine {
+  /// Creates one.
+  const BugreportProgress(this.done, this.total);
+
+  /// Steps done.
+  final int done;
+
+  /// Steps in all.
+  final int total;
+}
+
+/// `OK:path`: the zip on the device.
+@internal
+final class BugreportDone extends BugreportLine {
+  /// Creates one.
+  const BugreportDone(this.path);
+
+  /// Where the zip is.
+  final String path;
+}
+
+/// `FAIL:reason`.
+@internal
+final class BugreportFailed extends BugreportLine {
+  /// Creates one.
+  const BugreportFailed(this.reason);
+
+  /// What the device said.
+  final String reason;
 }
 
 /// Decodes an `AppProcesses` protobuf (`adb/proto/app_processes.proto`) with a minimal reader: varints and

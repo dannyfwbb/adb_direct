@@ -38,8 +38,8 @@ final class TlsExporter {
   final Uint8List _secret;
   final Hash _hash;
 
-  /// `TLS-Exporter(label, context, length)`: `HKDF-Expand-Label(Derive-Secret(secret, label, ""), "exporter",
-  /// Hash(context), length)`.
+  /// `TLS-Exporter(label, context, length)`:
+  /// `HKDF-Expand-Label(Derive-Secret(secret, label, ""), "exporter", Hash(context), length)`.
   ///
   /// [label] is bytes because adb's includes its terminating NUL. An absent context and an empty one give the same
   /// result in TLS 1.3.

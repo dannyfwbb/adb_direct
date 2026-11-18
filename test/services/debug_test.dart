@@ -8,7 +8,8 @@ import 'dart:typed_data';
 
 import 'package:adb_direct/adb_direct.dart';
 import 'package:adb_direct/src/protocol/message.dart';
-import 'package:adb_direct/src/services/debug.dart' show decodeAppProcesses, parseBugreportLine;
+import 'package:adb_direct/src/services/debug.dart'
+    show BugreportDone, BugreportFailed, BugreportLine, BugreportProgress, decodeAppProcesses;
 import 'package:test/test.dart';
 
 import '../support/adbd_scripts.dart';
@@ -168,11 +169,20 @@ void main() {
     });
 
     test('bugreportz lines', () {
-      expect(parseBugreportLine('PROGRESS:12/345'), (12, 345, null, null));
-      expect(parseBugreportLine('OK:/bugreports/x.zip'), (null, null, '/bugreports/x.zip', null));
-      expect(parseBugreportLine('FAIL:could not create'), (null, null, null, 'could not create'));
-      expect(parseBugreportLine('BEGIN:/bugreports/x.zip'), isNull);
-      expect(parseBugreportLine('PROGRESS:x/y'), isNull);
+      expect(
+        BugreportLine.parse('PROGRESS:12/345'),
+        isA<BugreportProgress>().having((p) => (p.done, p.total), 'done, total', (12, 345)),
+      );
+      expect(
+        BugreportLine.parse('OK:/bugreports/x.zip'),
+        isA<BugreportDone>().having((d) => d.path, 'path', '/bugreports/x.zip'),
+      );
+      expect(
+        BugreportLine.parse('FAIL:could not create'),
+        isA<BugreportFailed>().having((f) => f.reason, 'reason', 'could not create'),
+      );
+      expect(BugreportLine.parse('BEGIN:/bugreports/x.zip'), isNull);
+      expect(BugreportLine.parse('PROGRESS:x/y'), isNull);
     });
   });
 

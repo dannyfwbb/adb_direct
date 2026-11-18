@@ -8,6 +8,7 @@ import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
 
+import '../clock.dart';
 import '../connection/connection.dart';
 import '../errors.dart';
 import '../protocol/banner.dart';
@@ -81,77 +82,55 @@ final class AdbShell {
     String command, {
     Duration timeout = const Duration(seconds: 30),
     int maxOutputBytes = 16 * 1024 * 1024,
-  }) async {
+  }) {
     final v2 = supportsShellProtocol;
     final marker = v2 ? null : _exitMarker();
-    final finished = Completer<void>();
-    // A timeout can fire before anyone awaits it (during the open below).
-    finished.future.ignore();
-    // The deadline covers everything, the open included.
     AdbStream? stream;
-    final timer = _connection.clock.timer(timeout, () {
-      if (finished.isCompleted) return;
-      finished.completeError(AdbTimeoutException('"$command" did not finish within $timeout'));
-      unawaited(stream?.close());
-    });
-    var pty = false;
-    try {
+    var timedOut = false;
+
+    Future<AdbShellResult> collect() async {
+      var pty = false;
       if (v2) {
         stream = _connection.openStream('shell,v2,raw:$command');
       } else {
         // Old devices: no exit status in the protocol; ask the shell to print it after the command, behind a marker no
         // output contains. stdin cannot be closed there, so it is empty from the start, as with the protocol; a
         // subshell keeps an `exit` from skipping the marker.
-        (stream, pty) = await _openWithoutProtocol('exec </dev/null\n(\n$command\n)\necho $marker\$?');
+        (stream, pty) = await openRaw('exec </dev/null\n(\n$command\n)\necho $marker\$?');
       }
-    } on Object {
-      timer.cancel();
-      rethrow;
+      final open = stream!;
+      if (timedOut) {
+        await open.close();
+        throw AdbTimeoutException('"$command" timed out while opening');
+      }
+
+      final collector = _Collector(maxOutputBytes, v2: v2, pty: pty);
+      if (v2) {
+        // An empty stdin: commands that read it end at once.
+        unawaited(open.write(ShellProtocol.encode(ShellPacketId.closeStdin, const [])).catchError((Object _) {}));
+      }
+      // Leaving the loop (output past the limit, a broken packet) cancels the input, which closes the stream.
+      await for (final data in open.input) {
+        if (collector.add(data)) break;
+      }
+      return collector.result(marker);
     }
-    final open = stream;
-    if (finished.isCompleted) {
-      // The deadline passed while opening: stop the command, report it.
-      unawaited(open.close());
-      timer.cancel();
-      await finished.future;
-    }
-    final collector = _Collector(maxOutputBytes, v2: v2, pty: pty);
-    final subscription = open.input.listen(
-      (data) {
-        if (finished.isCompleted) return;
-        try {
-          if (collector.add(data)) unawaited(open.close());
-        } on AdbProtocolException catch (e) {
-          finished.completeError(e);
-          unawaited(open.close());
-        }
-      },
-      onError: (Object error) {
-        if (!finished.isCompleted) finished.completeError(error);
-      },
-      onDone: () {
-        if (!finished.isCompleted) finished.complete();
-      },
-    );
-    if (v2) {
-      // An empty stdin: commands that read it end at once.
-      unawaited(open.write(ShellProtocol.encode(ShellPacketId.closeStdin, const [])).catchError((Object _) {}));
-    }
-    try {
-      await finished.future;
-    } finally {
-      timer.cancel();
-      await subscription.cancel();
-    }
-    return collector.result(marker);
+
+    // The deadline covers everything, the open included.
+    return _connection.clock.deadline(collect(), timeout, () {
+      timedOut = true;
+      unawaited(stream?.close());
+      return AdbTimeoutException('"$command" did not finish within $timeout');
+    });
   }
 
   /// Whether `exec:` exists (Android 5 and later); null until tried.
   bool? _execWorks;
 
-  /// A stream for [script] on a device without shell protocol v2: `exec:` (no PTY, stdout and stderr together) where it
-  /// exists, else `shell:`, whose PTY turns line ends into CR LF. Returns whether it is the PTY.
-  Future<(AdbStream, bool)> _openWithoutProtocol(String script) async {
+  /// A stream for [script] without shell protocol v2: `exec:` (no PTY, stdout and stderr together) where it exists
+  /// (Android 5+), else `shell:`, whose PTY turns line ends into CR LF. Returns whether it is the PTY.
+  @internal
+  Future<(AdbStream, bool)> openRaw(String script) async {
     if (_execWorks != false) {
       try {
         final stream = await _connection.open('exec:$script');
@@ -165,8 +144,18 @@ final class AdbShell {
     return (await _connection.open('shell:$script'), true);
   }
 
-  /// Opens `exec:` for [command]: raw bytes both ways, no PTY, no protocol. Use it for binary output such as `screencap
-  /// -p`, or to feed a command through stdin (close the stream to end it).
+  /// Removes [path] on the device, ignoring any failure: for temporary files, whatever else went wrong.
+  @internal
+  Future<void> removeQuietly(String path) async {
+    try {
+      await run('rm -f ${shellQuote(path)}');
+    } on Object {
+      // Best effort.
+    }
+  }
+
+  /// Opens `exec:` for [command]: raw bytes both ways, no PTY, no protocol. Use it for binary output such as
+  /// `screencap -p`, or to feed a command through stdin (close the stream to end it).
   Future<AdbStream> exec(String command) => _connection.open('exec:$command');
 
   /// Starts an interactive session: [command] (a login shell when empty) with a PTY when [pty] is true, the terminal
@@ -283,18 +272,6 @@ final class _Collector {
 /// An interactive shell: [AdbShell.start].
 final class AdbShellSession {
   AdbShellSession._(this._stream, {required this.shellProtocol}) {
-    _stdout = StreamController<Uint8List>(
-      onListen: _syncPause,
-      onPause: _syncPause,
-      onResume: _syncPause,
-      onCancel: _syncPause,
-    );
-    _stderr = StreamController<Uint8List>(
-      onListen: _syncPause,
-      onPause: _syncPause,
-      onResume: _syncPause,
-      onCancel: _syncPause,
-    );
     _subscription = _stream.input.listen(
       _onData,
       onError: (Object error) {
@@ -308,8 +285,8 @@ final class AdbShellSession {
   }
 
   final AdbStream _stream;
-  late final StreamController<Uint8List> _stdout;
-  late final StreamController<Uint8List> _stderr;
+  late final StreamController<Uint8List> _stdout = _output();
+  late final StreamController<Uint8List> _stderr = _output();
   late final StreamSubscription<Uint8List> _subscription;
   final ShellPacketReader _packets = ShellPacketReader();
   final Completer<int?> _exitCode = Completer<int?>();
@@ -356,6 +333,13 @@ final class AdbShellSession {
   /// Ends the session.
   Future<void> close() => _stream.close();
 
+  StreamController<Uint8List> _output() => StreamController<Uint8List>(
+    onListen: _syncPause,
+    onPause: _syncPause,
+    onResume: _syncPause,
+    onCancel: _syncPause,
+  );
+
   void _onData(Uint8List data) {
     if (!shellProtocol) {
       _stdout.add(data);
@@ -399,16 +383,14 @@ final class AdbShellSession {
   void _finish(int? exit) {
     if (_finished) return;
     _finished = true;
-    final delivered = [
-      for (final output in [_stdout, _stderr])
-        if (output.hasListener) output.close() else _closeUnheard(output),
-    ];
-    unawaited(Future.wait(delivered).then((_) => _exitCode.complete(exit)));
+    unawaited(Future.wait([_close(_stdout), _close(_stderr)]).then((_) => _exitCode.complete(exit)));
   }
 
-  /// Closes an output nobody listens to; its done event would wait for a listener forever.
-  Future<void> _closeUnheard(StreamController<Uint8List> output) {
-    unawaited(output.close());
-    return Future.value();
+  /// Closes [output]; completes when its listener has had everything, or at once when nobody listens (the done event
+  /// would wait for a listener forever).
+  static Future<void> _close(StreamController<Uint8List> output) {
+    final heard = output.hasListener;
+    final closed = output.close();
+    return heard ? closed : Future.value();
   }
 }

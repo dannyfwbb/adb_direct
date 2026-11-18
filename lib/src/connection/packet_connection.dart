@@ -153,8 +153,8 @@ final class PacketConnection extends AdbConnection {
     }
   }
 
-  /// The device opens a stream to us only for reverse forwarding, and only to a target registered here. Anything else is
-  /// refused: adb aborts on it, as an unchecked `OPEN` would let a device reach whatever the host can.
+  /// The device opens a stream to us only for reverse forwarding, and only to a target registered here. Anything else
+  /// is refused: adb aborts on it, as an unchecked `OPEN` would let a device reach whatever the host can.
   void _onDeviceOpen(AdbMessage open) {
     final target = utf8.decode(open.payload, allowMalformed: true).replaceFirst(RegExp('\u0000+\$'), '');
     final handler = _reverseTargets[target];

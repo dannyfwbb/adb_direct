@@ -3,6 +3,7 @@
 
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
@@ -126,37 +127,15 @@ final class AdbSync {
     DateTime? modified,
     int? size,
     AdbProgress? onProgress,
-  }) async {
-    final mode = 0x8000 | (permissions & 0xfff);
-    _checkPath(_v2Transfer ? path : '$path,$mode');
-    final mtime = _mtime(modified ?? DateTime.now());
-    return _run(
-      (session) =>
-          session.write(path, data, mode: mode, mtime: mtime, v2: _v2Transfer, size: size, onProgress: onProgress),
-    );
-  }
+  }) => _send(path, data, 0x8000 | (permissions & 0xfff), modified, size, onProgress);
 
   /// Writes [bytes] to the file [path] on the device.
   Future<void> writeAll(String path, List<int> bytes, {int permissions = 0x1a4, DateTime? modified}) =>
       write(path, Stream.value(bytes), permissions: permissions, modified: modified, size: bytes.length);
 
   /// Creates the symbolic link [path] pointing at [target], as `adb push` does for links.
-  Future<void> writeLink(String path, String target, {DateTime? modified}) {
-    final mode = 0xa000 | 0x1ff;
-    _checkPath(_v2Transfer ? path : '$path,$mode');
-    final mtime = _mtime(modified ?? DateTime.now());
-    return _run(
-      (session) => session.write(
-        path,
-        Stream.value(utf8.encode(target)),
-        mode: mode,
-        mtime: mtime,
-        v2: _v2Transfer,
-        size: null,
-        onProgress: null,
-      ),
-    );
-  }
+  Future<void> writeLink(String path, String target, {DateTime? modified}) =>
+      _send(path, Stream.value(utf8.encode(target)), 0xa000 | 0x1ff, modified, null, null);
 
   /// Closes the idle session, if any. Running operations are not affected.
   Future<void> close() async {
@@ -164,6 +143,23 @@ final class AdbSync {
     final idle = _idle;
     _idle = null;
     await idle?.quit();
+  }
+
+  Future<void> _send(
+    String path,
+    Stream<List<int>> data,
+    int mode,
+    DateTime? modified,
+    int? size,
+    AdbProgress? onProgress,
+  ) async {
+    // v1 sends the mode after the path, in the same length-limited field.
+    _checkPath(_v2Transfer ? path : '$path,$mode');
+    final mtime = _mtime(modified ?? DateTime.now());
+    return _run(
+      (session) =>
+          session.write(path, data, mode: mode, mtime: mtime, v2: _v2Transfer, size: size, onProgress: onProgress),
+    );
   }
 
   static void _checkPath(String path) {
@@ -280,7 +276,7 @@ final class _SyncSession {
       final answer = await _reader.readExactly(SyncLimits.stat2Length);
       final data = ByteData.sublistView(answer);
       _expectId(data, followLinks ? SyncId.stat2 : SyncId.lstat2);
-      final error = data.getUint32(4, Endian.little);
+      final error = data.u32(4);
       return (error == 0 ? AdbFileStat.fromV2(data, 8) : null, error);
     }
     final answer = await _reader.readExactly(SyncLimits.stat1Length);
@@ -304,10 +300,8 @@ final class _SyncSession {
       // Read the id first: a FAIL is shorter than an entry.
       final start = await _reader.readExactly(8);
       final startData = ByteData.sublistView(start);
-      final id = startData.getUint32(0, Endian.little);
-      if (id == SyncId.fail) {
-        throw await _failure(startData.getUint32(4, Endian.little), path);
-      }
+      final id = startData.u32(0);
+      if (id == SyncId.fail) throw await _failure(startData.u32(4), path);
       final head = Uint8List(fixed)
         ..setRange(0, 8, start)
         ..setRange(8, fixed, await _reader.readExactly(fixed - 8));
@@ -315,13 +309,13 @@ final class _SyncSession {
       if (id == SyncId.done) return entries;
       final data = ByteData.sublistView(head);
       _expectId(data, v2 ? SyncId.dent2 : SyncId.dent);
-      final nameLength = data.getUint32(fixed - 4, Endian.little);
+      final nameLength = data.u32(fixed - 4);
       if (nameLength > _maxName) {
         throw AdbProtocolException('Directory entry name of $nameLength B');
       }
       final name = utf8.decode(await _reader.readExactly(nameLength), allowMalformed: true);
       // An entry the device could not lstat carries an errno: left out.
-      if (v2 && data.getUint32(4, Endian.little) != 0) continue;
+      if (v2 && data.u32(4) != 0) continue;
       if (name == '.' || name == '..') continue;
       entries.add(AdbDirectoryEntry(name, v2 ? AdbFileStat.fromV2(data, 8) : AdbFileStat.fromV1(data, 4)));
     }
@@ -340,8 +334,8 @@ final class _SyncSession {
   Future<Uint8List?> nextReadChunk(String path) async {
     final head = await _reader.readExactly(8);
     final data = ByteData.sublistView(head);
-    final id = data.getUint32(0, Endian.little);
-    final length = data.getUint32(4, Endian.little);
+    final id = data.u32(0);
+    final length = data.u32(4);
     if (id == SyncId.done) {
       _dirty = false;
       return null;
@@ -407,7 +401,10 @@ final class _SyncSession {
 
     try {
       final request = v2
-          ? [...SyncRequest.withPath(SyncId.send2, path), ...SyncRequest.triple(SyncId.send2, mode, 0)]
+          ? [
+              ...SyncRequest.withPath(SyncId.send2, path),
+              ...SyncRequest.words([SyncId.send2, mode, 0]),
+            ]
           : SyncRequest.withPath(SyncId.send, '$path,$mode');
       wire += request.length;
       await _stream.write(request);
@@ -416,12 +413,8 @@ final class _SyncSession {
           // adbd answers a write error with FAIL at once and then drains until DONE: stop sending as soon as anything
           // comes back.
           if (_reader.buffered > 0) return await _finishEarly(path, mtime);
-          final end = offset + SyncLimits.maxData < chunk.length ? offset + SyncLimits.maxData : chunk.length;
-          final frame = Uint8List(8 + end - offset);
-          ByteData.sublistView(frame)
-            ..setUint32(0, SyncId.data, Endian.little)
-            ..setUint32(4, end - offset, Endian.little);
-          frame.setRange(8, frame.length, chunk, offset);
+          final end = min(offset + SyncLimits.maxData, chunk.length);
+          final frame = SyncRequest.data(chunk, offset, end);
           wire += frame.length;
           payload += end - offset;
           frames.add((wire, payload));
@@ -453,11 +446,9 @@ final class _SyncSession {
   Future<AdbException?> _pushError(String path) async {
     final head = await _reader.readExactly(8);
     final data = ByteData.sublistView(head);
-    final id = data.getUint32(0, Endian.little);
+    final id = data.u32(0);
     if (id == SyncId.okay) return null;
-    if (id == SyncId.fail) {
-      return _failure(data.getUint32(4, Endian.little), path);
-    }
+    if (id == SyncId.fail) return _failure(data.u32(4), path);
     return AdbProtocolException('Unexpected sync answer ${SyncId.name(id)} to a push');
   }
 
@@ -471,7 +462,7 @@ final class _SyncSession {
   }
 
   void _expectId(ByteData data, int expected) {
-    final id = data.getUint32(0, Endian.little);
+    final id = data.u32(0);
     if (id != expected) {
       throw AdbProtocolException('Expected sync ${SyncId.name(expected)}, got ${SyncId.name(id)}');
     }

@@ -159,8 +159,9 @@ final class Handshake {
 
   Future<void> _startTls() async {
     if (_tls || _signedWith > 0 || _offered) throw const AdbProtocolException('STLS out of order');
-    if (tlsKey >= keys.length)
+    if (tlsKey >= keys.length) {
       throw const AdbUnauthorizedException('The device wants TLS and there is no key to present');
+    }
 
     final key = keys[tlsKey];
     link

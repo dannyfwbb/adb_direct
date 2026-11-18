@@ -23,8 +23,8 @@ import 'rsa.dart';
 final class AdbKeyPair {
   AdbKeyPair._(this._key, this.comment);
 
-  /// Reads a private key from PEM: PKCS#8 (`BEGIN PRIVATE KEY`, what current adb writes to `adbkey`) or PKCS#1 (`BEGIN
-  /// RSA PRIVATE KEY`, older adb).
+  /// Reads a private key from PEM: PKCS#8 (`BEGIN PRIVATE KEY`, what current adb writes to `adbkey`) or PKCS#1
+  /// (`BEGIN RSA PRIVATE KEY`, older adb).
   ///
   /// The key must be a consistent 2048-bit RSA key with an odd public exponent of at least 3 that fits in 32 bits
   /// (adb's keys use 65537). Throws [FormatException] otherwise: bad PEM, another key type, or a key whose numbers do
