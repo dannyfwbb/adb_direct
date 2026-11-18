@@ -346,7 +346,8 @@ final class _ProtoReader {
 
   Uint8List bytes() {
     final length = varint();
-    if (length < 0 || _offset + length > _bytes.length) throw const AdbProtocolException('A truncated protobuf field');
+    // Compared with what is left, so a huge length cannot overflow the sum.
+    if (length < 0 || length > _bytes.length - _offset) throw const AdbProtocolException('A truncated protobuf field');
     final out = Uint8List.sublistView(_bytes, _offset, _offset + length);
     _offset += length;
     return out;

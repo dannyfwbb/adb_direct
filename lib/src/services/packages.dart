@@ -293,9 +293,8 @@ final class AdbPackages {
       // Files without a signature go through stdin, whole and in id order, before serving starts.
       for (final file in unsigned) {
         for (var offset = 0; offset < file.size; offset += _stdinPiece) {
-          final piece = await file.read(offset, file.size - offset < _stdinPiece ? file.size - offset : _stdinPiece);
-          if (piece.isEmpty) throw ArgumentError('${file.name} ended at $offset of ${file.size} bytes');
-          await stream.write(piece);
+          final length = file.size - offset < _stdinPiece ? file.size - offset : _stdinPiece;
+          await stream.write(await readIncremental(file, offset, length));
         }
       }
       return await serveIncremental(stream, signed, release, clock: _connection.clock, answerTimeout: answerTimeout);

@@ -131,6 +131,22 @@ void main() {
     });
   });
 
+  group('AdbIncrementalApk.file', () {
+    test('concurrent reads each get their own bytes; reading again after close reopens', () async {
+      final apk = fixture('app-v1');
+      final reads = [for (var i = 0; i < 40; i++) apk.read((i * 197) % (apkBytes.length - 100), 100)];
+      final results = await Future.wait(reads);
+      for (var i = 0; i < 40; i++) {
+        final offset = (i * 197) % (apkBytes.length - 100);
+        expect(results[i], apkBytes.sublist(offset, offset + 100), reason: 'read $i');
+      }
+      await apk.close!();
+      expect(await apk.read(0, 4), apkBytes.sublist(0, 4));
+      await apk.close!();
+      await apk.close!();
+    });
+  });
+
   group('installIncremental', () {
     test('arguments, OKAY, prefetch with tree and data blocks, a missing block, output split around INCR', () async {
       late LoaderPeer peer;
@@ -241,6 +257,46 @@ void main() {
       );
       await adbd.done();
       await adb.close();
+    });
+
+    test('a read that returns the wrong number of bytes fails the install, not the device', () async {
+      final good = fixture('app-v1');
+      final short = AdbIncrementalApk(
+        name: good.name,
+        size: good.size,
+        signature: good.signature,
+        read: (offset, length) async => (await good.read(offset, length)).sublist(0, length > 10 ? 10 : length),
+      );
+      final (adb, adbd) = await connectTo(banner: abbBanner, (session) async {
+        final peer = await LoaderPeer.accept(session);
+        await peer.read(4);
+        peer
+          ..send(ascii.encode('Success\n'))
+          ..request(2, 0, 0);
+        await peer.read(1).then((_) {}, onError: (Object _) {});
+      });
+      final install = await adb.packages.installIncremental([short]);
+      await expectLater(install.done, throwsArgumentError);
+      await adb.close();
+      await adbd.done();
+    });
+
+    test('output split inside a UTF-8 character stays whole', () async {
+      final (adb, adbd) = await connectTo(banner: abbBanner, (session) async {
+        final peer = await LoaderPeer.accept(session);
+        await peer.read(4);
+        final text = utf8.encode('Готово Success\n');
+        peer
+          ..send(text.sublist(0, 1))
+          ..send(text.sublist(1))
+          ..request(0, -1, -1);
+        await peer.read(1).then((_) {}, onError: (Object _) {});
+      });
+      final install = await adb.packages.installIncremental([fixture('app-v1')]);
+      expect(install.output, 'Готово Success\n');
+      await install.done;
+      await adb.close();
+      await adbd.done();
     });
 
     test('checks before anything is sent', () async {

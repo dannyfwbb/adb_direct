@@ -30,21 +30,17 @@ final class AdbIncrementalApk {
   /// whole before the install starts, which takes away the speed-up. [close] is called once serving has ended.
   const AdbIncrementalApk({required this.name, required this.size, required this.read, this.signature, this.close});
 
-  /// An APK on `dart:io`, with `<path>.idsig` as its signature when that file exists (or [signature]). The file stays
-  /// open until serving ends.
+  /// An APK on `dart:io`, with `<path>.idsig` as its signature when that file exists (or [signature]). The file is
+  /// opened on the first read and stays open until serving ends; the same object can serve several installs.
   factory AdbIncrementalApk.file(File apk, {File? signature}) {
     final idsig = signature ?? File('${apk.path}.idsig');
-    Future<RandomAccessFile>? open;
+    final reader = _FileReader(apk);
     return AdbIncrementalApk(
       name: apk.uri.pathSegments.last,
       size: apk.lengthSync(),
-      read: (offset, length) async {
-        final file = await (open ??= apk.open());
-        await file.setPosition(offset);
-        return file.read(length);
-      },
+      read: reader.read,
       signature: idsig.existsSync() ? idsig.readAsBytesSync() : null,
-      close: () async => (await open)?.close(),
+      close: reader.close,
     );
   }
 
@@ -54,7 +50,8 @@ final class AdbIncrementalApk {
   /// Size in bytes.
   final int size;
 
-  /// Reads a number of bytes at an offset (fewer only at the end of the file).
+  /// Reads a number of bytes at an offset. It is asked only for bytes inside the file and must return exactly as many
+  /// (anything else fails the install with [ArgumentError]); calls come one at a time.
   final Future<Uint8List> Function(int offset, int length) read;
 
   /// The content of the `.idsig` file, or null.
@@ -62,6 +59,44 @@ final class AdbIncrementalApk {
 
   /// Releases what [read] holds, if anything.
   final Future<void> Function()? close;
+}
+
+/// Reads a file at offsets, one read at a time (a [RandomAccessFile] has one position), reopening it after [close].
+final class _FileReader {
+  _FileReader(this._file);
+
+  final File _file;
+  Future<RandomAccessFile>? _open;
+  Future<void> _last = Future.value();
+
+  Future<Uint8List> read(int offset, int length) => _serially(() async {
+    final file = await (_open ??= _file.open());
+    await file.setPosition(offset);
+    return file.read(length);
+  });
+
+  Future<void> close() => _serially(() async {
+    final open = _open;
+    _open = null;
+    await (await open)?.close();
+  });
+
+  /// Runs [task] after the ones before it, whether they failed or not.
+  Future<T> _serially<T>(Future<T> Function() task) {
+    final result = _last.then((_) => task());
+    _last = result.then<void>((_) {}, onError: (Object _) {});
+    return result;
+  }
+}
+
+/// Reads exactly [length] bytes of [apk] at [offset], as [AdbIncrementalApk.read] promises.
+@internal
+Future<Uint8List> readIncremental(AdbIncrementalApk apk, int offset, int length) async {
+  final bytes = await apk.read(offset, length);
+  if (bytes.length != length) {
+    throw ArgumentError('${apk.name}: read($offset, $length) returned ${bytes.length} bytes');
+  }
+  return bytes;
 }
 
 /// An incremental install whose app is installed and whose remaining blocks are still being sent: the result of
@@ -305,6 +340,11 @@ final class IncrementalServer {
 
   final ByteQueue _incoming = ByteQueue();
   final StringBuffer _output = StringBuffer();
+
+  /// Decodes the package manager's output across chunks, so a character split between them stays whole.
+  late final Sink<List<int>> _outputDecoder = const Utf8Decoder(
+    allowMalformed: true,
+  ).startChunkedConversion(StringConversionSink.fromStringSink(_output));
   final Queue<_Prefetch> _prefetches = Queue<_Prefetch>();
   final Queue<(int, int)> _missing = Queue<(int, int)>();
 
@@ -355,7 +395,10 @@ final class IncrementalServer {
     for (final file in _files) {
       if (!file.apk.name.toLowerCase().endsWith('.apk')) continue;
       try {
-        file.priority = await apkPriorityBlocks(file.apk.read, file.apk.size);
+        file.priority = await apkPriorityBlocks(
+          (offset, length) => readIncremental(file.apk, offset, length),
+          file.apk.size,
+        );
       } on Object {
         // Only an optimization: the device asks for what it misses.
       }
@@ -418,7 +461,7 @@ final class IncrementalServer {
 
   void _addOutput(Uint8List bytes) {
     if (bytes.isEmpty) return;
-    _output.write(utf8.decode(bytes, allowMalformed: true));
+    _outputDecoder.add(bytes);
     if (_installed.isCompleted) return;
     final text = _output.toString();
     if (text.contains('Success')) {
@@ -544,7 +587,11 @@ final class IncrementalServer {
   Future<bool> _sendDataBlock(_ServedFile file, int block) async {
     if (block >= file.blockCount || file.sent[block]) return false;
     await _sendTreeBlocks(file, block);
-    final data = await file.apk.read(block * _blockSize, _min(_blockSize, file.apk.size - block * _blockSize));
+    final data = await readIncremental(
+      file.apk,
+      block * _blockSize,
+      _min(_blockSize, file.apk.size - block * _blockSize),
+    );
     final compressed = Lz4.compressBlock(data);
     // Stored when compression saves less than 5%.
     final useLz4 = compressed.length < _blockSize * 95 ~/ 100 && compressed.length < data.length;
