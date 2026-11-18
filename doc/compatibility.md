@@ -14,4 +14,4 @@ The package decides by the features a device announces, and falls back where the
 | before 11 | no `abb_exec`, no `sendrecv_v2` compression | installs go through `cmd`; `installIncremental` says "not supported"; compressed transfers go uncompressed |
 | 9 and later | protocol without checksums, 1 MiB payloads | used when the device offers them |
 
-Quirks of the devices themselves: Android 5's adbd on the emulator refuses `reverse` ("more than one device and emulator"); Android 9's `pm uninstall` of a missing app prints a Java stack trace (an `AdbInstallException` without a code); emulators before Android 7 have no toybox `nc` or `stty`.
+Quirks of the devices themselves: the adbd of Android 5 and 7 emulators refuses `reverse` ("more than one device/emulator"); Android 9's `pm uninstall` of a missing app prints a Java stack trace (an `AdbInstallException` without a code); emulators before Android 7 have no toybox `nc` or `stty`.

@@ -32,7 +32,7 @@ void main() {
     'directly',
     () => AdbConnection.connect(host!, port, key: AdbKeyPair.fromPem(File(keyPath!).readAsStringSync())),
   );
-  stress('through the adb server', () => AdbServer().device(serverSerial!), skip: serverSerial == null);
+  stress('through the adb server', () => AdbServer().device(serverSerial!), skip: serverSerial?.isNotEmpty != true);
 }
 
 void stress(String how, Future<AdbConnection> Function() connect, {bool skip = false}) {
@@ -44,9 +44,14 @@ void stress(String how, Future<AdbConnection> Function() connect, {bool skip = f
         await adb.shell.run('rm -rf $scratch');
         await adb.close();
       });
+      if ((await adb.properties.sdkLevel() ?? 0) < 24) {
+        markTestSkipped('needs toybox (seq, sha256sum, nc): Android 7 and later');
+        return;
+      }
       await adb.shell.run('rm -rf $scratch; mkdir -p $scratch');
+      // Android 7 has no sha256sum: there the pull-back check stands alone.
+      final deviceHashes = (await adb.shell.run('command -v sha256sum')).stdoutText.trim().isNotEmpty;
       final random = Random(1);
-      final hasExec = (await adb.properties.sdkLevel() ?? 0) >= 21;
 
       // Background: logcat following the log, consumed slowly.
       var logLines = 0;
@@ -72,43 +77,55 @@ void stress(String how, Future<AdbConnection> Function() connect, {bool skip = f
         await adb.sync.writeAll(path, data, compression: compression);
         final back = await adb.sync.readAll(path, compression: compression);
         expect(sha256.convert(back), sha256.convert(data), reason: path);
-        final remote = (await adb.shell.run('sha256sum $path')).stdoutText.split(' ').first;
-        expect(remote, sha256.convert(data).toString(), reason: '$path on the device');
+        if (deviceHashes) {
+          final remote = (await adb.shell.run('sha256sum $path')).stdoutText.split(' ').first;
+          expect(remote, sha256.convert(data).toString(), reason: '$path on the device');
+        }
       }
 
-      Future<void> forwarded() async {
-        if (!hasExec) return;
-        // A device-side echo through `exec:cat` is not a TCP service; use a forward to an abstract socket served by
-        // toybox nc where it exists, else skip.
-        final nc = await adb.shell.run('command -v nc');
-        if (nc.stdoutText.trim().isEmpty) return;
-        // toybox nc quits as soon as its stdin ends, before reading the network: keep stdin open.
-        final listener = adb.shell.run(
-          'sleep 29.7 | nc -l -p 18765 -s 127.0.0.1 > $scratch/nc.out',
-          timeout: const Duration(seconds: 60),
-        );
-        // Under load nc may take a while to listen; a forward to a closed port is refused by the device.
-        for (var i = 0; i < 100; i++) {
-          final listening = await adb.shell.run('cat /proc/net/tcp | grep -ci ":494D 00000000:0000 0A"');
-          if (listening.stdoutText.trim() != '0') break;
-          await Future<void>.delayed(const Duration(milliseconds: 100));
+      /// A reverse from the device's tcp:18765 to an echo here: a handler, or through an adb server (where the device's
+      /// connections reach local ports only) an echo server and toLocalPort. Null where the device refuses reverse.
+      Future<AdbReverseForward?> echoBack() async {
+        try {
+          try {
+            return await adb.reverse.add('tcp:18765', (stream) {
+              stream.input.listen((data) => stream.write(data).ignore(), onDone: stream.close);
+            });
+          } on AdbNotSupportedException {
+            final echo = await ServerSocket.bind('127.0.0.1', 0);
+            addTearDown(echo.close);
+            echo.listen((client) => client.listen(client.add, onDone: client.close));
+            return await adb.reverse.toLocalPort('tcp:18765', echo.port);
+          }
+        } on AdbServiceUnavailableException catch (e) {
+          // Emulators of Android 5 to 7 refuse reverse ("more than one device/emulator").
+          printOnFailure('no reverse here: ${e.message}');
+          return null;
         }
+      }
+
+      // Forward and reverse at once, with no tool on the device: a local socket goes to the device's tcp:18765 through
+      // a forward, the device sends that connection back here through a reverse, and an echo answers.
+      Future<void> forwarded() async {
+        final reverse = await echoBack();
+        if (reverse == null) return;
         final forward = await adb.forward('tcp:18765');
-        addTearDown(forward.close);
+        addTearDown(() async {
+          await forward.close();
+          await reverse.remove();
+        });
         final socket = await Socket.connect('127.0.0.1', forward.port);
         final payload = Uint8List.fromList(List.generate(300000, (i) => i * 13 & 0xff));
+        final echoed = BytesBuilder();
+        final received = Completer<void>();
+        socket.listen((data) {
+          echoed.add(data);
+          if (echoed.length >= payload.length && !received.isCompleted) received.complete();
+        });
         socket.add(payload);
-        await socket.flush();
-        await socket.close();
-        // Wait for nc to have written everything.
-        for (var i = 0; i < 50; i++) {
-          final size = (await adb.sync.stat('$scratch/nc.out'))?.size ?? 0;
-          if (size >= payload.length) break;
-          await Future<void>.delayed(const Duration(milliseconds: 200));
-        }
-        expect(await adb.sync.readAll('$scratch/nc.out'), payload);
-        await adb.shell.run('pkill -f "nc -l -p 18765"; pkill -f "sleep 29.7"');
-        await listener;
+        await received.future.timeout(const Duration(seconds: 60));
+        socket.destroy();
+        expect(echoed.takeBytes(), payload);
       }
 
       Future<void> install() async {
