@@ -17,18 +17,29 @@ import 'package:test/test.dart';
 final String? host = Platform.environment['ADB_DIRECT_TEST_HOST'];
 final int port = int.parse(Platform.environment['ADB_DIRECT_TEST_PORT'] ?? '5555');
 final String? keyPath = Platform.environment['ADB_DIRECT_TEST_KEY'];
-final String? skip = host == null || keyPath == null
+final String? globalSkip = host == null || keyPath == null
     ? 'ADB_DIRECT_TEST_HOST and ADB_DIRECT_TEST_KEY are not set (see test/device/README.md)'
     : null;
+
+/// When set, the same work also runs through the local adb server, to this device.
+final String? serverSerial = Platform.environment['ADB_DIRECT_TEST_SERVER_SERIAL'];
 
 const String scratch = '/data/local/tmp/adb_direct_stress';
 
 /// Many kinds of work at once on one connection: every result must still be exact.
 void main() {
+  stress(
+    'directly',
+    () => AdbConnection.connect(host!, port, key: AdbKeyPair.fromPem(File(keyPath!).readAsStringSync())),
+  );
+  stress('through the adb server', () => AdbServer().device(serverSerial!), skip: serverSerial == null);
+}
+
+void stress(String how, Future<AdbConnection> Function() connect, {bool skip = false}) {
   test(
-    'shells, transfers (plain and LZ4), logcat, a forward and an install at the same time',
+    'shells, transfers (plain and LZ4), logcat, a forward and an install at the same time, $how',
     () async {
-      final adb = await AdbConnection.connect(host!, port, key: AdbKeyPair.fromPem(File(keyPath!).readAsStringSync()));
+      final adb = await connect();
       addTearDown(() async {
         await adb.shell.run('rm -rf $scratch');
         await adb.close();
@@ -117,7 +128,7 @@ void main() {
       expect(logLines, greaterThan(0));
       expect(adb.isClosed, isFalse);
     },
-    skip: skip,
+    skip: skip ? 'ADB_DIRECT_TEST_SERVER_SERIAL is not set' : globalSkip,
     timeout: const Timeout(Duration(minutes: 4)),
   );
 }
