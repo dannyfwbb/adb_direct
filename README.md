@@ -71,6 +71,10 @@ The package follows [semantic versioning](https://semver.org). Within a major ve
 
 Couchkit.
 
+## Security
+
+Report vulnerabilities privately, as [SECURITY.md](SECURITY.md) describes.
+
 ## License
 
 Apache-2.0, see [LICENSE](LICENSE) and [NOTICE](NOTICE); the authors are listed in [AUTHORS](AUTHORS). The SPAKE2 used for pairing follows BoringSSL byte for byte, and the incremental install protocol follows AOSP's adb client; both are credited in [NOTICE](NOTICE).
