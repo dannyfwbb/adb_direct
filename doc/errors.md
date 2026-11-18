@@ -15,6 +15,7 @@ An `AdbException` is a sealed class, so a `switch` over its subclasses is exhaus
 | `AdbProtocolException` | `protocol` | The device sent something that breaks the protocol; the connection is unusable afterwards |
 | `AdbServiceUnavailableException` | `serviceUnavailable` | The device refused to open a service (`service` names it) |
 | `AdbInstallException` | `installFailed` | The package manager refused a package; `failureCode` (such as `INSTALL_FAILED_VERSION_DOWNGRADE`) and the exact `output` are kept |
+| `AdbCommandException` | `commandFailed` | A device command behind a helper (`pm clear`, `pm grant`, `setprop`, …) reported a failure; the `command`, its exact `output` and `exitCode` are kept |
 | `AdbSyncException` | `syncFailed` | A file operation failed on the device (`path` names it) |
 | `AdbNotSupportedException` | `notSupported` | The device does not support what was asked |
 | `AdbCancelledException` | `cancelled` | The caller cancelled the operation |

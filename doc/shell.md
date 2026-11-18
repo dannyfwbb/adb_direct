@@ -32,3 +32,17 @@ print(await shell.exitCode);
 `start(command: 'wc -c', pty: false)` runs a command with separate stdout and stderr; `closeStdin()` ends its input. Nothing is read from the device until `stdout` has a listener, and pausing a `stdout` or `stderr` subscription pauses the device. `exitCode` completes after the listeners have received all output; it is null when the status is unknown, and `closeReason` tells a failed session apart.
 
 Without shell protocol v2 (Android 6 and older) a session always has a PTY and has no stderr, exit status or window size; `pty: false` throws `AdbNotSupportedException` there.
+
+## System properties
+
+`adb.properties` wraps `getprop` and `setprop`:
+
+```dart
+final sdk = await adb.properties.sdkLevel();            // 34; asked once per connection
+final model = await adb.properties.get('ro.product.model');
+final all = await adb.properties.all();                 // every property the shell user can read
+final serial = await adb.properties.serialNumber();     // ro.serialno, else ro.boot.serialno; what `adb get-serialno` shows over USB
+await adb.properties.set('debug.myapp.verbose', '1');
+```
+
+`get` returns null for an unset property (and for an empty one: `getprop` prints both alike). `all` handles values that run over several lines. `set` throws `AdbCommandException` when the device refuses; most properties are writable only by the system, and devices before Android 9 refuse in silence, so read the value back where it matters.

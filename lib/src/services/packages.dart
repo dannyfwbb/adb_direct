@@ -16,6 +16,7 @@ import '../errors.dart';
 import '../protocol/banner.dart';
 import '../stream/adb_stream.dart';
 import '../stream/progress_watchdog.dart';
+import 'incremental.dart';
 import 'shell.dart';
 import 'sync.dart';
 
@@ -231,6 +232,77 @@ final class AdbPackages {
       rethrow;
     }
   }
+
+  /// Installs one app (a base APK and its splits) incrementally, like `adb install --incremental` (Android 11+ with
+  /// incremental delivery): the package manager answers once it has the blocks it needs to install, the app can start
+  /// right away, and the rest of the blocks keep arriving in the background.
+  ///
+  /// Each file needs its v4 signature ([AdbIncrementalApk.signature]) to be served incrementally; files without one are
+  /// sent whole first. Returns once the app is installed; keep the connection open until [AdbIncrementalInstall.done]
+  /// completes, or the app stays incomplete on the device.
+  ///
+  /// Throws [AdbInstallException] when the package manager refuses (devices without incremental delivery fail here
+  /// too), [AdbNotSupportedException] without `abb_exec` (Android 10 and older), [AdbTimeoutException] when it does
+  /// not answer within `AdbConnectOptions.packageManagerTimeout`, and [ArgumentError] for a malformed signature or name.
+  Future<AdbIncrementalInstall> installIncremental(
+    List<AdbIncrementalApk> files, {
+    AdbInstallOptions options = const AdbInstallOptions(),
+  }) async {
+    if (files.isEmpty) throw ArgumentError.value(files, 'files', 'is empty');
+    final names = <String>{};
+    for (final file in files) {
+      if (file.name.isEmpty || file.name.contains(':') || !names.add(file.name)) {
+        throw ArgumentError.value(file.name, 'files', 'names must be distinct, non-empty and without ":"');
+      }
+    }
+    if (!_connection.supports(AdbFeature.abbExec)) {
+      throw const AdbNotSupportedException('Incremental installs need abb_exec (Android 11 and later)');
+    }
+    final signed = <(AdbIncrementalApk, IdsigParts)>[];
+    for (final file in files.where((f) => f.signature != null)) {
+      try {
+        signed.add((file, parseIdsig(file.signature!, file.size)));
+      } on FormatException catch (e) {
+        throw ArgumentError.value(file.name, 'files', 'has an invalid v4 signature: ${e.message}');
+      }
+    }
+    final unsigned = files.where((f) => f.signature == null).toList();
+
+    Future<void> release() async {
+      for (final file in files) {
+        try {
+          await file.close?.call();
+        } on Object {
+          // Nothing more to do.
+        }
+      }
+    }
+
+    try {
+      final stream = await _connection.open(
+        _Channel.abbExec.service([
+          'install-incremental',
+          ...options.toArguments(),
+          for (final (i, (file, parts)) in signed.indexed) incrementalArgument(file.name, file.size, i, parts.header),
+          for (final (i, file) in unsigned.indexed) incrementalArgument(file.name, file.size, signed.length + i, null),
+        ]),
+      );
+      // Files without a signature go through stdin, whole and in id order, before serving starts.
+      for (final file in unsigned) {
+        for (var offset = 0; offset < file.size; offset += _stdinPiece) {
+          final piece = await file.read(offset, file.size - offset < _stdinPiece ? file.size - offset : _stdinPiece);
+          if (piece.isEmpty) throw ArgumentError('${file.name} ended at $offset of ${file.size} bytes');
+          await stream.write(piece);
+        }
+      }
+      return await serveIncremental(stream, signed, release, clock: _connection.clock, answerTimeout: answerTimeout);
+    } on Object {
+      await release();
+      rethrow;
+    }
+  }
+
+  static const int _stdinPiece = 64 * 1024;
 
   /// Removes [package]. With [keepData] its data and caches stay (`-k`).
   ///

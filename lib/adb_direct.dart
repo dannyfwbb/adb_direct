@@ -38,6 +38,7 @@ export 'src/services/backup.dart' show AdbBackup;
 export 'src/services/daemon.dart' show AdbDaemon, AdbDaemonAnswer, AdbDaemonOutcome;
 export 'src/services/debug.dart' show AdbAppProcess, AdbBugReportProgress, AdbDebug;
 export 'src/services/forward.dart' show AdbForward;
+export 'src/services/incremental.dart' show AdbIncrementalApk, AdbIncrementalInstall;
 export 'src/services/packages.dart' show AdbApk, AdbInstallOptions, AdbPackageInfo, AdbPackages;
 export 'src/services/properties.dart' show AdbProperties;
 export 'src/services/recovery.dart' show AdbRecovery;

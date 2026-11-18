@@ -42,7 +42,7 @@ States: **planned** (designed, not written), **in progress**, **built** (impleme
 | Area | `adb` equivalent | State |
 | --- | --- | --- |
 | Identity and features from the connection banner | `adb get-state`, `adb features` | built |
-| Serial, properties | `adb get-serialno`, `getprop` | planned |
+| Serial, properties | `adb get-serialno`, `getprop`, `setprop` | built (`AdbProperties`) |
 | Reboot to system, bootloader, recovery, sideload | `adb reboot …` | built |
 | Restart adbd as root, back as user | `adb root`, `adb unroot` | built |
 | Remount, verity | `adb remount`, `adb disable-verity` | built |
@@ -66,7 +66,7 @@ States: **planned** (designed, not written), **in progress**, **built** (impleme
 | --- | --- | --- |
 | stat, list, pull, push (sync v1) | `adb pull`, `adb push`, `adb ls` | built |
 | Sync v2 (`stat_v2`, `ls_v2`, `sendrecv_v2`) | — | built |
-| Compression in sync where pure Dart allows it | `adb push -z` | planned |
+| Compression in sync | `adb push -z`, `adb pull -z` | built: LZ4 built in (own codec); Brotli and Zstandard through pluggable converters (`AdbCompression`) |
 | Directories, timestamps, modes | `adb push -a`, `adb sync` | built |
 | Progress and stall detection on every transfer | — | built |
 
@@ -79,10 +79,10 @@ States: **planned** (designed, not written), **in progress**, **built** (impleme
 | Several packages atomically | `adb install-multi-package` | built |
 | Install options (replace, downgrade, grant, test, user) | `adb install -r -d -g -t --user` | built |
 | Uninstall, keep data | `adb uninstall [-k]` | built |
-| Incremental install | `adb install --incremental` | planned |
+| Incremental install | `adb install --incremental` | built (`installIncremental`; needs the APKs' v4 signatures) |
 | `cmd` and `abb_exec` where the device has them, `pm` otherwise | — | built |
-| APEX modules | `adb install --apex` | planned |
-| App management (list, enable, disable, clear data, permissions) as typed helpers over `pm` | `adb shell pm …` | planned |
+| APEX modules | `adb install --apex` | built (staging checked only up to the package manager's refusal of a non-module) |
+| App management (list, paths, enable, disable, clear data, permissions) as typed helpers over `pm` | `adb shell pm …` | built |
 
 ### Networking
 

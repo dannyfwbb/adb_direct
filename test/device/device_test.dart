@@ -45,6 +45,18 @@ void main() {
     expect(adb.acceptedKey, authenticates ? key : isNull);
   }, skip: skip);
 
+  test('properties: one, all, the API level, the serial number', () async {
+    final adb = await connect();
+    addTearDown(adb.close);
+    final sdk = await adb.properties.sdkLevel();
+    expect(sdk, greaterThanOrEqualTo(19));
+    final all = await adb.properties.all();
+    expect(all['ro.build.version.sdk'], '$sdk');
+    expect(await adb.properties.get('ro.product.model'), all['ro.product.model']);
+    expect(await adb.properties.get('adb_direct.surely.unset'), isNull);
+    expect(await adb.properties.serialNumber(), all['ro.serialno'] ?? all['ro.boot.serialno']);
+  }, skip: skip);
+
   test('runs commands with separate output and the exit status', () async {
     final adb = await connect();
     addTearDown(adb.close);

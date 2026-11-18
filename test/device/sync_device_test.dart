@@ -144,6 +144,20 @@ void main() {
     expect(back.lastModifiedSync().toUtc(), DateTime.utc(2022, 2, 2, 2, 2, 2));
   }, skip: skip);
 
+  test('LZ4 both ways where the device has it; plain transfers elsewhere', () async {
+    final text = Uint8List.fromList(
+      List.generate(3 << 20, (i) => 'abcdefghijklmnopqrstuvwxyz\n'.codeUnitAt((i * 7 + i ~/ 1000) % 27)),
+    );
+    final lz4 = adb().sync.supportsCompression(AdbCompressionMethod.lz4);
+    printOnFailure('lz4 supported: $lz4');
+    // Pushed compressed (the device decodes), read back plain and compressed (the device encodes).
+    await adb().sync.writeAll('$scratch/text', text, compression: AdbCompression.lz4);
+    expect(await adb().sync.readAll('$scratch/text'), text);
+    expect(await adb().sync.readAll('$scratch/text', compression: AdbCompression.lz4), text);
+    await adb().sync.writeAll('$scratch/empty', const [], compression: AdbCompression.lz4);
+    expect(await adb().sync.readAll('$scratch/empty', compression: AdbCompression.lz4), isEmpty);
+  }, skip: skip);
+
   test(
     '200 MiB round trip, checked by SHA-256',
     () async {

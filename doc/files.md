@@ -34,6 +34,18 @@ await adb.sync.pushDirectory(Directory('assets'), '/sdcard/assets', onlyChanged:
 | Android 9+ (or adbd with `stat_v2`, `ls_v2`, `sendrecv_v2`) | 64-bit sizes, owner, times, errno | full stat per entry | `SND2`/`RCV2` |
 | Older | sizes modulo 4 GiB; missing and unreadable look the same; no `followLinks` | mode, size, time | `SEND`/`RECV` |
 
-Compression (`adb push -z`) is not used: measured, it does not pay on a local network for the files that matter most (APKs are already compressed). It may come as an option later.
+## Compression
+
+Like `adb push -z` and `adb pull -z`, a transfer can be compressed on the wire (sync v2, Android 11 and later):
+
+```dart
+final log = await adb.sync.readAll('/sdcard/log.txt', compression: AdbCompression.lz4);
+await adb.sync.pushFile(File('data.json'), '/sdcard/data.json', compression: AdbCompression.lz4);
+```
+
+- LZ4 is built in, written in Dart: fast, a modest ratio. The device must list `sendrecv_v2_lz4` (`adb.sync.supportsCompression(AdbCompressionMethod.lz4)`); a device without it, or without sync v2, gets an uncompressed transfer, so passing a compression is always safe.
+- Brotli and Zstandard compress better but have no Dart implementation here; plug one in with `AdbCompression(method: AdbCompressionMethod.brotli, decoder: …, encoder: …)`, where the converters come from a package or FFI and support chunked conversion. Without an `encoder`, pushes go uncompressed.
+- It pays over slow links (Wi-Fi to a TV) for compressible files: logs, text, databases. APKs, images and video are compressed already. On a fast link the CPU time costs more than the bytes saved.
+- Progress counts bytes of the file, not of the compressed stream. Compressed data from the device that does not decode fails the read with `AdbProtocolException`.
 
 Measured on an Android 14 emulator over a forwarded port: write 360-485 MiB/s, read 310-320 MiB/s.

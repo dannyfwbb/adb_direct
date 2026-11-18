@@ -2,3 +2,16 @@ adb_direct
 Copyright 2026 The adb_direct authors
 
 This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Parts of it follow other projects closely:
+
+- SPAKE2 for pairing (lib/src/crypto/spake2.dart) reproduces BoringSSL's
+  SPAKE2 over edwards25519 byte for byte, including its fixed points M and N.
+  BoringSSL: https://boringssl.googlesource.com/boringssl (ISC and OpenSSL
+  licenses).
+
+- The incremental install protocol (lib/src/services/incremental.dart) follows
+  the Android Open Source Project's adb client
+  (packages/modules/adb/client/incremental*.cpp): request and block layouts,
+  the verity tree arithmetic, and the order of an APK's priority blocks.
+  Copyright (C) 2020 The Android Open Source Project, Apache License 2.0.

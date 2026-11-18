@@ -14,3 +14,9 @@
 - Discovery: `AdbMdnsBrowser` (own mDNS querier: PTR/SRV/TXT/A/AAAA, TTLs, goodbyes, per-sender cache flush, back-off, a fallback without port 5353), `AdbService` with serial and suffix, `AdbServiceBrowser` for platform browsers (example adapter in `example/`), `pairingServices()` for QR pairing, `AdbProbe.scan`. `tool/mdns_publish.py` for tests.
 - Forwarding and device services: `AdbConnection.forward` (`AdbForward`), `AdbReverse` (`toLocalPort`, `add` with a handler, `list`, `remove`, `removeAll`; device `OPEN`s accepted only for our targets), `AdbDaemon` (`root`, `unroot`, `tcpip`, `usb`, `reboot`, `remount`, verity) with `AdbDaemonAnswer`, `AdbConnection.waitFor`, `AdbDebug` (`jdwp`, `trackJdwp`, `trackApps` with `AdbAppProcess`, `logcat`, `screencap`, `bugreport`), `AdbBackup`, `AdbRecovery.sideload`.
 - `AdbConnection.connect(cancelOn:)` stops an attempt (TCP connect or a pending approval); `AdbConnection.close(drain: false)` closes without waiting on the device.
+- `AdbProperties` (`getprop`, `setprop`, `serialNumber`, `sdkLevel`) and `AdbCommandException` (`commandFailed`) for helpers over device commands.
+- App management over `pm`: `AdbPackages.list` (`AdbPackageInfo`), `paths`, `setEnabled`, `clearData`, `grantPermission`, `revokePermission`.
+- APEX modules: `AdbApk.isApex`, installed with `--apex`; with `installMultiPackage` the set is staged.
+- Incremental installs: `AdbPackages.installIncremental` with `AdbIncrementalApk` (v4 signatures from `.idsig` files) and `AdbIncrementalInstall` (serving in the background, `done`, `close`).
+- Compression in sync v2: `AdbCompression` and `AdbCompressionMethod` for `AdbSync.read`, `write` and the `dart:io` helpers; LZ4 built in (own codec), Brotli and Zstandard pluggable. Host features now include `sendrecv_v2_lz4` and `apex`.
+- Test APKs come with their `.idsig` files.
