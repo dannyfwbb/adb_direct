@@ -206,6 +206,22 @@ void main() {
       await adb.close();
     });
 
+    test('a device that closes before it has every block fails done', () async {
+      final (adb, adbd) = await connectTo(banner: abbBanner, (session) async {
+        final peer = await LoaderPeer.accept(session);
+        await peer.read(4);
+        // Installed, then gone without asking for anything.
+        peer.send(ascii.encode('Success\n'));
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        session.send(AdbMessage.close(localId: 9, remoteId: peer.remoteId));
+      });
+      final install = await adb.packages.installIncremental([fixture('app-v1')]);
+      await expectLater(install.done, throwsA(isA<AdbClosedException>()));
+      expect(install.isComplete, isFalse);
+      await adb.close();
+      await adbd.done();
+    });
+
     test('a refusal: AdbInstallException with the code; the stream is closed', () async {
       final (adb, adbd) = await connectTo(banner: abbBanner, (session) async {
         final peer = await LoaderPeer.accept(session);

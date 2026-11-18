@@ -268,7 +268,10 @@ final class AdbPackages {
     }
     final unsigned = files.where((f) => f.signature == null).toList();
 
+    var released = false;
     Future<void> release() async {
+      if (released) return;
+      released = true;
       for (final file in files) {
         try {
           await file.close?.call();

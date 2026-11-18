@@ -312,7 +312,12 @@ final class IncrementalServer {
   final Completer<void> _done = Completer<void>();
   Completer<void>? _wake;
   StreamSubscription<Uint8List>? _subscription;
+
+  /// Serving was stopped here, or the stream ended.
   bool _stopped = false;
+
+  /// The stream ended (closed by the device or failed).
+  bool _streamEnded = false;
   bool _doneSent = false;
 
   /// The device needs nothing more. Its answer may still be on the way: serving ends once it has arrived.
@@ -446,6 +451,7 @@ final class IncrementalServer {
 
   void _onClosed() {
     _stopped = true;
+    _streamEnded = true;
     if (!_installed.isCompleted) {
       _installed.completeError(
         _stream.closeReason ??
@@ -490,17 +496,23 @@ final class IncrementalServer {
           await _prefetchRoundOnce();
           continue;
         }
-        await _flush();
+        // Armed before the flush: news that arrives meanwhile completes it, so the wait below returns at once.
         final wake = _wake = Completer<void>();
+        await _flush();
         await wake.future;
       }
       if (_pending.isNotEmpty && !_stream.isClosed) await _flush();
+      if (_streamEnded && !_deviceDone && blocksSent < totalBlocks) {
+        // The device went away before it had everything: the app is incomplete.
+        throw _stream.closeReason ??
+            AdbClosedException('The device closed the incremental install after $blocksSent of $totalBlocks blocks');
+      }
       if (!_done.isCompleted) _done.complete();
     } on Object catch (e, stackTrace) {
       if (!_installed.isCompleted) _installed.completeError(e, stackTrace);
       if (!_done.isCompleted) {
         // A stream closed by the device after it had everything is the normal end.
-        if (_finished || (e is AdbClosedException && _doneSent)) {
+        if (_deviceDone || (e is AdbClosedException && _doneSent && blocksSent == totalBlocks)) {
           _done.complete();
         } else {
           _done.completeError(e, stackTrace);
