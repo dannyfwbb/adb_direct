@@ -35,8 +35,9 @@ final class AdbPairingQr {
   /// A code with a fresh random service name and password.
   factory AdbPairingQr.random() {
     final random = Random.secure();
-    String pick(int n) =>
-        String.fromCharCodes(List.generate(n, (_) => _alphabet.codeUnitAt(random.nextInt(_alphabet.length))));
+    String pick(int n) => String.fromCharCodes([
+      for (var i = 0; i < n; i++) _alphabet.codeUnitAt(random.nextInt(_alphabet.length)),
+    ]);
     return AdbPairingQr(serviceName: 'studio-${pick(10)}', password: pick(12));
   }
 
@@ -76,30 +77,22 @@ final class AdbPairingQr {
     AdbClock clock = AdbClock.system,
   }) async {
     final found = Completer<AdbPairingService>();
-    final subscription = services.listen(
-      (service) {
-        if (service.name == serviceName && !found.isCompleted) {
-          found.complete(service);
-        }
-      },
-      onError: (Object e) {
-        if (!found.isCompleted) {
-          found.completeError(AdbUnreachableException('The service browser failed', cause: e));
-        }
-      },
-    );
-    final timer = clock.timer(waitTimeout, () {
-      if (!found.isCompleted) {
-        found.completeError(AdbTimeoutException('No device announced $serviceName within $waitTimeout'));
-      }
-    });
-    void cancel() {
-      if (!found.isCompleted) {
-        found.completeError(const AdbCancelledException('QR pairing was cancelled'));
-      }
+    void fail(AdbException error) {
+      if (!found.isCompleted) found.completeError(error);
     }
 
-    cancelOn?.then((_) => cancel(), onError: (Object _) => cancel()).ignore();
+    final subscription = services.listen(
+      (service) {
+        if (service.name == serviceName && !found.isCompleted) found.complete(service);
+      },
+      onError: (Object e) => fail(AdbUnreachableException('The service browser failed', cause: e)),
+    );
+    final timer = clock.timer(
+      waitTimeout,
+      () => fail(AdbTimeoutException('No device announced $serviceName within $waitTimeout')),
+    );
+    cancelOn?.whenComplete(() => fail(const AdbCancelledException('QR pairing was cancelled'))).ignore();
+
     final AdbPairingService service;
     try {
       service = await found.future;

@@ -145,9 +145,23 @@ abstract final class AdbProbe {
     final pending = targets.iterator;
     var running = 0;
     var cancelled = false;
-
     var exhausted = false;
-    void next() {
+
+    late final void Function() next;
+    Future<void> probe(Object host, int port) async {
+      AdbEndpoint? endpoint;
+      try {
+        endpoint = await identify(host, port, timeout: timeout, clock: clock);
+      } on Object {
+        // Refused, unreachable, a bad host: not a result.
+      }
+      running--;
+      if (cancelled) return;
+      if (endpoint != null && endpoint.isAdb) controller.add(AdbScanResult(host, port, endpoint));
+      next();
+    }
+
+    next = () {
       while (!cancelled && !controller.isPaused && !exhausted && running < concurrency) {
         try {
           if (!pending.moveNext()) {
@@ -162,24 +176,10 @@ abstract final class AdbProbe {
         }
         final (host, port) = pending.current;
         running++;
-        identify(
-          host,
-          port,
-          timeout: timeout,
-          clock: clock,
-        ).then<AdbEndpoint?>((e) => e, onError: (Object _) => null).then((endpoint) {
-          running--;
-          if (cancelled) return;
-          if (endpoint != null && endpoint.isAdb) {
-            controller.add(AdbScanResult(host, port, endpoint));
-          }
-          next();
-        }).ignore();
+        unawaited(probe(host, port));
       }
-      if (exhausted && running == 0 && !cancelled && !controller.isClosed) {
-        unawaited(controller.close());
-      }
-    }
+      if (exhausted && running == 0 && !cancelled && !controller.isClosed) unawaited(controller.close());
+    };
 
     controller = StreamController<AdbScanResult>(onListen: next, onResume: next, onCancel: () => cancelled = true);
     return controller.stream;
