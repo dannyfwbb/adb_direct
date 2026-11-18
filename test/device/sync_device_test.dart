@@ -122,6 +122,8 @@ void main() {
     Directory('${local.path}/sub/deeper').createSync(recursive: true);
     File('${local.path}/sub/b.bin').writeAsBytesSync(List.filled(70000, 3));
     File('${local.path}/sub/deeper/c').writeAsStringSync('');
+    Directory('${local.path}/empty/inner').createSync(recursive: true);
+    if (!Platform.isWindows) Process.runSync('mkfifo', ['${local.path}/sub/pipe']);
     expect(await adb().sync.pushDirectory(local, '$scratch/tree'), 3);
     expect(await adb().sync.pushDirectory(local, '$scratch/tree', onlyChanged: true), 0);
     final back = await Directory.systemTemp.createTemp('adb_direct_back');
@@ -130,6 +132,8 @@ void main() {
     expect(File('${back.path}/a.txt').readAsStringSync(), 'alpha');
     expect(File('${back.path}/sub/b.bin').lengthSync(), 70000);
     expect(File('${back.path}/sub/deeper/c').lengthSync(), 0);
+    expect(Directory('${back.path}/empty/inner').existsSync(), isTrue);
+    expect(File('${back.path}/sub/pipe').existsSync(), isFalse);
   }, skip: skip);
 
   test('pushFile and pullFile keep bytes and the modification time', () async {
