@@ -13,17 +13,17 @@ print(paired.guid);    // adb-<serial>-<random>
 final adb = await AdbConnection.connect('192.168.0.20', 41235, key: key);
 ```
 
-The key's comment (`user@host` by default) is the name the device lists under "Paired devices". The connection port is the one under "IP address & Port"; it differs from the pairing port and both change when wireless debugging restarts. On the network they are announced as `_adb-tls-pairing._tcp` and `_adb-tls-connect._tcp`; the package does not browse mDNS yet.
+The key's comment (`user@host` by default) is the name the device lists under "Paired devices". The connection port is the one under "IP address & Port"; it differs from the pairing port and both change when wireless debugging restarts. On the network they are announced as `_adb-tls-pairing._tcp` and `_adb-tls-connect._tcp`, which `AdbMdnsBrowser` finds (see [discovery.md](discovery.md)).
 
 ## QR codes
 
 ```dart
 final qr = AdbPairingQr.random();
 showQrCode(qr.text);   // WIFI:T:ADB;S:studio-…;P:…;;
-final paired = await qr.pair(services: pairingServices, key: key);
+final paired = await qr.pair(services: AdbMdnsBrowser().pairingServices(), key: key);
 ```
 
-QR pairing has been run only against a test server so far (an emulator cannot scan). The device scans the code ("Pair device with QR code"), starts a pairing server and announces it on mDNS under `qr.serviceName`. `pair` waits on `services`, a stream of `AdbPairingService` (name, host, port) from any mDNS browser for `_adb-tls-pairing._tcp`, for that name, then pairs with the password. It times out after `waitTimeout` (two minutes) when no device appears.
+QR pairing has been run only against a test server so far (an emulator cannot scan). The device scans the code ("Pair device with QR code"), starts a pairing server and announces it on mDNS under `qr.serviceName`. `pair` waits on `services`, a stream of `AdbPairingService` (name, host, port) for `_adb-tls-pairing._tcp` from `AdbMdnsBrowser` or a platform browser (`pairingServices()` on any `AdbServiceBrowser`), for that name, then pairs with the password. It times out after `waitTimeout` (two minutes) when no device appears.
 
 ## Failures
 
@@ -38,7 +38,7 @@ QR pairing has been run only against a test server so far (an emulator cannot sc
 
 ## Platforms
 
-Pairing needs the TLS session's exporter secret, which `dart:io` delivers through its key-log callback. It works on Linux and on Android (checked from an app on an Android 17 emulator). Other platforms are not checked yet.
+Pairing needs the TLS session's exporter secret, which `dart:io` delivers through its key-log callback. It works on Linux and on Android (checked from an app on an Android 17 emulator); macOS, Windows and iOS have not been checked.
 
 ## Debugging
 

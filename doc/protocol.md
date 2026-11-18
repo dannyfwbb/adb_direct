@@ -38,7 +38,19 @@ Parsing is more tolerant than adb's own: a `:` or `=` inside a value is kept (ad
 
 ## Classic authentication
 
-Not implemented yet.
+```
+> CNXN(0x01000001, maxdata, "host::features=…")
+< AUTH(TOKEN, 0, <20 random bytes>)
+> AUTH(SIGNATURE, 0, <256 bytes>)          one per key, until one is accepted
+< AUTH(TOKEN, 0, <new token>)              the key was not accepted
+> AUTH(RSAPUBLICKEY, 0, "<adb public key> <comment>\0")
+  the device shows "Allow debugging?" and stays silent until its user answers
+< CNXN(0x01000001, maxdata, "device::…")
+```
+
+Keys are RSA 2048 with exponent 65537. The signature is PKCS#1 v1.5 with the SHA-1 `DigestInfo`, the token standing in for the digest: it is not hashed again. The public key goes as `base64(<524-byte structure>) <comment>` with a trailing NUL; the structure holds the modulus size in words (64), −n⁻¹ mod 2³², the modulus and R² mod n (both little-endian), and the exponent. The dialog shows the MD5 fingerprint of that structure, which `AdbPublicKey.md5Fingerprint` gives.
+
+"Cancel" sends nothing back, so a refusal looks like a user who has not answered; only `approvalTimeout` ends the wait. A device without authentication answers the first `CNXN` with its own. The probe (`AdbProbe.knowsKey`) stops after the signatures, before the public key, so it never shows the dialog.
 
 ## TLS connections
 
@@ -68,16 +80,43 @@ Packets on the pairing port are `{u8 version = 1, u8 type, u32 size big-endian}`
 
 ## Shell
 
-Not implemented yet.
+`shell,v2,raw:<command>` runs a command with shell protocol v2, `shell,v2,pty:` an interactive shell with a terminal. Inside the stream's data, v2 frames packets as `{u8 id, u32 length little-endian, data}`, split across and packed into `WRTE`s freely:
+
+| Id | Direction | Meaning |
+| --- | --- | --- |
+| 0 | to the device | stdin |
+| 1, 2 | from the device | stdout, stderr |
+| 3 | from the device | exit status, one byte |
+| 4 | to the device | close stdin (end of input for a command without a PTY) |
+| 5 | to the device | window size, `"<rows>x<cols>,<xpixels>x<ypixels>"` |
+
+Without `shell_v2` (Android 6 and older) `shell:<command>` gives one stream with stdout and stderr merged and no exit status; `exec:<command>` (Android 5 and later) gives the command's bytes exactly, with no PTY and no framing. Commands travel in the `OPEN` payload, so they are bounded by the payload limit, and may not contain a NUL (adbd would end the name there).
 
 ## Sync
 
-Not implemented yet.
+`OPEN("sync:")`, then requests `{u32 id, u32 length}` plus a path (UTF-8, up to 1024 bytes), all little-endian:
+
+| Request | Answer |
+| --- | --- |
+| `STAT`, or `STA2`/`LST2` with `stat_v2` | mode, size, times (v1: 32-bit, zeros for a missing path; v2: 64-bit sizes, owner, an errno) |
+| `LIST`, or `LIS2` with `ls_v2` | `DENT`/`DNT2` entries, then `DONE` padded to an entry's size |
+| `RECV`, or `RCV2` with `sendrecv_v2` | `DATA` chunks of up to 64 KiB, then `DONE`; or `FAIL` with a message |
+| `SEND` (`"<path>,<mode>"`), or `SND2` with `sendrecv_v2` | after the client's `DATA` chunks and `DONE {mtime}`: `OKAY` or `FAIL` |
+| `QUIT` | ends the session |
+
+`RCV2` and `SND2` carry flags: 1 Brotli, 2 LZ4, 4 Zstandard (compressed `DATA` chunks are pieces of one stream, not separate frames). After a `FAIL`, adbd closes the sync stream; the package opens a new session for the next request. A push that fails on the device (no space, read-only) is answered with `FAIL` at once while adbd keeps reading until `DONE`: the package stops sending as soon as anything comes back.
 
 ## Install
 
-Not implemented yet.
+`abb_exec:package\0install\0-S\0<size>…` (Android 11+, arguments separated by NULs, no shell) or `exec:cmd package install -S <size> …` (Android 7+), then the APK's bytes on the same stream, then the package manager's answer (`Success` or `Failure [CODE: message]`) on it. Older devices get the APK pushed to `/data/local/tmp` and installed with `pm install`. Several APKs go through a session: `install-create`, one `install-write -S <size> <session> <name> -` per APK, `install-commit` (or `install-abandon`). The exit status of `pm` is never trusted: it often exits 0 after refusing.
+
+Incremental installs (`install-incremental`) pass each file's v4 signature as an argument, then the client serves blocks: the device asks with `INCR` requests mixed into the package manager's output (prefetch a file, a missing block, serving complete), and the client answers with chunks of 4 KiB blocks, each with a small header, data blocks LZ4-compressed where that helps, preceded by the hash tree blocks that verify them.
 
 ## Half-open connections
 
-Not implemented yet.
+A device that loses power or network leaves a socket that neither fails nor answers. Two checks notice it:
+
+- every `OPEN` and every write must be acknowledged within `acknowledgementTimeout` (20 s by default);
+- a connection whose streams only wait (a log being followed, a command that prints nothing) asks the device after `livenessInterval` (10 s) of silence: it opens a service that does not exist, which adbd refuses at once (`CLSE`) without logging anything.
+
+Either check failing ends the connection with `AdbTimeoutException`, and every open stream and pending call fails with it.

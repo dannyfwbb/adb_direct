@@ -16,4 +16,4 @@
 | [compatibility.md](compatibility.md) | What differs on old devices and how the package handles it |
 | [apps.md](apps.md) | Install, split APKs, several apps at once, APEX modules, incremental installs, uninstall, listing and managing apps, results |
 
-API documentation is generated from the code with `dart doc` once the package has an API.
+Every public class and member is documented in the code; `dart doc` generates the API reference, which pub.dev shows.
