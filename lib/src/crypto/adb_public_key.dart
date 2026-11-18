@@ -124,9 +124,7 @@ final class AdbPublicKey {
   int get hashCode => Object.hash(modulus, exponent, comment);
 
   @override
-  String toString() =>
-      'AdbPublicKey($md5Fingerprint'
-      '${comment.isEmpty ? '' : ' $comment'})';
+  String toString() => "AdbPublicKey($md5Fingerprint${comment.isEmpty ? '' : ' $comment'})";
 
   static Uint8List _toLittleEndian(BigInt value) {
     final bigEndian = Der.unsignedBytes(value, length: _modulusBytes);

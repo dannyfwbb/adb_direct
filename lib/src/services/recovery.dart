@@ -84,9 +84,7 @@ Future<void> serveBlocks(AdbStream stream, RandomAccessFile file, int size, AdbP
   try {
     while (true) {
       while (requests.length < 8) {
-        if (!await input.moveNext()) {
-          throw const AdbClosedException('The device ended the sideload before it was done');
-        }
+        if (!await input.moveNext()) throw const AdbClosedException('The device ended the sideload before it was done');
         requests.add(input.current);
       }
       final request = ascii.decode(requests.take(8), allowInvalid: true);

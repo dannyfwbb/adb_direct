@@ -167,12 +167,8 @@ final class FakeAdbdSession {
     while (true) {
       _throwIfFailed();
       if (_inbox.isNotEmpty) return _inbox.removeFirst();
-      if (_clientClosed) {
-        throw FakeAdbdFailure('client closed the connection while a message was expected');
-      }
-      if (!await _waitUntil(deadline)) {
-        throw FakeAdbdFailure('no message from the client within $timeout');
-      }
+      if (_clientClosed) throw FakeAdbdFailure('client closed the connection while a message was expected');
+      if (!await _waitUntil(deadline)) throw FakeAdbdFailure('no message from the client within $timeout');
     }
   }
 
@@ -204,13 +200,9 @@ final class FakeAdbdSession {
     final deadline = DateTime.now().add(timeout);
     while (true) {
       _throwIfFailed();
-      if (_inbox.isNotEmpty) {
-        throw FakeAdbdFailure('expected the client to close, got ${_inbox.first}');
-      }
+      if (_inbox.isNotEmpty) throw FakeAdbdFailure('expected the client to close, got ${_inbox.first}');
       if (_clientClosed) return;
-      if (!await _waitUntil(deadline)) {
-        throw FakeAdbdFailure('client did not close within $timeout');
-      }
+      if (!await _waitUntil(deadline)) throw FakeAdbdFailure('client did not close within $timeout');
     }
   }
 
@@ -228,9 +220,7 @@ final class FakeAdbdSession {
   Future<bool> _waitUntil(DateTime deadline) async {
     final left = deadline.difference(DateTime.now());
     if (left <= Duration.zero) return false;
-    if (_waiter != null) {
-      throw StateError('Concurrent waits on one FakeAdbdSession');
-    }
+    if (_waiter != null) throw StateError('Concurrent waits on one FakeAdbdSession');
     final waiter = _waiter = Completer<void>();
     var woke = true;
     await waiter.future.timeout(left, onTimeout: () => woke = false);
@@ -305,9 +295,7 @@ FakeAdbdScript replay(
 /// Matches a client message to a recorded one exactly, except where the bytes are expected to differ between runs: a
 /// token signature (it signs a different random token with a possibly different key).
 bool recordedPacketMatcher(AdbMessage recorded, AdbMessage actual) {
-  if (recorded.command != actual.command || recorded.arg0 != actual.arg0 || recorded.arg1 != actual.arg1) {
-    return false;
-  }
+  if (recorded.command != actual.command || recorded.arg0 != actual.arg0 || recorded.arg1 != actual.arg1) return false;
   final isSignature = recorded.command == AdbCommand.auth && recorded.arg0 == AdbAuthType.signature.value;
   return isSignature || _exact(recorded, actual);
 }

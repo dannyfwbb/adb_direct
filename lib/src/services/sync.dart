@@ -310,9 +310,7 @@ final class _SyncSession {
       final data = ByteData.sublistView(head);
       _expectId(data, v2 ? SyncId.dent2 : SyncId.dent);
       final nameLength = data.u32(fixed - 4);
-      if (nameLength > _maxName) {
-        throw AdbProtocolException('Directory entry name of $nameLength B');
-      }
+      if (nameLength > _maxName) throw AdbProtocolException('Directory entry name of $nameLength B');
       final name = utf8.decode(await _reader.readExactly(nameLength), allowMalformed: true);
       // An entry the device could not lstat carries an errno: left out.
       if (v2 && data.u32(4) != 0) continue;
@@ -342,9 +340,7 @@ final class _SyncSession {
     }
     if (id == SyncId.fail) throw await _failure(length, path);
     _expectId(data, SyncId.data);
-    if (length > SyncLimits.maxData) {
-      throw AdbProtocolException('Sync DATA chunk of $length bytes');
-    }
+    if (length > SyncLimits.maxData) throw AdbProtocolException('Sync DATA chunk of $length bytes');
     return _reader.readExactly(length);
   }
 
@@ -366,9 +362,7 @@ final class _SyncSession {
     try {
       return await _write(path, data, mode, mtime, v2, size, onProgress);
     } on AdbException catch (e) {
-      if (watchdog.stalled) {
-        throw AdbTimeoutException('The push to $path made no progress for $stallTimeout', cause: e);
-      }
+      if (watchdog.stalled) throw AdbTimeoutException('The push to $path made no progress for $stallTimeout', cause: e);
       rethrow;
     } finally {
       watchdog.stop();
@@ -454,18 +448,14 @@ final class _SyncSession {
 
   Future<AdbSyncException> _failure(int length, String path) async {
     _broken = true;
-    if (length > _maxFailMessage) {
-      throw AdbProtocolException('Sync FAIL message of $length bytes');
-    }
+    if (length > _maxFailMessage) throw AdbProtocolException('Sync FAIL message of $length bytes');
     final message = utf8.decode(await _reader.readExactly(length), allowMalformed: true);
     return AdbSyncException(message, path: path);
   }
 
   void _expectId(ByteData data, int expected) {
     final id = data.u32(0);
-    if (id != expected) {
-      throw AdbProtocolException('Expected sync ${SyncId.name(expected)}, got ${SyncId.name(id)}');
-    }
+    if (id != expected) throw AdbProtocolException('Expected sync ${SyncId.name(expected)}, got ${SyncId.name(id)}');
   }
 
   Future<void> quit() async {

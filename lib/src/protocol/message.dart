@@ -315,13 +315,9 @@ final class AdbMessageReader {
 }
 
 void _checkUint32(int value, String name) {
-  if (value < 0 || value > 0xffffffff) {
-    throw RangeError.range(value, 0, 0xffffffff, name);
-  }
+  if (value < 0 || value > 0xffffffff) throw RangeError.range(value, 0, 0xffffffff, name);
 }
 
 void _checkStreamId(int value, String name) {
-  if (value <= 0 || value > 0xffffffff) {
-    throw RangeError.range(value, 1, 0xffffffff, name);
-  }
+  if (value <= 0 || value > 0xffffffff) throw RangeError.range(value, 1, 0xffffffff, name);
 }

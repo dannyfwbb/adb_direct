@@ -80,14 +80,10 @@ final class FakeTlsAdbd {
     final plain = _PlainReader(raw);
     try {
       final cnxn = await plain.message();
-      if (cnxn.command != AdbCommand.connect) {
-        return raw.shutdown(SocketDirection.both);
-      }
+      if (cnxn.command != AdbCommand.connect) return raw.shutdown(SocketDirection.both);
       _write(raw, AdbMessage.stls(), withChecksum: true);
       final stls = await plain.message();
-      if (stls.command != AdbCommand.stls) {
-        return raw.shutdown(SocketDirection.both);
-      }
+      if (stls.command != AdbCommand.stls) return raw.shutdown(SocketDirection.both);
       if (_hang) {
         // Never reads the ClientHello, never answers. Read events must be off: unread data re-raises them through
         // microtasks forever, starving every timer in this isolate.

@@ -29,9 +29,7 @@ final class FakeClock implements AdbClock {
 
   /// Moves time forward by [duration], firing every timer that comes due.
   void advance(Duration duration) {
-    if (duration.isNegative) {
-      throw ArgumentError.value(duration, 'duration', 'must not be negative');
-    }
+    if (duration.isNegative) throw ArgumentError.value(duration, 'duration', 'must not be negative');
     final target = _elapsed + duration;
     while (true) {
       final due = _timers.where((t) => t.deadline <= target).toList()..sort();

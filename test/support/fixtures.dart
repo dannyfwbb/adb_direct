@@ -115,9 +115,7 @@ final class Fixture {
         header.getUint32(8, Endian.little) == message.arg1 &&
         header.getUint32(12, Endian.little) == message.payload.length &&
         _sameBytes(Uint8List.sublistView(raw, 24), message.payload);
-    if (!consistent) {
-      throw FormatException('Fixture packet $message disagrees with its raw bytes');
-    }
+    if (!consistent) throw FormatException('Fixture packet $message disagrees with its raw bytes');
   }
 
   static bool _sameBytes(Uint8List a, Uint8List b) {

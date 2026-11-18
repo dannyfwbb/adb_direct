@@ -237,9 +237,7 @@ final class EdPoint {
   /// [scalar] (32 bytes, little-endian, all 256 bits used) times this point, by a ladder that does the same work for
   /// every scalar.
   EdPoint multiply(List<int> scalar) {
-    if (scalar.length != 32) {
-      throw ArgumentError.value(scalar.length, 'scalar', 'must be 32 bytes');
-    }
+    if (scalar.length != 32) throw ArgumentError.value(scalar.length, 'scalar', 'must be 32 bytes');
     var p = EdPoint.identity();
     // A copy: the masked swaps work in place and must not touch this point (the base point and SPAKE2's M and N are
     // shared).
@@ -289,9 +287,7 @@ Uint8List get groupOrder => Uint8List.fromList(_l);
 /// TweetNaCl's `modL` does.
 @internal
 Uint8List reduceScalar(List<int> x) {
-  if (x.length != 64) {
-    throw ArgumentError.value(x.length, 'x', 'must be 64 bytes');
-  }
+  if (x.length != 64) throw ArgumentError.value(x.length, 'x', 'must be 64 bytes');
   final t = Int64List(65)..setRange(0, 64, x);
   for (var i = 63; i >= 32; i--) {
     var carry = 0;

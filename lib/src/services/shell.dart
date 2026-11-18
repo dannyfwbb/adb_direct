@@ -18,9 +18,7 @@ import '../stream/adb_stream.dart';
 
 /// Quotes [argument] for the device's shell: one argument, whatever it contains.
 String shellQuote(String argument) {
-  if (argument.isNotEmpty && RegExp(r'^[A-Za-z0-9_@%+=:,./-]+$').hasMatch(argument)) {
-    return argument;
-  }
+  if (argument.isNotEmpty && RegExp(r'^[A-Za-z0-9_@%+=:,./-]+$').hasMatch(argument)) return argument;
   return "'${argument.replaceAll("'", r"'\''")}'";
 }
 

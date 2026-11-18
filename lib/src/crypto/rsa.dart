@@ -203,9 +203,7 @@ final class RsaPrivateKey {
   /// random factor against timing attacks on the CRT, and the result is verified with the public exponent before it
   /// leaves, against faults.
   BigInt privateOperation(BigInt message) {
-    if (message.isNegative || message >= modulus) {
-      throw ArgumentError('RSA input out of range');
-    }
+    if (message.isNegative || message >= modulus) throw ArgumentError('RSA input out of range');
     final r = _blindingFactor();
     final blinded = (message * r.modPow(publicExponent, modulus)) % modulus;
     final m1 = blinded.modPow(dP, p);

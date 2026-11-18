@@ -52,9 +52,7 @@ final class TlsExporter {
 
   Uint8List _expandLabel(List<int> secret, List<int> label, List<int> context, int length) {
     final fullLabel = [...utf8.encode('tls13 '), ...label];
-    if (fullLabel.length > 255 || context.length > 255) {
-      throw ArgumentError('Label or context too long');
-    }
+    if (fullLabel.length > 255 || context.length > 255) throw ArgumentError('Label or context too long');
     final info = [length >> 8, length & 0xff, fullLabel.length, ...fullLabel, context.length, ...context];
     return Hkdf.expand(_hash, secret, info, length);
   }

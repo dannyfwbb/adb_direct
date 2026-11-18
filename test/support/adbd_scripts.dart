@@ -68,9 +68,7 @@ Future<AdbMessage> acceptHandshake(
 }) async {
   final keys = trusted ?? [testKey.publicKey];
   final cnxn = await session.receive();
-  if (cnxn.command != AdbCommand.connect) {
-    throw FakeAdbdFailure('expected CNXN, got $cnxn');
-  }
+  if (cnxn.command != AdbCommand.connect) throw FakeAdbdFailure('expected CNXN, got $cnxn');
   while (true) {
     final token = randomToken();
     session.send(AdbMessage.auth(AdbAuthType.token, token));
@@ -78,9 +76,7 @@ Future<AdbMessage> acceptHandshake(
     if (answer.command != AdbCommand.auth || answer.arg0 != AdbAuthType.signature.value) {
       throw FakeAdbdFailure('expected a signature, got $answer');
     }
-    if (keys.any((k) => verifyTokenSignature(k, token, answer.payload))) {
-      break;
-    }
+    if (keys.any((k) => verifyTokenSignature(k, token, answer.payload))) break;
   }
   session
     ..send(AdbMessage(AdbCommand.connect, version, maxPayload, banner ?? tvBanner))

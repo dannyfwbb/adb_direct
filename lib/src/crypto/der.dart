@@ -4,10 +4,15 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import '../bytes.dart';
+
 /// The small subset of ASN.1 DER this library writes and reads: what RSA keys (PKCS#1, PKCS#8, SubjectPublicKeyInfo)
 /// and a self-signed X.509 certificate need. Not a general ASN.1 library.
 abstract final class Der {
-  /// Universal tags used here.
+  /// BOOLEAN.
+  static const int tagBoolean = 0x01;
+
+  /// INTEGER.
   static const int tagInteger = 0x02;
 
   /// BIT STRING.
@@ -39,9 +44,6 @@ abstract final class Der {
 
   /// SET (constructed).
   static const int tagSet = 0x31;
-
-  /// BOOLEAN.
-  static const int tagBoolean = 0x01;
 
   /// A tag-length-value element with [tag] and [content].
   static Uint8List element(int tag, List<int> content) {
@@ -104,9 +106,7 @@ abstract final class Der {
   /// requires. Seconds precision, UTC. Earlier years cannot be encoded unambiguously and are refused.
   static Uint8List time(DateTime time) {
     final t = time.toUtc();
-    if (t.year < 1950) {
-      throw ArgumentError.value(time, 'time', 'years before 1950');
-    }
+    if (t.year < 1950) throw ArgumentError.value(time, 'time', 'years before 1950');
     String two(int v) => v.toString().padLeft(2, '0');
     final rest = '${two(t.month)}${two(t.day)}${two(t.hour)}${two(t.minute)}${two(t.second)}Z';
     return t.year < 2050
@@ -120,9 +120,7 @@ abstract final class Der {
   /// The minimal two's complement big-endian bytes of [value].
   static Uint8List signedBytes(BigInt value) {
     if (value == BigInt.zero) return Uint8List.fromList([0]);
-    if (value.isNegative) {
-      throw ArgumentError.value(value, 'value', 'negative values are unused');
-    }
+    if (value.isNegative) throw ArgumentError.value(value, 'value', 'negative values are unused');
     final magnitude = unsignedBytes(value);
     return magnitude[0] & 0x80 != 0 ? Uint8List.fromList([0, ...magnitude]) : magnitude;
   }
@@ -131,16 +129,10 @@ abstract final class Der {
   /// given.
   static Uint8List unsignedBytes(BigInt value, {int? length}) {
     if (value.isNegative) throw ArgumentError.value(value, 'value');
-    var hex = value.toRadixString(16);
-    if (hex.length.isOdd) hex = '0$hex';
-    final bytes = Uint8List(hex.length ~/ 2);
-    for (var i = 0; i < bytes.length; i++) {
-      bytes[i] = int.parse(hex.substring(2 * i, 2 * i + 2), radix: 16);
-    }
+    final hex = value.toRadixString(16);
+    final bytes = hexDecode(hex.length.isOdd ? '0$hex' : hex);
     if (length == null || length == bytes.length) return bytes;
-    if (bytes.length > length) {
-      throw ArgumentError('Value needs ${bytes.length} bytes, more than $length');
-    }
+    if (bytes.length > length) throw ArgumentError('Value needs ${bytes.length} bytes, more than $length');
     return Uint8List(length)..setRange(length - bytes.length, length, bytes);
   }
 
@@ -155,10 +147,7 @@ abstract final class Der {
 
   static List<int> _length(int length) {
     if (length < 0x80) return [length];
-    final bytes = <int>[];
-    for (var rest = length; rest > 0; rest >>= 8) {
-      bytes.insert(0, rest & 0xff);
-    }
+    final bytes = [for (var rest = length; rest > 0; rest >>= 8) rest & 0xff].reversed;
     return [0x80 | bytes.length, ...bytes];
   }
 }
@@ -174,9 +163,7 @@ final class DerElement {
   factory DerElement.parse(List<int> bytes) {
     final reader = _DerReader(Uint8List.fromList(bytes));
     final element = reader.next();
-    if (!reader.atEnd) {
-      throw const FormatException('Trailing bytes after a DER element');
-    }
+    if (!reader.atEnd) throw const FormatException('Trailing bytes after a DER element');
     return element;
   }
 
@@ -188,9 +175,7 @@ final class DerElement {
 
   /// The elements inside a SEQUENCE or SET.
   List<DerElement> get children {
-    if (tag & 0x20 == 0) {
-      throw FormatException('Tag 0x${tag.toRadixString(16)} is primitive');
-    }
+    if (tag & 0x20 == 0) throw FormatException('Tag 0x${tag.toRadixString(16)} is primitive');
     final reader = _DerReader(content);
     return [for (; !reader.atEnd;) reader.next()];
   }
@@ -205,9 +190,7 @@ final class DerElement {
   BigInt get integer {
     _expect(Der.tagInteger, 'INTEGER');
     if (content.isEmpty) throw const FormatException('Empty INTEGER');
-    if (content[0] & 0x80 != 0) {
-      throw const FormatException('Negative INTEGER');
-    }
+    if (content[0] & 0x80 != 0) throw const FormatException('Negative INTEGER');
     return Der.unsignedValue(content);
   }
 
@@ -220,18 +203,14 @@ final class DerElement {
   /// The bytes of a BIT STRING with no unused bits.
   Uint8List get bits {
     _expect(Der.tagBitString, 'BIT STRING');
-    if (content.isEmpty || content[0] != 0) {
-      throw const FormatException('BIT STRING with unused bits');
-    }
+    if (content.isEmpty || content[0] != 0) throw const FormatException('BIT STRING with unused bits');
     return Uint8List.sublistView(content, 1);
   }
 
   /// The dotted text of an OBJECT IDENTIFIER.
   String get objectIdentifier {
     _expect(Der.tagObjectIdentifier, 'OBJECT IDENTIFIER');
-    if (content.isEmpty || content.last & 0x80 != 0) {
-      throw const FormatException('Truncated OBJECT IDENTIFIER');
-    }
+    if (content.isEmpty || content.last & 0x80 != 0) throw const FormatException('Truncated OBJECT IDENTIFIER');
     final subidentifiers = <int>[];
     var value = 0;
     for (final byte in content) {
@@ -247,9 +226,7 @@ final class DerElement {
   }
 
   void _expect(int expected, String name) {
-    if (tag != expected) {
-      throw FormatException('Expected $name, found tag 0x${tag.toRadixString(16)}');
-    }
+    if (tag != expected) throw FormatException('Expected $name, found tag 0x${tag.toRadixString(16)}');
   }
 }
 
@@ -263,23 +240,17 @@ final class _DerReader {
 
   DerElement next() {
     final tag = _byte();
-    if (tag & 0x1f == 0x1f) {
-      throw const FormatException('High tag numbers are not supported');
-    }
+    if (tag & 0x1f == 0x1f) throw const FormatException('High tag numbers are not supported');
     var length = _byte();
     if (length & 0x80 != 0) {
       final count = length & 0x7f;
-      if (count == 0 || count > 4) {
-        throw const FormatException('Unsupported DER length');
-      }
+      if (count == 0 || count > 4) throw const FormatException('Unsupported DER length');
       length = 0;
       for (var i = 0; i < count; i++) {
         length = (length << 8) | _byte();
       }
     }
-    if (_offset + length > _bytes.length) {
-      throw const FormatException('DER element runs past the end');
-    }
+    if (_offset + length > _bytes.length) throw const FormatException('DER element runs past the end');
     final content = Uint8List.sublistView(_bytes, _offset, _offset + length);
     _offset += length;
     return DerElement._(tag, content);

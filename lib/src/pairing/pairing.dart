@@ -136,9 +136,7 @@ abstract final class AdbPairing {
           write: open.add,
         );
         final (type, guid) = PeerInfo.parse(info);
-        if (type != PeerInfo.deviceGuid) {
-          throw AdbPairingException('The device sent peer info of type $type');
-        }
+        if (type != PeerInfo.deviceGuid) throw AdbPairingException('The device sent peer info of type $type');
         return AdbPairedDevice(guid: guid, certificate: open.peerCertificate?.der ?? Uint8List(0));
       } on AdbException {
         if (cancelled) throw interrupted();

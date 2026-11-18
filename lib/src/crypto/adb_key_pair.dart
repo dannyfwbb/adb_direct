@@ -109,7 +109,5 @@ final class AdbKeyPair {
   int get hashCode => Object.hash(_key.modulus, comment);
 
   @override
-  String toString() =>
-      'AdbKeyPair(${publicKey.md5Fingerprint}'
-      '${comment.isEmpty ? '' : ' $comment'})';
+  String toString() => "AdbKeyPair(${publicKey.md5Fingerprint}${comment.isEmpty ? '' : ' $comment'})";
 }

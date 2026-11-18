@@ -83,9 +83,7 @@ final class AdbConnectOptions {
   /// B..2 GiB (adbd refuses an `OPEN` with a window of 0, and acknowledgements are 32-bit).
   void validate() {
     void positive(Duration value, String name) {
-      if (value <= Duration.zero) {
-        throw ArgumentError.value(value, name, 'must be positive');
-      }
+      if (value <= Duration.zero) throw ArgumentError.value(value, name, 'must be positive');
     }
 
     positive(connectTimeout, 'connectTimeout');

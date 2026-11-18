@@ -334,9 +334,7 @@ final class _ProtoReader {
     var result = 0;
     var shift = 0;
     while (true) {
-      if (_offset >= _bytes.length || shift > 63) {
-        throw const AdbProtocolException('A truncated protobuf varint');
-      }
+      if (_offset >= _bytes.length || shift > 63) throw const AdbProtocolException('A truncated protobuf varint');
       final b = _bytes[_offset++];
       result |= (b & 0x7f) << shift;
       if (b & 0x80 == 0) return result;
@@ -346,9 +344,7 @@ final class _ProtoReader {
 
   Uint8List bytes() {
     final length = varint();
-    if (length < 0 || _offset + length > _bytes.length) {
-      throw const AdbProtocolException('A truncated protobuf field');
-    }
+    if (length < 0 || _offset + length > _bytes.length) throw const AdbProtocolException('A truncated protobuf field');
     final out = Uint8List.sublistView(_bytes, _offset, _offset + length);
     _offset += length;
     return out;
@@ -367,8 +363,6 @@ final class _ProtoReader {
       default:
         throw AdbProtocolException('Protobuf wire type $wire is not supported');
     }
-    if (_offset > _bytes.length) {
-      throw const AdbProtocolException('A truncated protobuf field');
-    }
+    if (_offset > _bytes.length) throw const AdbProtocolException('A truncated protobuf field');
   }
 }

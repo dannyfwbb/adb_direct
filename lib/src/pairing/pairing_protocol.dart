@@ -60,9 +60,7 @@ abstract final class PeerInfo {
 
   /// Builds one. [data] must leave room for a terminating NUL.
   static Uint8List build(int type, List<int> data) {
-    if (data.length > size - 2) {
-      throw ArgumentError.value(data.length, 'data', 'too long for PeerInfo');
-    }
+    if (data.length > size - 2) throw ArgumentError.value(data.length, 'data', 'too long for PeerInfo');
     return Uint8List(size)
       ..[0] = type
       ..setRange(1, 1 + data.length, data);
@@ -194,9 +192,7 @@ Future<Uint8List> runPairingExchange({
   );
   write(pairingPacket(PairingPacket.spake2Message, spake.generateMessage(password)));
   final (type, theirMessage) = await reader.next();
-  if (type != PairingPacket.spake2Message) {
-    throw AdbPairingException('Expected a SPAKE2 message, got type $type');
-  }
+  if (type != PairingPacket.spake2Message) throw AdbPairingException('Expected a SPAKE2 message, got type $type');
   final Uint8List key;
   try {
     key = spake.processMessage(theirMessage);
@@ -217,9 +213,7 @@ Future<Uint8List> runPairingExchange({
     );
   }
   final (infoType, sealed) = answer;
-  if (infoType != PairingPacket.peerInfo) {
-    throw AdbPairingException('Expected peer info, got type $infoType');
-  }
+  if (infoType != PairingPacket.peerInfo) throw AdbPairingException('Expected peer info, got type $infoType');
   final info = cipher.decrypt(sealed);
   if (info == null) {
     throw const AdbPairingException(
@@ -227,8 +221,6 @@ Future<Uint8List> runPairingExchange({
       reason: AdbPairingFailure.wrongCode,
     );
   }
-  if (info.length != PeerInfo.size) {
-    throw AdbPairingException('Peer info of ${info.length} bytes');
-  }
+  if (info.length != PeerInfo.size) throw AdbPairingException('Peer info of ${info.length} bytes');
   return info;
 }

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import 'dart:convert';
+import 'dart:math';
 import 'dart:typed_data';
 
 /// One block of a PEM file.
@@ -29,10 +30,7 @@ abstract final class Pem {
   /// [der] as a PEM block with [label], lines of 64 characters, ending with a newline.
   static String encode(String label, List<int> der) {
     final body = base64.encode(der);
-    final lines = [
-      for (var i = 0; i < body.length; i += 64) body.substring(i, i + 64 > body.length ? body.length : i + 64),
-    ];
-    return '-----BEGIN $label-----\n${lines.join('\n')}\n'
-        '-----END $label-----\n';
+    final lines = [for (var i = 0; i < body.length; i += 64) body.substring(i, min(i + 64, body.length))];
+    return '-----BEGIN $label-----\n${lines.join('\n')}\n-----END $label-----\n';
   }
 }

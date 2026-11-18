@@ -99,9 +99,7 @@ void main() {
       await session.receive();
       session.send(AdbMessage.auth(AdbAuthType.token, randomToken()));
       final offer = await session.receive();
-      if (offer.arg0 != AdbAuthType.rsaPublicKey.value) {
-        throw FakeAdbdFailure('expected the public key, got $offer');
-      }
+      if (offer.arg0 != AdbAuthType.rsaPublicKey.value) throw FakeAdbdFailure('expected the public key, got $offer');
       if (offer.payload.last != 0 || AdbPublicKey.parse(utf8.decode(offer.payload)) != testKey.publicKey) {
         throw FakeAdbdFailure('bad public key payload');
       }

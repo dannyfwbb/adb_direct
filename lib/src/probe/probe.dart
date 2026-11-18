@@ -140,9 +140,7 @@ abstract final class AdbProbe {
     Duration timeout = const Duration(seconds: 1),
     AdbClock clock = AdbClock.system,
   }) {
-    if (concurrency < 1) {
-      throw ArgumentError.value(concurrency, 'concurrency', 'must be >= 1');
-    }
+    if (concurrency < 1) throw ArgumentError.value(concurrency, 'concurrency', 'must be >= 1');
     late final StreamController<AdbScanResult> controller;
     final pending = targets.iterator;
     var running = 0;

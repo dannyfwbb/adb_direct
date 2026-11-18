@@ -16,9 +16,7 @@ abstract final class Hkdf {
   /// HKDF-Expand: [length] bytes from a pseudorandom key and [info].
   static Uint8List expand(Hash hash, List<int> pseudorandomKey, List<int> info, int length) {
     final hashLength = _hashLength(hash);
-    if (length < 0 || length > 255 * hashLength) {
-      throw RangeError.range(length, 0, 255 * hashLength, 'length');
-    }
+    if (length < 0 || length > 255 * hashLength) throw RangeError.range(length, 0, 255 * hashLength, 'length');
     final hmac = Hmac(hash, pseudorandomKey);
     final out = BytesBuilder(copy: false);
     var block = <int>[];

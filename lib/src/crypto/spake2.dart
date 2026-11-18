@@ -56,9 +56,7 @@ final class Spake2 {
 
   /// The 32-byte message for the other side, from [password]. Once only.
   Uint8List generateMessage(List<int> password) {
-    if (_myMessage != null) {
-      throw StateError('A SPAKE2 context generates one message only');
-    }
+    if (_myMessage != null) throw StateError('A SPAKE2 context generates one message only');
     // A secret scalar, times eight so the peer's small-order component vanishes later.
     final privateKey = _shiftLeft3(reduceScalar(_random(64)));
 
@@ -76,13 +74,9 @@ final class Spake2 {
   /// password. Throws [FormatException] when [theirMessage] is not a point.
   Uint8List processMessage(List<int> theirMessage) {
     final myMessage = _myMessage;
-    if (myMessage == null || _done) {
-      throw StateError('Generate a message first, and process one only');
-    }
+    if (myMessage == null || _done) throw StateError('Generate a message first, and process one only');
     final q = theirMessage.length == 32 ? EdPoint.decode(theirMessage) : null;
-    if (q == null) {
-      throw const FormatException('The SPAKE2 message is not a curve point');
-    }
+    if (q == null) throw const FormatException('The SPAKE2 message is not a curve point');
     final shared = (q - _theirMask.multiply(_passwordScalar!)).multiply(_privateKey!).encode();
 
     final transcript = BytesBuilder(copy: false);

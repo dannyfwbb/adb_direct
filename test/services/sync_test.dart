@@ -43,9 +43,7 @@ final class SyncPeer {
   Future<Uint8List> read(int count) async {
     while (_buffer.length < count) {
       final message = await session.receive();
-      if (message.command == AdbCommand.close) {
-        throw FakeAdbdFailure('client closed the sync stream');
-      }
+      if (message.command == AdbCommand.close) throw FakeAdbdFailure('client closed the sync stream');
       // The client's acknowledgements of what we sent.
       if (message.command == AdbCommand.okay) continue;
       expect(message.command, AdbCommand.write, reason: '$message');

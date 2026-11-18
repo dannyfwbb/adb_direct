@@ -88,16 +88,10 @@ void main() {
     final server = await fakeServer(
       (r) {
         requests.add(r);
-        if (r == 'host-serial:emulator-5554:features') {
-          return 'OKAY${frame('shell_v2,cmd')}';
-        }
-        if (r == 'host:devices-l') {
-          return 'OKAY${frame('emulator-5554 device model:X\n')}';
-        }
+        if (r == 'host-serial:emulator-5554:features') return 'OKAY${frame('shell_v2,cmd')}';
+        if (r == 'host:devices-l') return 'OKAY${frame('emulator-5554 device model:X\n')}';
         if (r == 'host:transport:emulator-5554') return 'OKAY';
-        if (r == 'host:track-devices-l') {
-          return 'OKAY${frame('emulator-5554 device model:X\n')}';
-        }
+        if (r == 'host:track-devices-l') return 'OKAY${frame('emulator-5554 device model:X\n')}';
         if (r.startsWith('exec:')) return null;
         return 'FAIL${frame('closed')}';
       },
@@ -146,9 +140,7 @@ void main() {
     Socket? tracker;
     final server = await fakeServer(
       (r) {
-        if (r == 'host:devices-l') {
-          return 'OKAY${frame('s1 device model:X\ns2 unauthorized\n')}';
-        }
+        if (r == 'host:devices-l') return 'OKAY${frame('s1 device model:X\ns2 unauthorized\n')}';
         if (r == 'host-serial:s1:features') return 'OKAY${frame('shell_v2')}';
         if (r == 'host:track-devices-l') return null;
         return 'FAIL${frame('device unauthorized')}';
