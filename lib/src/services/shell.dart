@@ -14,8 +14,7 @@ import '../protocol/banner.dart';
 import '../protocol/shell_protocol.dart';
 import '../stream/adb_stream.dart';
 
-/// Quotes [argument] for the device's shell: one argument, whatever it
-/// contains.
+/// Quotes [argument] for the device's shell: one argument, whatever it contains.
 String shellQuote(String argument) {
   if (argument.isNotEmpty && RegExp(r'^[A-Za-z0-9_@%+=:,./-]+$').hasMatch(argument)) {
     return argument;
@@ -35,20 +34,17 @@ final class AdbShellResult {
     required this.truncated,
   });
 
-  /// What the command wrote to stdout (with stderr mixed in when
-  /// [separateStreams] is false).
+  /// What the command wrote to stdout (with stderr mixed in when [separateStreams] is false).
   final Uint8List stdout;
 
-  /// What the command wrote to stderr; always empty when [separateStreams]
-  /// is false.
+  /// What the command wrote to stderr; always empty when [separateStreams] is false.
   final Uint8List stderr;
 
-  /// The exit status, or null when it could not be learned (an old device
-  /// whose shell did not run our status echo, for example after `exit`).
+  /// The exit status, or null when it could not be learned (an old device whose shell did not run our status echo, for
+  /// example after `exit`).
   final int? exitCode;
 
-  /// Whether stdout and stderr came separately (shell protocol v2, Android
-  /// 7+). Older devices merge them.
+  /// Whether stdout and stderr came separately (shell protocol v2, Android 7+). Older devices merge them.
   final bool separateStreams;
 
   /// Whether output went past the limit and the command was cut off.
@@ -62,8 +58,7 @@ final class AdbShellResult {
 
   @override
   String toString() =>
-      'AdbShellResult(exit $exitCode, ${stdout.length} B out, '
-      '${stderr.length} B err${truncated ? ', truncated' : ''})';
+      'AdbShellResult(exit $exitCode, ${stdout.length} B out, ${stderr.length} B err${truncated ? ', truncated' : ''})';
 }
 
 /// Shell commands on a device: [AdbConnection.shell].
@@ -74,17 +69,14 @@ final class AdbShell {
 
   final AdbConnection _connection;
 
-  /// Whether the device speaks shell protocol v2 (separate stdout and
-  /// stderr, exit status).
+  /// Whether the device speaks shell protocol v2 (separate stdout and stderr, exit status).
   bool get supportsShellProtocol => _connection.supports(AdbFeature.shellV2);
 
   /// Runs [command] with `sh -c` on the device and collects its output.
   ///
-  /// The command gets an empty stdin. Output past [maxOutputBytes] (stdout
-  /// and stderr together) stops the command and sets
-  /// [AdbShellResult.truncated]. A command still running after [timeout]
-  /// is stopped and the call throws [AdbTimeoutException]; the connection
-  /// stays usable.
+  /// The command gets an empty stdin. Output past [maxOutputBytes] (stdout and stderr together) stops the command and
+  /// sets [AdbShellResult.truncated]. A command still running after [timeout] is stopped and the call throws
+  /// [AdbTimeoutException]; the connection stays usable.
   Future<AdbShellResult> run(
     String command, {
     Duration timeout = const Duration(seconds: 30),
@@ -107,11 +99,9 @@ final class AdbShell {
       if (v2) {
         stream = _connection.openStream('shell,v2,raw:$command');
       } else {
-        // Old devices: no exit status in the protocol; ask the shell to
-        // print it after the command, behind a marker no output contains.
-        // stdin cannot be closed there, so it is empty from the start, as
-        // with the protocol; a subshell keeps an `exit` from skipping the
-        // marker.
+        // Old devices: no exit status in the protocol; ask the shell to print it after the command, behind a marker no
+        // output contains. stdin cannot be closed there, so it is empty from the start, as with the protocol; a
+        // subshell keeps an `exit` from skipping the marker.
         (stream, pty) = await _openWithoutProtocol('exec </dev/null\n(\n$command\n)\necho $marker\$?');
       }
     } on Object {
@@ -159,9 +149,8 @@ final class AdbShell {
   /// Whether `exec:` exists (Android 5 and later); null until tried.
   bool? _execWorks;
 
-  /// A stream for [script] on a device without shell protocol v2: `exec:`
-  /// (no PTY, stdout and stderr together) where it exists, else `shell:`,
-  /// whose PTY turns line ends into CR LF. Returns whether it is the PTY.
+  /// A stream for [script] on a device without shell protocol v2: `exec:` (no PTY, stdout and stderr together) where it
+  /// exists, else `shell:`, whose PTY turns line ends into CR LF. Returns whether it is the PTY.
   Future<(AdbStream, bool)> _openWithoutProtocol(String script) async {
     if (_execWorks != false) {
       try {
@@ -176,23 +165,20 @@ final class AdbShell {
     return (await _connection.open('shell:$script'), true);
   }
 
-  /// Opens `exec:` for [command]: raw bytes both ways, no PTY, no protocol.
-  /// Use it for binary output such as `screencap -p`, or to feed a command
-  /// through stdin (close the stream to end it).
+  /// Opens `exec:` for [command]: raw bytes both ways, no PTY, no protocol. Use it for binary output such as `screencap
+  /// -p`, or to feed a command through stdin (close the stream to end it).
   Future<AdbStream> exec(String command) => _connection.open('exec:$command');
 
-  /// Starts an interactive session: [command] (a login shell when empty)
-  /// with a PTY when [pty] is true, the terminal type [terminal].
+  /// Starts an interactive session: [command] (a login shell when empty) with a PTY when [pty] is true, the terminal
+  /// type [terminal].
   ///
-  /// On devices without shell protocol v2 (Android 6 and older) the session
-  /// always has a PTY and no separate stderr, exit status or window size;
-  /// asking for `pty: false` there throws [AdbNotSupportedException].
+  /// On devices without shell protocol v2 (Android 6 and older) the session always has a PTY and no separate stderr,
+  /// exit status or window size; asking for `pty: false` there throws [AdbNotSupportedException].
   Future<AdbShellSession> start({String command = '', bool pty = true, String terminal = 'xterm-256color'}) async {
     final v2 = supportsShellProtocol;
     if (!v2 && !pty) {
       throw const AdbNotSupportedException(
-        'This device has no shell protocol v2: a session without a PTY is '
-        'not possible; use exec instead',
+        'This device has no shell protocol v2: a session without a PTY is not possible; use exec instead',
       );
     }
     final service = v2
@@ -330,8 +316,7 @@ final class AdbShellSession {
   int? _exit;
   bool _finished = false;
 
-  /// Whether the session uses shell protocol v2 (separate stderr, exit
-  /// status, window size).
+  /// Whether the session uses shell protocol v2 (separate stderr, exit status, window size).
   final bool shellProtocol;
 
   /// The command's output (the terminal's, with a PTY).
@@ -340,8 +325,8 @@ final class AdbShellSession {
   /// The command's stderr; empty with a PTY or without shell protocol v2.
   Stream<Uint8List> get stderr => _stderr.stream;
 
-  /// The exit status when the session ends, or null when it is unknown
-  /// (no shell protocol v2) or the session failed: see [closeReason].
+  /// The exit status when the session ends, or null when it is unknown (no shell protocol v2) or the session failed:
+  /// see [closeReason].
   Future<int?> get exitCode => _exitCode.future;
 
   /// Why the session ended abnormally (the connection failed), or null.
@@ -351,8 +336,7 @@ final class AdbShellSession {
   Future<void> write(List<int> data) =>
       _stream.write(shellProtocol ? ShellProtocol.encode(ShellPacketId.stdin, data) : data);
 
-  /// Ends stdin (EOF for a command without a PTY). Without shell protocol
-  /// v2 the only way to end stdin is [close].
+  /// Ends stdin (EOF for a command without a PTY). Without shell protocol v2 the only way to end stdin is [close].
   Future<void> closeStdin() async {
     if (!shellProtocol) return;
     await _stream.write(ShellProtocol.encode(ShellPacketId.closeStdin, const []));
@@ -399,8 +383,8 @@ final class AdbShellSession {
     }
   }
 
-  /// Holds the device back while nobody listens to stdout, or a listener
-  /// of either output is paused. (Unread stderr is kept: it is small.)
+  /// Holds the device back while nobody listens to stdout, or a listener of either output is paused. (Unread stderr is
+  /// kept: it is small.)
   void _syncPause() {
     final paused = !_stdout.hasListener || _stdout.isPaused || (_stderr.hasListener && _stderr.isPaused);
     if (paused && !_subscription.isPaused) {
@@ -410,8 +394,8 @@ final class AdbShellSession {
     }
   }
 
-  /// Ends the outputs, then reports the exit status once every listener has
-  /// received all output, so awaiting [exitCode] never races the last bytes.
+  /// Ends the outputs, then reports the exit status once every listener has received all output, so awaiting [exitCode]
+  /// never races the last bytes.
   void _finish(int? exit) {
     if (_finished) return;
     _finished = true;
@@ -422,8 +406,7 @@ final class AdbShellSession {
     unawaited(Future.wait(delivered).then((_) => _exitCode.complete(exit)));
   }
 
-  /// Closes an output nobody listens to; its done event would wait for a
-  /// listener forever.
+  /// Closes an output nobody listens to; its done event would wait for a listener forever.
   Future<void> _closeUnheard(StreamController<Uint8List> output) {
     unawaited(output.close());
     return Future.value();

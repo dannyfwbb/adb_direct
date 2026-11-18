@@ -16,8 +16,8 @@ import '../support/adbd_scripts.dart' show classicBanner, oldBanner;
 import '../support/fake_adbd.dart';
 import '../support/fake_clock.dart';
 
-/// adbd's side of one `sync:` stream inside a fake session: acknowledges
-/// the client's writes and lets the script read the sync bytes they carry.
+/// adbd's side of one `sync:` stream inside a fake session: acknowledges the client's writes and lets the script read
+/// the sync bytes they carry.
 final class SyncPeer {
   SyncPeer._(this.session, this.localId, this.remoteId);
 
@@ -70,17 +70,15 @@ final class SyncPeer {
   /// Sends sync bytes to the client.
   void send(List<int> bytes) => session.send(AdbMessage.write(localId: localId, remoteId: remoteId, data: bytes));
 
-  /// Sends `FAIL` with [message], then closes, as adbd does after a failed
-  /// read or listing.
+  /// Sends `FAIL` with [message], then closes, as adbd does after a failed read or listing.
   void fail(String message) {
     final bytes = utf8.encode(message);
     send(SyncRequest.header(SyncId.fail, bytes.length, bytes));
     session.send(AdbMessage.close(localId: localId, remoteId: remoteId));
   }
 
-  /// Fails a push as adbd does: `FAIL` at once, then it keeps reading the
-  /// client's `DATA` until `DONE`, then closes. Returns how many data bytes
-  /// arrived after the failure.
+  /// Fails a push as adbd does: `FAIL` at once, then it keeps reading the client's `DATA` until `DONE`, then closes.
+  /// Returns how many data bytes arrived after the failure.
   Future<int> failPush(String message) async {
     final bytes = utf8.encode(message);
     send(SyncRequest.header(SyncId.fail, bytes.length, bytes));
@@ -96,9 +94,8 @@ final class SyncPeer {
     return drained;
   }
 
-  /// Takes the client's trailing acknowledgements for [window]; any other
-  /// message fails, unless [anything] is set (a client still sending what
-  /// it had queued when the device failed).
+  /// Takes the client's trailing acknowledgements for [window]; any other message fails, unless [anything] is set (a
+  /// client still sending what it had queued when the device failed).
   Future<void> settle({Duration window = const Duration(milliseconds: 100), bool anything = false}) async {
     while (true) {
       final AdbMessage message;
@@ -407,8 +404,7 @@ void main() {
       await adb.close();
     });
 
-    test('a read cancelled midway abandons its session; the next call '
-        'opens a new one', () async {
+    test('a read cancelled midway abandons its session; the next call opens a new one', () async {
       final (adb, adbd) = await connectTo(banner: v2Banner, (session) async {
         final first = await SyncPeer.accept(session);
         expect(await first.request(), ('RCV2', '/big'));
@@ -425,8 +421,7 @@ void main() {
       await adb.close();
     });
 
-    test('a source that fails mid-write fails the write and drops the '
-        'session', () async {
+    test('a source that fails mid-write fails the write and drops the session', () async {
       final (adb, adbd) = await connectTo(banner: v2Banner, (session) async {
         final peer = await SyncPeer.accept(session);
         expect(await peer.request(), ('SND2', '/w'));
@@ -471,8 +466,8 @@ void main() {
         session.send(AdbMessage.okay(localId: 9, remoteId: open.arg0));
         await session.receive(); // the SEND request, never acknowledged
         clock.advance(const Duration(seconds: 31));
-        // The overdue acknowledgement makes the connection check the device
-        // (it answers: alive); the push watchdog then gives up.
+        // The overdue acknowledgement makes the connection check the device (it answers: alive); the push watchdog then
+        // gives up.
         while (true) {
           final message = await session.receive();
           if (message.command == AdbCommand.open) {

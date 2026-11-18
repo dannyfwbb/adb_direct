@@ -15,14 +15,13 @@ final String? host = Platform.environment['ADB_DIRECT_TEST_HOST'];
 final int port = int.parse(Platform.environment['ADB_DIRECT_TEST_PORT'] ?? '5555');
 final String? keyPath = Platform.environment['ADB_DIRECT_TEST_KEY'];
 final String? skip = host == null || keyPath == null
-    ? 'ADB_DIRECT_TEST_HOST and ADB_DIRECT_TEST_KEY are not set '
-          '(see test/device/README.md)'
+    ? 'ADB_DIRECT_TEST_HOST and ADB_DIRECT_TEST_KEY are not set (see test/device/README.md)'
     : null;
 
 void main() {
   late AdbKeyPair key;
-  // What the device offers: old ones have no authentication, no shell
-  // protocol v2 and no stat v2; the tests check what each should do.
+  // What the device offers: old ones have no authentication, no shell protocol v2 and no stat v2; the tests check what
+  // each should do.
   late bool authenticates;
   late bool shellV2;
   setUpAll(() async {
@@ -105,10 +104,7 @@ void main() {
       }
       final seconds = stopwatch.elapsedMilliseconds / 1000;
       printOnFailure('64 MiB in $seconds s, delayed ACK ${adb.delayedAck}');
-      print(
-        'download: ${(size / 1024 / 1024 / seconds).toStringAsFixed(1)} '
-        'MiB/s, delayed ACK ${adb.delayedAck}',
-      );
+      print('download: ${(size / 1024 / 1024 / seconds).toStringAsFixed(1)} MiB/s, delayed ACK ${adb.delayedAck}');
       expect(total, size);
     },
     skip: skip,

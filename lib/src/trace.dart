@@ -5,16 +5,15 @@ import 'dart:typed_data';
 
 /// Receives what a connection does, for logs, debugging and recording.
 ///
-/// Called synchronously on the event loop; keep it cheap. Payloads include
-/// public keys and command output, never private key material.
+/// Called synchronously on the event loop; keep it cheap. Payloads include public keys and command output, never
+/// private key material.
 typedef AdbTracer = void Function(AdbTraceEvent event);
 
 /// One traced event.
 sealed class AdbTraceEvent {
   const AdbTraceEvent(this.at);
 
-  /// When it happened, on the connection's clock (monotonic; only
-  /// differences are meaningful).
+  /// When it happened, on the connection's clock (monotonic; only differences are meaningful).
   final Duration at;
 }
 
@@ -46,8 +45,7 @@ final class AdbPacketTrace extends AdbTraceEvent {
   /// The payload. Do not modify it.
   final Uint8List payload;
 
-  /// The whole message as it crossed the wire, header included. Do not
-  /// modify it.
+  /// The whole message as it crossed the wire, header included. Do not modify it.
   final Uint8List raw;
 
   @override

@@ -9,8 +9,7 @@ import 'der.dart';
 import 'pem.dart';
 import 'rsa.dart';
 
-/// The certificate and key a client presents in TLS (wireless debugging
-/// connections and pairing).
+/// The certificate and key a client presents in TLS (wireless debugging connections and pairing).
 final class TlsIdentity {
   /// Creates an identity.
   const TlsIdentity({required this.certificateDer, required this.key});
@@ -28,17 +27,15 @@ final class TlsIdentity {
   String get privateKeyPem => Pem.encode('PRIVATE KEY', key.toPkcs8());
 }
 
-/// Builds the certificate adb builds from its key: X.509 v3, serial 1,
-/// subject and issuer `C=US, O=Android, CN=Adb`, valid from [now] for ten
-/// years, `basicConstraints` CA (critical), `keyUsage` digitalSignature,
-/// keyCertSign and cRLSign (critical), `subjectKeyIdentifier`, signed with
-/// SHA-256. adbd identifies the client by the key alone; the fields follow
-/// adb so nothing about the certificate stands out.
+/// Builds the certificate adb builds from its key: X.509 v3, serial 1, subject and issuer `C=US, O=Android, CN=Adb`,
+/// valid from [now] for ten years, `basicConstraints` CA (critical), `keyUsage` digitalSignature, keyCertSign and
+/// cRLSign (critical), `subjectKeyIdentifier`, signed with SHA-256. adbd identifies the client by the key alone; the
+/// fields follow adb so nothing about the certificate stands out.
 TlsIdentity buildTlsIdentity(RsaPrivateKey key, {required DateTime now}) {
   final notBefore = DateTime.fromMillisecondsSinceEpoch(now.millisecondsSinceEpoch ~/ 1000 * 1000, isUtc: true);
   final notAfter = notBefore.add(const Duration(days: 365 * 10));
-  // As BoringSSL encodes adb's names: the country as PrintableString (its
-  // type is fixed), the others as UTF8String (the default string mask).
+  // As BoringSSL encodes adb's names: the country as PrintableString (its type is fixed), the others as UTF8String (the
+  // default string mask).
   final name = Der.sequence([
     _rdn('2.5.4.6', Der.printableString('US')),
     _rdn('2.5.4.10', Der.utf8String('Android')),
@@ -53,8 +50,8 @@ TlsIdentity buildTlsIdentity(RsaPrivateKey key, {required DateTime now}) {
       _extension(
         '2.5.29.15',
         critical: true,
-        // digitalSignature (bit 0), keyCertSign (5), cRLSign (6): one unused
-        // trailing bit, so the bit string is 0x86 with 1 unused bit.
+        // digitalSignature (bit 0), keyCertSign (5), cRLSign (6): one unused trailing bit, so the bit string is 0x86
+        // with 1 unused bit.
         value: Der.element(Der.tagBitString, const [0x01, 0x86]),
       ),
       _extension('2.5.29.14', critical: false, value: Der.octetString(keyIdentifier)),

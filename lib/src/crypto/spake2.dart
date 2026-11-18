@@ -13,20 +13,17 @@ import 'ed25519.dart';
 @internal
 enum Spake2Role { alice, bob }
 
-/// SPAKE2 over edwards25519, byte for byte as BoringSSL's `SPAKE2_*`
-/// (`crypto/curve25519/spake25519.cc`), which adbd uses for pairing.
+/// SPAKE2 over edwards25519, byte for byte as BoringSSL's `SPAKE2_*` (`crypto/curve25519/spake25519.cc`), which adbd
+/// uses for pairing.
 ///
-/// It differs from the IETF draft in three ways that matter for
-/// compatibility: the password is hashed with SHA-512 and reduced modulo
-/// the group order; multiples of the order are added to that scalar so its
-/// low three bits are zero (BoringSSL's "password scalar hack"); and the key
-/// is SHA-512 over length-prefixed names, messages, the shared point and
-/// the full password hash.
+/// It differs from the IETF draft in three ways that matter for compatibility: the password is hashed with SHA-512 and
+/// reduced modulo the group order; multiples of the order are added to that scalar so its low three bits are zero
+/// (BoringSSL's "password scalar hack"); and the key is SHA-512 over length-prefixed names, messages, the shared point
+/// and the full password hash.
 @internal
 final class Spake2 {
-  /// A context for [role]; [myName] and [theirName] are the identities
-  /// both sides agree on (adb: `adb pair client\0`, `adb pair server\0`).
-  /// [random] supplies the 64 secret bytes (tests pass fixed ones).
+  /// A context for [role]; [myName] and [theirName] are the identities both sides agree on (adb: `adb pair client\0`,
+  /// `adb pair server\0`). [random] supplies the 64 secret bytes (tests pass fixed ones).
   Spake2(this.role, {required List<int> myName, required List<int> theirName, Uint8List Function(int length)? random})
     : _myName = Uint8List.fromList(myName),
       _theirName = Uint8List.fromList(theirName),
@@ -45,8 +42,8 @@ final class Spake2 {
   Uint8List? _passwordHash;
   bool _done = false;
 
-  /// M (Alice's mask) and N (Bob's): fixed points from BoringSSL, the first
-  /// entries of its `kSpakeMSmallPrecomp` and `kSpakeNSmallPrecomp` tables.
+  /// M (Alice's mask) and N (Bob's): fixed points from BoringSSL, the first entries of its `kSpakeMSmallPrecomp` and
+  /// `kSpakeNSmallPrecomp` tables.
   static final EdPoint _m = EdPoint.decode(_bytes('5ada7e4bf6ddd9adb6626d32131c6b5c51a1e347a3478f53cfcf441b88eed12e'))!;
   static final EdPoint _n = EdPoint.decode(_bytes('10e3df0ae37d8e7a99b5fe74b44672103dbddcbd06af680d71329a11693bc778'))!;
 
@@ -58,8 +55,7 @@ final class Spake2 {
     if (_myMessage != null) {
       throw StateError('A SPAKE2 context generates one message only');
     }
-    // A secret scalar, times eight so the peer's small-order component
-    // vanishes later.
+    // A secret scalar, times eight so the peer's small-order component vanishes later.
     final privateKey = _shiftLeft3(reduceScalar(_random(64)));
 
     final hash = Uint8List.fromList(sha512.convert(password).bytes);
@@ -72,9 +68,8 @@ final class Spake2 {
     return _myMessage = message;
   }
 
-  /// The 64-byte shared key from the other side's message. Both sides get
-  /// the same key only when they used the same password. Throws
-  /// [FormatException] when [theirMessage] is not a point.
+  /// The 64-byte shared key from the other side's message. Both sides get the same key only when they used the same
+  /// password. Throws [FormatException] when [theirMessage] is not a point.
   Uint8List processMessage(List<int> theirMessage) {
     final myMessage = _myMessage;
     if (myMessage == null || _done) {
@@ -122,9 +117,8 @@ final class Spake2 {
     return o;
   }
 
-  /// BoringSSL's password scalar hack: adds l, 2l and 4l as the low three
-  /// bits require, so the result is a multiple of eight that names the same
-  /// point in the prime-order subgroup. Masks, no branches.
+  /// BoringSSL's password scalar hack: adds l, 2l and 4l as the low three bits require, so the result is a multiple of
+  /// eight that names the same point in the prime-order subgroup. Masks, no branches.
   static Uint8List _withoutLowBits(Uint8List scalar) {
     final s = Uint8List.fromList(scalar);
     var order = groupOrder;

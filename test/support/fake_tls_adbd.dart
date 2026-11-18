@@ -19,17 +19,14 @@ import 'package:adb_direct/src/protocol/message.dart';
 /// > CNXN (inside TLS), then `echo:<text>` streams: OKAY, WRTE <text>, CLSE
 /// ```
 ///
-/// Like adbd it reads the plain messages byte-exactly, so the client's
-/// ClientHello stays in the socket for the TLS layer. dart:io's server
-/// trusts certificates, not keys, so trusted keys are trusted through the
-/// certificate each presents (`AdbKeyPair.tls`, made once per key). A
-/// rejected key sees what it sees from adbd: TLS completes on the client,
-/// then the session closes before `CNXN`.
+/// Like adbd it reads the plain messages byte-exactly, so the client's ClientHello stays in the socket for the TLS
+/// layer. dart:io's server trusts certificates, not keys, so trusted keys are trusted through the certificate each
+/// presents (`AdbKeyPair.tls`, made once per key). A rejected key sees what it sees from adbd: TLS completes on the
+/// client, then the session closes before `CNXN`.
 final class FakeTlsAdbd {
   FakeTlsAdbd._(this._server, this._context, this.certificateDer, this.banner);
 
-  /// Starts a server trusting [trusted]; [speakTls] false answers STLS and
-  /// then closes instead of starting TLS.
+  /// Starts a server trusting [trusted]; [speakTls] false answers STLS and then closes instead of starting TLS.
   static Future<FakeTlsAdbd> start({
     required List<AdbKeyPair> trusted,
     required AdbKeyPair serverKey,
@@ -92,9 +89,8 @@ final class FakeTlsAdbd {
         return raw.shutdown(SocketDirection.both);
       }
       if (_hang) {
-        // Never reads the ClientHello, never answers. Read events must be
-        // off: unread data re-raises them through microtasks forever,
-        // starving every timer in this isolate.
+        // Never reads the ClientHello, never answers. Read events must be off: unread data re-raises them through
+        // microtasks forever, starving every timer in this isolate.
         raw.readEventsEnabled = false;
         await Future<void>.delayed(const Duration(seconds: 10));
         await raw.close();

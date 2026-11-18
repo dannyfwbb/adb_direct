@@ -27,10 +27,9 @@ final class AdbPairingService {
   final int port;
 }
 
-/// Pairing by QR code, as Android Studio does it: show [text] as a QR code;
-/// the device scans it ("Pair device with QR code") and starts a pairing
-/// server announced on mDNS under [serviceName]; [pair] waits for that
-/// announcement and pairs with [password].
+/// Pairing by QR code, as Android Studio does it: show [text] as a QR code; the device scans it ("Pair device with QR
+/// code") and starts a pairing server announced on mDNS under [serviceName]; [pair] waits for that announcement and
+/// pairs with [password].
 @immutable
 final class AdbPairingQr {
   /// A code with a fresh random service name and password.
@@ -41,9 +40,8 @@ final class AdbPairingQr {
     return AdbPairingQr(serviceName: 'studio-${pick(10)}', password: pick(12));
   }
 
-  /// A code with the given parts: letters, digits and `-` only (the QR
-  /// format's `;`, `,`, `:`, `\` and `"` would need escaping that devices
-  /// do not all undo).
+  /// A code with the given parts: letters, digits and `-` only (the QR format's `;`, `,`, `:`, `\` and `"` would need
+  /// escaping that devices do not all undo).
   AdbPairingQr({required this.serviceName, required this.password}) {
     for (final (name, value) in [('serviceName', serviceName), ('password', password)]) {
       if (value.isEmpty || !RegExp(r'^[A-Za-z0-9-]+$').hasMatch(value)) {
@@ -63,11 +61,10 @@ final class AdbPairingQr {
   /// What the QR code encodes.
   String get text => 'WIFI:T:ADB;S:$serviceName;P:$password;;';
 
-  /// Waits on [services] (announcements of `_adb-tls-pairing._tcp`, from
-  /// any mDNS browser) for the one named [serviceName], then pairs [key]
-  /// with it; see [AdbPairing.pair]. Throws [AdbTimeoutException] when the
-  /// device does not appear within [waitTimeout] (the code was not
-  /// scanned), [AdbCancelledException] when [cancelOn] completes first.
+  /// Waits on [services] (announcements of `_adb-tls-pairing._tcp`, from any mDNS browser) for the one named
+  /// [serviceName], then pairs [key] with it; see [AdbPairing.pair]. Throws [AdbTimeoutException] when the device does
+  /// not appear within [waitTimeout] (the code was not scanned), [AdbCancelledException] when [cancelOn] completes
+  /// first.
   Future<AdbPairedDevice> pair({
     required Stream<AdbPairingService> services,
     required AdbKeyPair key,

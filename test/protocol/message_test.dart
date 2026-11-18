@@ -171,8 +171,7 @@ void main() {
       expect((AdbMessageReader(maxPayload: 4)..add(bytes)).next(), isNotNull);
     });
 
-    test('decodes the recorded bytes of every fixture, both directions, '
-        'fed one byte at a time', () {
+    test('decodes the recorded bytes of every fixture, both directions, fed one byte at a time', () {
       for (final name in Fixture.all()) {
         final fixture = Fixture.load(name);
         for (final direction in FixtureDirection.values) {
@@ -210,8 +209,8 @@ void main() {
     });
 
     test('our encoder reproduces the recorded bytes after the handshake', () {
-      // Online fixtures were recorded at protocol version 0x01000001, where
-      // the checksum is 0 for messages from the device.
+      // Online fixtures were recorded at protocol version 0x01000001, where the checksum is 0 for messages from the
+      // device.
       for (final name in Fixture.all()) {
         final fixture = Fixture.load(name);
         if (!fixture.startsOnline) continue;

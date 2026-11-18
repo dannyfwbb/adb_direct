@@ -3,9 +3,8 @@
 
 /// Stable identifiers for every way an ADB operation can fail.
 ///
-/// The names never change meaning. Codes are added only together with a new
-/// [AdbException] subclass, in a major version, so an exhaustive `switch`
-/// stays exhaustive within a major version.
+/// The names never change meaning. Codes are added only together with a new [AdbException] subclass, in a major
+/// version, so an exhaustive `switch` stays exhaustive within a major version.
 enum AdbErrorCode {
   /// No connection could be opened in time, or the network is unreachable.
   unreachable,
@@ -46,11 +45,9 @@ enum AdbErrorCode {
 
 /// The single exception type of this library.
 ///
-/// Every failure is one of the subclasses, so a `switch` over an
-/// [AdbException] is exhaustive. Subclasses are added only in major
-/// versions. [code] gives the same information as a
-/// stable value for logs and analytics, and [cause] keeps the underlying
-/// error (an `OSError`, a `TlsException`, …) when there is one.
+/// Every failure is one of the subclasses, so a `switch` over an [AdbException] is exhaustive. Subclasses are added
+/// only in major versions. [code] gives the same information as a stable value for logs and analytics, and [cause]
+/// keeps the underlying error (an `OSError`, a `TlsException`, …) when there is one.
 sealed class AdbException implements Exception {
   const AdbException(this.message, {this.cause});
 
@@ -100,13 +97,12 @@ final class AdbUnauthorizedException extends AdbException {
 
 /// Why pairing failed.
 enum AdbPairingFailure {
-  /// The device did not accept the code: its answer did not decrypt, or it
-  /// closed the session after our encrypted key (what a wrong code looks
-  /// like from here). The device usually shows the failed attempt.
+  /// The device did not accept the code: its answer did not decrypt, or it closed the session after our encrypted key
+  /// (what a wrong code looks like from here). The device usually shows the failed attempt.
   wrongCode,
 
-  /// The device broke the pairing protocol (a malformed packet or point),
-  /// or the TLS handshake on the pairing port failed.
+  /// The device broke the pairing protocol (a malformed packet or point), or the TLS handshake on the pairing port
+  /// failed.
   protocol,
 }
 
@@ -124,9 +120,8 @@ final class AdbPairingException extends AdbException {
 
 /// The connection is open but no answer came in time.
 ///
-/// A timeout while opening the socket is an [AdbUnreachableException]
-/// instead; this one means silence after the socket was open, which is what
-/// a device waiting for its user, or one that disappeared, looks like.
+/// A timeout while opening the socket is an [AdbUnreachableException] instead; this one means silence after the socket
+/// was open, which is what a device waiting for its user, or one that disappeared, looks like.
 final class AdbTimeoutException extends AdbException {
   /// Creates the exception.
   const AdbTimeoutException(super.message, {super.cause});
@@ -146,8 +141,7 @@ final class AdbClosedException extends AdbException {
 
 /// The device sent something that breaks the protocol.
 ///
-/// The connection is unusable afterwards: both sides share state that can no
-/// longer be trusted.
+/// The connection is unusable afterwards: both sides share state that can no longer be trusted.
 final class AdbProtocolException extends AdbException {
   /// Creates the exception.
   const AdbProtocolException(super.message, {super.cause});
@@ -173,8 +167,7 @@ final class AdbInstallException extends AdbException {
   /// Creates the exception.
   const AdbInstallException(super.message, {required this.output, this.failureCode, super.cause});
 
-  /// The package manager's code, such as `INSTALL_FAILED_VERSION_DOWNGRADE`,
-  /// when its answer contained one.
+  /// The package manager's code, such as `INSTALL_FAILED_VERSION_DOWNGRADE`, when its answer contained one.
   final String? failureCode;
 
   /// The package manager's answer, exactly as the device sent it.

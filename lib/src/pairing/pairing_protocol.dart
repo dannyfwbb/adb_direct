@@ -1,8 +1,8 @@
 // Copyright 2026 The adb_direct authors
 // SPDX-License-Identifier: Apache-2.0
 
-/// The pairing exchange after TLS, the same for both roles (AOSP
-/// `pairing_connection.cpp`, `pairing_auth.cpp`, `aes_128_gcm.cpp`):
+/// The pairing exchange after TLS, the same for both roles (AOSP `pairing_connection.cpp`, `pairing_auth.cpp`,
+/// `aes_128_gcm.cpp`):
 ///
 /// ```
 /// password = code bytes ‖ TLS exporter("adb-label\0", 64)
@@ -11,8 +11,7 @@
 /// > PEER_INFO(AES-128-GCM(8192))    < PEER_INFO(AES-128-GCM(8192))
 /// ```
 ///
-/// Each packet is `{u8 version = 1, u8 type, u32 size big-endian}` then
-/// the payload (1 to 16384 bytes).
+/// Each packet is `{u8 version = 1, u8 type, u32 size big-endian}` then the payload (1 to 16384 bytes).
 library;
 
 import 'dart:async';
@@ -120,8 +119,8 @@ final class PairingReader {
   Object? _error;
   bool _closed = false;
 
-  /// The next packet as (type, payload). Throws [AdbClosedException] when
-  /// the stream ends first, [AdbPairingException] for a malformed header.
+  /// The next packet as (type, payload). Throws [AdbClosedException] when the stream ends first, [AdbPairingException]
+  /// for a malformed header.
   Future<(int, Uint8List)> next() async {
     final header = await _take(PairingPacket.headerLength);
     final view = ByteData.sublistView(header);
@@ -172,8 +171,8 @@ Uint8List pairingPacket(int type, List<int> payload) {
   return out;
 }
 
-/// AES-128-GCM with adb's nonces: a little-endian 64-bit counter, then
-/// four zero bytes; one counter per direction, from zero.
+/// AES-128-GCM with adb's nonces: a little-endian 64-bit counter, then four zero bytes; one counter per direction, from
+/// zero.
 @internal
 final class PairingCipher {
   /// A cipher from the 64-byte SPAKE2 key.
@@ -187,8 +186,7 @@ final class PairingCipher {
   /// Encrypts the next outgoing message (ciphertext with its 16-byte tag).
   Uint8List encrypt(List<int> plain) => _run(true, _sent++, plain);
 
-  /// Decrypts the next incoming message; null when it does not
-  /// authenticate (another key: a wrong code).
+  /// Decrypts the next incoming message; null when it does not authenticate (another key: a wrong code).
   Uint8List? decrypt(List<int> sealed) {
     try {
       return _run(false, _received++, sealed);
@@ -208,14 +206,11 @@ final class PairingCipher {
   }
 }
 
-/// Runs the exchange for [role] over a TLS session: [password] is the code
-/// followed by the exported bytes, [myInfo] the `PeerInfo` to send.
-/// Returns the peer's decrypted `PeerInfo`.
+/// Runs the exchange for [role] over a TLS session: [password] is the code followed by the exported bytes, [myInfo] the
+/// `PeerInfo` to send. Returns the peer's decrypted `PeerInfo`.
 ///
-/// Throws [AdbPairingException] with [AdbPairingFailure.wrongCode] when the
-/// peer's info does not decrypt or the peer closes after ours (it could
-/// not decrypt ours), and [AdbPairingFailure.protocol] for anything
-/// malformed.
+/// Throws [AdbPairingException] with [AdbPairingFailure.wrongCode] when the peer's info does not decrypt or the peer
+/// closes after ours (it could not decrypt ours), and [AdbPairingFailure.protocol] for anything malformed.
 @internal
 Future<Uint8List> runPairingExchange({
   required Spake2Role role,
@@ -251,8 +246,7 @@ Future<Uint8List> runPairingExchange({
     answer = await reader.next();
   } on AdbClosedException catch (e) {
     throw AdbPairingException(
-      'The device closed the session after our key: most likely a wrong '
-      'pairing code',
+      'The device closed the session after our key: most likely a wrong pairing code',
       reason: AdbPairingFailure.wrongCode,
       cause: e,
     );

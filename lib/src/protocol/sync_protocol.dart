@@ -6,8 +6,7 @@ import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
 
-/// Sync protocol ids (adbd's `file_sync_protocol.h`), four ASCII letters as
-/// a little-endian integer.
+/// Sync protocol ids (adbd's `file_sync_protocol.h`), four ASCII letters as a little-endian integer.
 abstract final class SyncId {
   static int _id(String s) =>
       s.codeUnitAt(0) | (s.codeUnitAt(1) << 8) | (s.codeUnitAt(2) << 16) | (s.codeUnitAt(3) << 24);
@@ -118,8 +117,7 @@ abstract final class SyncRequest {
   }
 }
 
-/// What a device knows about a file, from `STAT`, `STA2`, `LST2` or a
-/// directory entry.
+/// What a device knows about a file, from `STAT`, `STA2`, `LST2` or a directory entry.
 @immutable
 final class AdbFileStat {
   /// Creates a stat.

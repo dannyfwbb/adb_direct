@@ -42,8 +42,7 @@ final class ShellPacket {
 
 /// Frames shell protocol v2: `{u8 id, u32 length (little-endian), data}`.
 ///
-/// Packets are carried inside a stream's data and may be split across, or
-/// share, the stream's messages.
+/// Packets are carried inside a stream's data and may be split across, or share, the stream's messages.
 abstract final class ShellProtocol {
   /// Size of a packet header.
   static const int headerLength = 5;
@@ -59,8 +58,8 @@ abstract final class ShellProtocol {
 
 /// Turns stream data into [ShellPacket]s.
 ///
-/// adbd's packets fit its 1 MiB buffer; a longer one means the stream is
-/// not shell protocol and is refused instead of buffered without bound.
+/// adbd's packets fit its 1 MiB buffer; a longer one means the stream is not shell protocol and is refused instead of
+/// buffered without bound.
 final class ShellPacketReader {
   /// The largest packet data accepted.
   static const int maxPacketLength = AdbProtocol.maxPayload;

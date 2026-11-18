@@ -12,8 +12,8 @@ import '../stream/adb_stream.dart';
 import 'answers.dart';
 import 'pipe.dart';
 
-/// Receives each connection made to a reverse forward on the device. It
-/// may be asynchronous; when it fails, the stream is closed.
+/// Receives each connection made to a reverse forward on the device. It may be asynchronous; when it fails, the stream
+/// is closed.
 typedef AdbReverseHandler = FutureOr<void> Function(AdbStream stream);
 
 /// One reverse forward, as [AdbReverse] set it up.
@@ -22,12 +22,10 @@ final class AdbReverseForward {
 
   final AdbReverse _reverse;
 
-  /// What listens on the device (`tcp:18080`), with the port filled in when
-  /// it was `tcp:0`.
+  /// What listens on the device (`tcp:18080`), with the port filled in when it was `tcp:0`.
   final String deviceSpec;
 
-  /// The name the device uses for our side (`tcp:19000` for
-  /// [AdbReverse.toLocalPort]); `adb reverse --list` shows it.
+  /// The name the device uses for our side (`tcp:19000` for [AdbReverse.toLocalPort]); `adb reverse --list` shows it.
   final String hostLabel;
 
   /// The device port, for a `tcp:` spec.
@@ -40,8 +38,7 @@ final class AdbReverseForward {
   String toString() => 'AdbReverseForward($deviceSpec → $hostLabel)';
 }
 
-/// A reverse forward the device reports: what listens there, and the name
-/// of the host side.
+/// A reverse forward the device reports: what listens there, and the name of the host side.
 @immutable
 final class AdbReverseEntry {
   /// Creates one.
@@ -64,12 +61,11 @@ final class AdbReverseEntry {
   String toString() => '$deviceSpec → $hostLabel';
 }
 
-/// Reverse forwarding (`adb reverse`): something on the device connects to
-/// a port (or socket) there, and the connection arrives here.
+/// Reverse forwarding (`adb reverse`): something on the device connects to a port (or socket) there, and the connection
+/// arrives here.
 ///
-/// Forwards live as long as this connection. The device may open streams
-/// to us only for a forward set up here; any other `OPEN` it sends is
-/// refused.
+/// Forwards live as long as this connection. The device may open streams to us only for a forward set up here; any
+/// other `OPEN` it sends is refused.
 final class AdbReverse {
   /// Creates the namespace.
   @internal
@@ -78,26 +74,22 @@ final class AdbReverse {
   final AdbConnection _connection;
   int _nextLabel = 1;
 
-  /// Listens on the device at [deviceSpec] (`tcp:8080`, `tcp:0` for any
-  /// free port, `localabstract:name`, …) and calls [onConnection] with a
-  /// stream for each connection made to it. With [rebind] false an
-  /// existing forward on [deviceSpec] is an error instead of being
-  /// replaced.
+  /// Listens on the device at [deviceSpec] (`tcp:8080`, `tcp:0` for any free port, `localabstract:name`, …) and calls
+  /// [onConnection] with a stream for each connection made to it. With [rebind] false an existing forward on
+  /// [deviceSpec] is an error instead of being replaced.
   ///
-  /// Throws [AdbServiceUnavailableException] when the device refuses (a
-  /// bad spec, a port in use, an existing forward without [rebind]).
+  /// Throws [AdbServiceUnavailableException] when the device refuses (a bad spec, a port in use, an existing forward
+  /// without [rebind]).
   Future<AdbReverseForward> add(String deviceSpec, AdbReverseHandler onConnection, {bool rebind = true}) =>
       _add(deviceSpec, 'localabstract:adb_direct_reverse_${_nextLabel++}', onConnection, rebind: rebind);
 
-  /// Like [add], with each connection copied to a new TCP connection to
-  /// [host]:[port] here, as `adb reverse <device> tcp:<port>` does. A local
-  /// connection that fails closes the device's connection.
+  /// Like [add], with each connection copied to a new TCP connection to [host]:[port] here, as `adb reverse <device>
+  /// tcp:<port>` does. A local connection that fails closes the device's connection.
   Future<AdbReverseForward> toLocalPort(String deviceSpec, int port, {Object host = '127.0.0.1', bool rebind = true}) {
     if (port < 1 || port > 65535) {
       throw ArgumentError.value(port, 'port', 'not a TCP port');
     }
-    // adb's own name for the default; another host gets its own name, so
-    // two targets never share one.
+    // adb's own name for the default; another host gets its own name, so two targets never share one.
     final label = host == '127.0.0.1' ? 'tcp:$port' : 'tcp:$port:$host';
     return _add(deviceSpec, label, (stream) async {
       final Socket socket;
@@ -121,8 +113,7 @@ final class AdbReverse {
     ];
   }
 
-  /// Removes the forward on [deviceSpec]. Throws
-  /// [AdbServiceUnavailableException] when there is none.
+  /// Removes the forward on [deviceSpec]. Throws [AdbServiceUnavailableException] when there is none.
   Future<void> remove(String deviceSpec) async {
     await _command('reverse:killforward:$deviceSpec');
     _release(_labels.remove(deviceSpec));

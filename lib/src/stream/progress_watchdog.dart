@@ -7,10 +7,8 @@ import '../clock.dart';
 
 /// Calls [onStall] once when [progress] has not changed for [timeout].
 ///
-/// [progress] is any number that grows while work moves (bytes sent,
-/// acknowledged, received). It is sampled four times per [timeout], so a
-/// stall is noticed between [timeout] and 1.25 × [timeout] after the last
-/// movement.
+/// [progress] is any number that grows while work moves (bytes sent, acknowledged, received). It is sampled four times
+/// per [timeout], so a stall is noticed between [timeout] and 1.25 × [timeout] after the last movement.
 final class ProgressWatchdog {
   /// Starts watching.
   ProgressWatchdog({required this.clock, required this.timeout, required this.progress, required this.onStall})

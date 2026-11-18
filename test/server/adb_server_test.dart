@@ -10,8 +10,8 @@ import 'package:test/test.dart';
 
 String frame(String text) => '${utf8.encode(text).length.toRadixString(16).padLeft(4, '0')}$text';
 
-/// A fake adb server: [answer] gets each request (in order on one socket)
-/// and returns what to send back, or null to hand the socket to [raw].
+/// A fake adb server: [answer] gets each request (in order on one socket) and returns what to send back, or null to
+/// hand the socket to [raw].
 Future<ServerSocket> fakeServer(String? Function(String request) answer, {void Function(Socket socket)? raw}) async {
   final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
   server.listen((socket) {
@@ -49,8 +49,7 @@ void main() {
         'host:version' => 'OKAY${frame('0029')}',
         'host:devices-l' =>
           'OKAY${frame('emulator-5554          device product:sdk model:Pixel_10 '
-          'device:emu transport_id:1\n'
-          '192.168.0.20:5555      unauthorized transport_id:3\n')}',
+          'device:emu transport_id:1\n192.168.0.20:5555      unauthorized transport_id:3\n')}',
         _ => 'FAIL${frame('unknown host service')}',
       },
     );
@@ -171,10 +170,7 @@ void main() {
   });
 
   test('device lines: "no permissions" and properties', () {
-    final d = AdbServerDevice.parse(
-      '0123ABC no permissions (user in plugdev group) usb:1-1 '
-      'transport_id:4',
-    );
+    final d = AdbServerDevice.parse('0123ABC no permissions (user in plugdev group) usb:1-1 transport_id:4');
     expect(d.state, 'no permissions');
     expect(d.properties['usb'], '1-1');
   });

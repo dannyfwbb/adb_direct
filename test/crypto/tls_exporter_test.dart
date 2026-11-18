@@ -42,17 +42,15 @@ void main() {
   });
 
   for (final (suite, hash) in [('TLS_AES_128_GCM_SHA256', 'SHA-256'), ('TLS_AES_256_GCM_SHA384', 'SHA-384')]) {
-    test('matches OpenSSL’s exporter on a live TLS 1.3 connection from dart:io '
-        '($hash, $suite)', () async {
+    test('matches OpenSSL’s exporter on a live TLS 1.3 connection from dart:io ($hash, $suite)', () async {
       final expected = await _exportWithOpenSsl(suite);
       expect(hex(expected.ours), expected.openssl.toLowerCase());
     }, skip: Tools.skipUnless(Tools.openssl, 'openssl'));
   }
 }
 
-/// Connects with `dart:io` to `openssl s_server` restricted to [suite],
-/// and returns OpenSSL's exported keying material for `adb-label` (64
-/// bytes) and ours, computed from the key log.
+/// Connects with `dart:io` to `openssl s_server` restricted to [suite], and returns OpenSSL's exported keying material
+/// for `adb-label` (64 bytes) and ours, computed from the key log.
 Future<({String openssl, List<int> ours})> _exportWithOpenSsl(String suite) async {
   final temp = await Directory.systemTemp.createTemp('exporter');
   addTearDown(() => temp.delete(recursive: true));
@@ -86,8 +84,7 @@ Future<({String openssl, List<int> ours})> _exportWithOpenSsl(String suite) asyn
   });
   unawaited(server.stderr.drain<void>());
 
-  // OpenSSL picks the port and prints "ACCEPT 127.0.0.1:<port>": no window
-  // in which another process could take it.
+  // OpenSSL picks the port and prints "ACCEPT 127.0.0.1:<port>": no window in which another process could take it.
   final output = StringBuffer();
   final port = Completer<int>();
   final material = Completer<String>();

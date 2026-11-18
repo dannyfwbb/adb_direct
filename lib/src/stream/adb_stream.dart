@@ -11,17 +11,13 @@ import '../clock.dart';
 import '../errors.dart';
 import '../protocol/message.dart';
 
-/// A byte stream to one service on the device, such as `shell:ls` or
-/// `sync:`.
+/// A byte stream to one service on the device, such as `shell:ls` or `sync:`.
 ///
-/// Read with [input]; write with [write]. Both directions apply ADB flow
-/// control: the device is told it may send more only when the [input]
-/// listener has received what came (pause the subscription to slow the
-/// device down), and [write] completes when the data is on its way within
-/// the device's window.
+/// Read with [input]; write with [write]. Both directions apply ADB flow control: the device is told it may send more
+/// only when the [input] listener has received what came (pause the subscription to slow the device down), and [write]
+/// completes when the data is on its way within the device's window.
 ///
-/// ADB streams have no half-close: [close] ends both directions, and so does
-/// the device closing its end.
+/// ADB streams have no half-close: [close] ends both directions, and so does the device closing its end.
 final class AdbStream {
   /// Wraps a stream's core; streams are created by the connection.
   @internal
@@ -32,60 +28,54 @@ final class AdbStream {
   /// The service name sent in `OPEN`.
   String get service => _endpoint.service;
 
-  /// Bytes from the device. Single subscription. Ends when the stream
-  /// closes; carries an [AdbException] error first when the connection
-  /// failed. Cancelling the subscription closes the stream.
+  /// Bytes from the device. Single subscription. Ends when the stream closes; carries an [AdbException] error first
+  /// when the connection failed. Cancelling the subscription closes the stream.
   Stream<Uint8List> get input => _endpoint.input;
 
-  /// Completes when the stream is open, or fails when the device refused it
-  /// ([AdbServiceUnavailableException]), it was closed first
-  /// ([AdbCancelledException]) or the connection failed.
+  /// Completes when the stream is open, or fails when the device refused it ([AdbServiceUnavailableException]), it was
+  /// closed first ([AdbCancelledException]) or the connection failed.
   Future<void> get opened => _endpoint.opened;
 
-  /// Completes when the stream is closed, by either side or by a failure.
-  /// Never fails: see [closeReason] for why it closed.
+  /// Completes when the stream is closed, by either side or by a failure. Never fails: see [closeReason] for why it
+  /// closed.
   Future<void> get done => _endpoint.done;
 
   /// Whether the stream is closed.
   bool get isClosed => _endpoint.isClosed;
 
-  /// Why the stream closed when it was not a normal close by either side:
-  /// the connection failed, or the device refused to open it.
+  /// Why the stream closed when it was not a normal close by either side: the connection failed, or the device refused
+  /// to open it.
   AdbException? get closeReason => _endpoint.closeReason;
 
-  /// Bytes of our writes the device has acknowledged: what it has taken,
-  /// as opposed to what [write] handed to the connection. Use it for
-  /// progress that means "arrived".
+  /// Bytes of our writes the device has acknowledged: what it has taken, as opposed to what [write] handed to the
+  /// connection. Use it for progress that means "arrived".
   int get acknowledgedBytes => _endpoint.acknowledgedBytes;
 
   /// Sends [data] to the device.
   ///
-  /// Splits it to the payload limit and sends within the flow-control
-  /// window. Completes when the last piece is handed to the connection
-  /// (not when the device has processed it). Writes are sent in order.
-  /// Fails with the reason when the stream closes first.
+  /// Splits it to the payload limit and sends within the flow-control window. Completes when the last piece is handed
+  /// to the connection (not when the device has processed it). Writes are sent in order. Fails with the reason when the
+  /// stream closes first.
   Future<void> write(List<int> data) => _endpoint.write(data);
 
-  /// Completes when the device has acknowledged every byte written before
-  /// this call (later writes do not delay it). Fails like [write] when the
-  /// stream closes first.
+  /// Completes when the device has acknowledged every byte written before this call (later writes do not delay it).
+  /// Fails like [write] when the stream closes first.
   Future<void> flush() => _endpoint.flush();
 
-  /// [acknowledgedBytes] each time the device acknowledges more, for
-  /// progress that means "arrived". Broadcast; ends when the stream closes.
+  /// [acknowledgedBytes] each time the device acknowledges more, for progress that means "arrived". Broadcast; ends
+  /// when the stream closes.
   Stream<int> get acknowledgements => _endpoint.acknowledgements;
 
-  /// Closes the stream in both directions. Pending writes fail with
-  /// [AdbCancelledException]. Data already received stays readable.
+  /// Closes the stream in both directions. Pending writes fail with [AdbCancelledException]. Data already received
+  /// stays readable.
   Future<void> close() => _endpoint.close();
 
   @override
   String toString() => 'AdbStream($service${isClosed ? ', closed' : ''})';
 }
 
-/// What an [AdbStream] is made of: an ADB stream over packets
-/// ([StreamEndpoint]), or a socket the adb server connected to a device
-/// service.
+/// What an [AdbStream] is made of: an ADB stream over packets ([StreamEndpoint]), or a socket the adb server connected
+/// to a device service.
 @internal
 abstract interface class StreamCore {
   String get service;
@@ -128,15 +118,13 @@ abstract interface class StreamHost {
 
 enum _State { opening, open, closed }
 
-/// The state machine behind an [AdbStream]: the connection routes messages
-/// here. Internal.
+/// The state machine behind an [AdbStream]: the connection routes messages here. Internal.
 @internal
 final class StreamEndpoint implements StreamCore {
   /// Creates an endpoint that is opening; the connection sends the `OPEN`.
   StreamEndpoint(this._host, {required this.localId, required this.service}) {
-    // Synchronous delivery: when add() returns, an active listener has
-    // received the data, so it can be acknowledged at once; a paused or
-    // missing listener leaves it unacknowledged until it resumes.
+    // Synchronous delivery: when add() returns, an active listener has received the data, so it can be acknowledged at
+    // once; a paused or missing listener leaves it unacknowledged until it resumes.
     _input = StreamController<Uint8List>(
       sync: true,
       onListen: _flushAcknowledgements,
@@ -146,10 +134,8 @@ final class StreamEndpoint implements StreamCore {
     _armAcknowledgementTimer();
   }
 
-  /// An endpoint for a stream the device opened (reverse forwarding),
-  /// already open: [remoteId] is the device's id, [window] the window its
-  /// `OPEN` announced (delayed acknowledgements). The connection sends the
-  /// `OKAY`.
+  /// An endpoint for a stream the device opened (reverse forwarding), already open: [remoteId] is the device's id,
+  /// [window] the window its `OPEN` announced (delayed acknowledgements). The connection sends the `OKAY`.
   factory StreamEndpoint.accepted(
     StreamHost host, {
     required int localId,
@@ -182,8 +168,7 @@ final class StreamEndpoint implements StreamCore {
   bool _closeWhenOpened = false;
   AdbException? _closeReason;
 
-  // Sending: classic mode allows one write in flight; delayed mode allows
-  // writes while the device's budget is positive.
+  // Sending: classic mode allows one write in flight; delayed mode allows writes while the device's budget is positive.
   bool _readyToSend = false;
   int _sendBudget = 0;
   int _inFlight = 0;
@@ -222,9 +207,8 @@ final class StreamEndpoint implements StreamCore {
   @override
   int get acknowledgedBytes => _acknowledged;
 
-  /// Whether a message from the device's stream [remoteId] belongs to this
-  /// stream: any id while opening (the first `OKAY` tells it), the known
-  /// one after.
+  /// Whether a message from the device's stream [remoteId] belongs to this stream: any id while opening (the first
+  /// `OKAY` tells it), the known one after.
   bool acceptsFrom(int remoteId) => _remoteId == 0 || _remoteId == remoteId;
 
   /// See [AdbStream.write].
@@ -286,8 +270,7 @@ final class StreamEndpoint implements StreamCore {
     return done;
   }
 
-  /// An `OKAY` from the device: the answer to `OPEN`, or an acknowledgement
-  /// of our writes once open.
+  /// An `OKAY` from the device: the answer to `OPEN`, or an acknowledgement of our writes once open.
   void handleOkay(AdbMessage okay) {
     final int? acknowledged;
     try {
@@ -303,8 +286,7 @@ final class StreamEndpoint implements StreamCore {
         _handleOpened(okay.arg0, acknowledged);
       case _State.closed:
         if (_closeWhenOpened) {
-          // Closed by the caller while opening: now the device's id is
-          // known, tell it.
+          // Closed by the caller while opening: now the device's id is known, tell it.
           _closeWhenOpened = false;
           _host
             ..send(AdbMessage.close(localId: localId, remoteId: okay.arg0))
@@ -317,8 +299,8 @@ final class StreamEndpoint implements StreamCore {
   void handleData(AdbMessage write) {
     if (_state != _State.open) return;
     final data = write.payload;
-    // With synchronous delivery, an active listener receives the data inside
-    // add(); an absent or paused one leaves it buffered until it resumes.
+    // With synchronous delivery, an active listener receives the data inside add(); an absent or paused one leaves it
+    // buffered until it resumes.
     final delivered = _input.hasListener && !_input.isPaused;
     _unacknowledgedWrites++;
     _unacknowledgedBytes += data.length;
@@ -331,8 +313,7 @@ final class StreamEndpoint implements StreamCore {
     switch (_state) {
       case _State.closed:
         if (_closeWhenOpened) {
-          // Closed by the caller while opening, and the device refused or
-          // closed it: nothing left to tell the device.
+          // Closed by the caller while opening, and the device refused or closed it: nothing left to tell the device.
           _closeWhenOpened = false;
           _host.endpointFinished(localId);
         }
@@ -351,8 +332,8 @@ final class StreamEndpoint implements StreamCore {
 
   void _handleOpened(int remoteId, int? window) {
     if (_host.delayedAck && window == null) {
-      // The device must announce its window; without it nothing could be
-      // sent. Treat it like adbd treats a malformed OKAY: ignore it.
+      // The device must announce its window; without it nothing could be sent. Treat it like adbd treats a malformed
+      // OKAY: ignore it.
       return;
     }
     _remoteId = remoteId;
@@ -404,8 +385,8 @@ final class StreamEndpoint implements StreamCore {
       }
       if (_acknowledgementTimer == null) _armAcknowledgementTimer();
       _host.send(AdbMessage.write(localId: localId, remoteId: _remoteId, data: chunk));
-      // Sending can end the stream (a tracer closing it, a failing
-      // transport): the queue is then already failed and emptied.
+      // Sending can end the stream (a tracer closing it, a failing transport): the queue is then already failed and
+      // emptied.
       if (_state != _State.open) return;
       if (pending.offset == pending.data.length) {
         _writes.removeFirst();
@@ -414,8 +395,7 @@ final class StreamEndpoint implements StreamCore {
     }
   }
 
-  /// Acknowledges what was held back once the listener is there and not
-  /// paused (buffered events are then delivered).
+  /// Acknowledges what was held back once the listener is there and not paused (buffered events are then delivered).
   void _flushAcknowledgements() {
     if (!_input.hasListener || _input.isPaused) return;
     _sendAcknowledgements();
@@ -453,16 +433,16 @@ final class StreamEndpoint implements StreamCore {
     _acknowledgementTimer = null;
   }
 
-  /// Ends the stream. [normal] closes (by either side) leave [closeReason]
-  /// null; failures set it. [opened] fails either way if still pending.
+  /// Ends the stream. [normal] closes (by either side) leave [closeReason] null; failures set it. [opened] fails either
+  /// way if still pending.
   void _finish(AdbException reason, {bool normal = false}) {
     _state = _State.closed;
     if (!normal) _closeReason = reason;
     _disarmAcknowledgementTimer();
     if (!_opened.isCompleted) {
       _opened.completeError(reason);
-      // Nobody may be listening to [opened] (a caller that only reads);
-      // keep the error from being reported as unhandled.
+      // Nobody may be listening to [opened] (a caller that only reads); keep the error from being reported as
+      // unhandled.
       unawaited(_opened.future.then((_) {}, onError: (Object _) {}));
     }
     while (_writes.isNotEmpty) {

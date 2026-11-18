@@ -9,14 +9,12 @@ import 'package:meta/meta.dart';
 
 import '../stream/adb_stream.dart';
 
-/// Copies bytes both ways between a device [stream] and a local [socket]
-/// until either side ends, then closes both. Completes when both are done.
+/// Copies bytes both ways between a device [stream] and a local [socket] until either side ends, then closes both.
+/// Completes when both are done.
 ///
-/// Each direction waits for its sink before reading more: a write to the
-/// device completes when it was sent (or acknowledged, with delayed
-/// acknowledgements), a write to the socket when it was flushed. So a slow
-/// side slows the other down instead of filling memory, and the device's
-/// flow control reaches the local peer.
+/// Each direction waits for its sink before reading more: a write to the device completes when it was sent (or
+/// acknowledged, with delayed acknowledgements), a write to the socket when it was flushed. So a slow side slows the
+/// other down instead of filling memory, and the device's flow control reaches the local peer.
 @internal
 Future<void> pipe(AdbStream stream, Socket socket) {
   final done = Completer<void>();

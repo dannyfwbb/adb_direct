@@ -16,8 +16,7 @@ final String? host = Platform.environment['ADB_DIRECT_TEST_HOST'];
 final int port = int.parse(Platform.environment['ADB_DIRECT_TEST_PORT'] ?? '5555');
 final String? keyPath = Platform.environment['ADB_DIRECT_TEST_KEY'];
 final String? skip = host == null || keyPath == null
-    ? 'ADB_DIRECT_TEST_HOST and ADB_DIRECT_TEST_KEY are not set '
-          '(see test/device/README.md)'
+    ? 'ADB_DIRECT_TEST_HOST and ADB_DIRECT_TEST_KEY are not set (see test/device/README.md)'
     : null;
 
 /// The only place these tests write: removed at the end.
@@ -85,8 +84,7 @@ void main() {
   );
 
   test('a refused read is an AdbSyncException; the next call works', () async {
-    // A missing file: refused for root too (old eng builds run adbd as
-    // root and can read anything).
+    // A missing file: refused for root too (old eng builds run adbd as root and can read anything).
     await expectLater(adb().sync.readAll('/no/such/file'), throwsA(isA<AdbSyncException>()));
     expect((await adb().sync.stat('/system/etc/hosts'))!.isFile, isTrue);
   }, skip: skip);
@@ -110,10 +108,7 @@ void main() {
         total += chunk.length;
       }
       final down = 64 / (watch.elapsedMilliseconds / 1000);
-      print(
-        'sync push ${up.toStringAsFixed(1)} MiB/s, '
-        'pull ${down.toStringAsFixed(1)} MiB/s',
-      );
+      print('sync push ${up.toStringAsFixed(1)} MiB/s, pull ${down.toStringAsFixed(1)} MiB/s');
       expect(total, bytes.length);
     },
     skip: skip,

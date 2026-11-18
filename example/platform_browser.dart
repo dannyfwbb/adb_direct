@@ -1,13 +1,12 @@
 // Copyright 2026 The adb_direct authors
 // SPDX-License-Identifier: Apache-2.0
 
-// An AdbServiceBrowser over a platform's own service browser: where raw
-// multicast is not allowed (iOS without the multicast entitlement) or not
-// wanted (Android NSD), the app browses with the platform and hands the
-// results to adb_direct through this interface.
+// An AdbServiceBrowser over a platform's own service browser: where raw multicast is not allowed (iOS without the
+// multicast entitlement) or not wanted (Android NSD), the app browses with the platform and hands the results to
+// adb_direct through this interface.
 //
-// Here the platform side is a stream of maps, as a Flutter EventChannel
-// would deliver them from Swift (NWBrowser) or Kotlin (NsdManager):
+// Here the platform side is a stream of maps, as a Flutter EventChannel would deliver them from Swift (NWBrowser) or
+// Kotlin (NsdManager):
 //
 //   {'event': 'found' | 'updated' | 'lost', 'type': '_adb-tls-connect._tcp',
 //    'name': 'adb-…', 'host': '192.168.0.20', 'port': 37123,
@@ -22,8 +21,7 @@ import 'package:adb_direct/adb_direct.dart';
 final class PlatformServiceBrowser implements AdbServiceBrowser {
   PlatformServiceBrowser(this._events);
 
-  /// Starts the platform browser for the given types and returns its
-  /// events; cancelling the subscription stops it.
+  /// Starts the platform browser for the given types and returns its events; cancelling the subscription stops it.
   final Stream<Map<Object?, Object?>> Function(List<String> types) _events;
 
   @override

@@ -11,20 +11,17 @@ import 'transport.dart';
 
 /// TCP to adbd, on a [RawSocket].
 ///
-/// `RawSocket` rather than `Socket` because a live connection must be able
-/// to switch to TLS mid-stream after `STLS`, which `dart:io` supports only
-/// through `RawSecureSocket.secure(raw, subscription:)`.
+/// `RawSocket` rather than `Socket` because a live connection must be able to switch to TLS mid-stream after `STLS`,
+/// which `dart:io` supports only through `RawSecureSocket.secure(raw, subscription:)`.
 final class TcpTransport implements AdbTransport {
   TcpTransport._(this._socket);
 
   /// Opens a TCP connection to [host]:[port] within [timeout].
   ///
-  /// Throws [AdbRefusedException] when the device actively refused (nothing
-  /// listens on the port), [AdbUnreachableException] for everything else:
-  /// no route, no network, or no answer in time.
+  /// Throws [AdbRefusedException] when the device actively refused (nothing listens on the port),
+  /// [AdbUnreachableException] for everything else: no route, no network, or no answer in time.
   ///
-  /// When [cancelOn] completes first, the attempt stops and the call throws
-  /// [AdbCancelledException].
+  /// When [cancelOn] completes first, the attempt stops and the call throws [AdbCancelledException].
   static Future<TcpTransport> connect(
     Object host,
     int port, {
@@ -133,9 +130,8 @@ final class TcpTransport implements AdbTransport {
       await (_drained ??= Completer<void>()).future;
       if (_ended) throw const AdbClosedException('The connection is closed');
     }
-    // The subscription must stay active: RawSecureSocket takes it over and
-    // refuses a paused one. adbd sends nothing between STLS and our
-    // ClientHello, so no plain bytes are lost here.
+    // The subscription must stay active: RawSecureSocket takes it over and refuses a paused one. adbd sends nothing
+    // between STLS and our ClientHello, so no plain bytes are lost here.
     final upgrade = _upgrade = Completer<X509Certificate?>();
     // Its outcome is delivered through [upgrade].
     // ignore: discarded_futures
@@ -169,16 +165,15 @@ final class TcpTransport implements AdbTransport {
     return upgrade.future;
   }
 
-  /// A TLS upgrade in progress; a close or destroy fails it at once (the
-  /// TLS layer owns the subscription then and would wait forever).
+  /// A TLS upgrade in progress; a close or destroy fails it at once (the TLS layer owns the subscription then and would
+  /// wait forever).
   Completer<X509Certificate?>? _upgrade;
 
   void _onEvent(RawSocketEvent event) {
     switch (event) {
       case RawSocketEvent.read:
-        // Read only what is available: a read() with nothing available
-        // throws "Read failed" on Linux (Dart 3.13) instead of returning
-        // null.
+        // Read only what is available: a read() with nothing available throws "Read failed" on Linux (Dart 3.13)
+        // instead of returning null.
         while (!_ended && _socket.available() > 0) {
           final data = _socket.read();
           if (data == null) break;

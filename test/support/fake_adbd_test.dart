@@ -10,8 +10,7 @@ import 'package:test/test.dart';
 import 'fake_adbd.dart';
 import 'fixtures.dart';
 
-/// Plays the recorder's side of [fixture] against [adbd] over a real socket
-/// and returns the messages the fake sent.
+/// Plays the recorder's side of [fixture] against [adbd] over a real socket and returns the messages the fake sent.
 Future<List<AdbMessage>> _playRecorder(Fixture fixture, FakeAdbd adbd) async {
   final socket = await Socket.connect(adbd.address, adbd.port);
   final reader = AdbMessageReader();

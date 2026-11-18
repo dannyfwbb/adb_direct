@@ -3,8 +3,7 @@
 
 /// Protocol constants shared by both ends of an ADB connection.
 ///
-/// Values match adbd's `adb.h`. They describe the wire format and never
-/// depend on the device.
+/// Values match adbd's `adb.h`. They describe the wire format and never depend on the device.
 abstract final class AdbProtocol {
   /// The oldest protocol version: payload checksums are required.
   static const int versionMin = 0x01000000;
@@ -18,8 +17,8 @@ abstract final class AdbProtocol {
   /// The version carried in `STLS` messages.
   static const int stlsVersion = 0x01000000;
 
-  /// The payload limit of old devices, and the limit for every message sent
-  /// before the device's `CNXN` tells us its own limit.
+  /// The payload limit of old devices, and the limit for every message sent before the device's `CNXN` tells us its own
+  /// limit.
   static const int maxPayloadV1 = 4 * 1024;
 
   /// The largest payload this library accepts or announces.
@@ -31,7 +30,7 @@ abstract final class AdbProtocol {
   /// Size of the random token in an `AUTH` challenge.
   static const int authTokenLength = 20;
 
-  /// The receive window this library announces per stream when delayed
-  /// acknowledgements are in use. adbd uses the same value.
+  /// The receive window this library announces per stream when delayed acknowledgements are in use. adbd uses the same
+  /// value.
   static const int delayedAckWindow = 32 * 1024 * 1024;
 }

@@ -35,8 +35,7 @@ Future<(AdbConnection, FakeAdbd)> connectTo(
   return (adb, adbd);
 }
 
-/// The next message [where] accepts, skipping others (acknowledgements of
-/// earlier answers).
+/// The next message [where] accepts, skipping others (acknowledgements of earlier answers).
 Future<AdbMessage> next(FakeAdbdSession session, bool Function(AdbMessage m) where) async {
   while (true) {
     final m = await session.receive();
@@ -44,8 +43,7 @@ Future<AdbMessage> next(FakeAdbdSession session, bool Function(AdbMessage m) whe
   }
 }
 
-/// adbd's side of a one-shot service: accepts the next OPEN, answers
-/// [answer], closes. Returns the service name.
+/// adbd's side of a one-shot service: accepts the next OPEN, answers [answer], closes. Returns the service name.
 Future<String> answer(FakeAdbdSession session, String answer, {int deviceId = 40, int? window}) async {
   var open = await session.receive();
   while (open.command != AdbCommand.open) {
@@ -184,16 +182,13 @@ void main() {
   });
 
   group('reverse bookkeeping', () {
-    /// A device that answers every reverse command with [answer] and then
-    /// tries an OPEN for each label in [probe] (the client's labels are
-    /// read from the forward commands), reporting what came back.
-    test('a rebind, a removal and a failed removal: which targets the '
-        'device may still reach', () async {
+    /// A device that answers every reverse command with [answer] and then tries an OPEN for each label in [probe] (the
+    /// client's labels are read from the forward commands), reporting what came back.
+    test('a rebind, a removal and a failed removal: which targets the device may still reach', () async {
       final labels = <String>[];
       final verdicts = <String, String>{};
       final (adb, adbd) = await connectTo((session) async {
-        // add twice on the same spec (rebind), then remove it, then a
-        // removal the device refuses on another spec.
+        // add twice on the same spec (rebind), then remove it, then a removal the device refuses on another spec.
         labels.add((await answer(session, 'OKAY')).split(';').last);
         labels.add((await answer(session, 'OKAY')).split(';').last);
         await answer(session, 'OKAY'); // killforward tcp:1000
@@ -224,8 +219,7 @@ void main() {
       await adb.close();
     });
 
-    test('two local ports never share a target; a failing async handler '
-        'closes its stream', () async {
+    test('two local ports never share a target; a failing async handler closes its stream', () async {
       final services = <String>[];
       final closed = Completer<void>();
       final (adb, adbd) = await connectTo((session) async {

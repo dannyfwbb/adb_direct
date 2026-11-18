@@ -329,10 +329,9 @@ void main() {
     });
 
     test('a TCP connect that hangs stops when cancelled', () async {
-      // A listening socket that never accepts still completes the TCP
-      // handshake, so use one that is full: backlog 0 and one waiting
-      // client. Where that is not enough the connect simply succeeds and
-      // the handshake is cancelled instead; either way it is cancelled.
+      // A listening socket that never accepts still completes the TCP handshake, so use one that is full: backlog 0 and
+      // one waiting client. Where that is not enough the connect simply succeeds and the handshake is cancelled
+      // instead; either way it is cancelled.
       final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
       final cancel = Completer<void>();
       Timer(const Duration(milliseconds: 100), cancel.complete);

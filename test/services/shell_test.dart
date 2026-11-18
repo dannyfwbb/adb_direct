@@ -16,8 +16,7 @@ import '../support/fixtures.dart';
 
 const command = 'echo hi; echo err >&2; exit 3';
 
-/// Accepts `OPEN` of a service starting with [prefix]; returns the device
-/// id used (9) after answering OKAY.
+/// Accepts `OPEN` of a service starting with [prefix]; returns the device id used (9) after answering OKAY.
 Future<String> acceptOpen(FakeAdbdSession session, String prefix) async {
   final open = await session.receive();
   final service = utf8.decode(open.payload).replaceAll('\u0000', '');
@@ -30,8 +29,7 @@ Future<String> acceptOpen(FakeAdbdSession session, String prefix) async {
 
 void main() {
   group('run with shell protocol v2', () {
-    test('separates stdout and stderr and reports the exit status '
-        '(recorded bytes)', () async {
+    test('separates stdout and stderr and reports the exit status (recorded bytes)', () async {
       final recorded = Fixture.load('shell/v2').fromDevice.firstWhere((m) => m.command == AdbCommand.write).payload;
       final (adb, adbd) = await connectTo((session) async {
         await acceptOpen(session, 'shell,v2,raw:$command');
@@ -91,8 +89,8 @@ void main() {
               data: ShellProtocol.encode(ShellPacketId.stdout, utf8.encode('hello world')),
             ),
           );
-        // The listener closes the stream as soon as the limit is reached,
-        // inside delivery: no acknowledgement is needed any more.
+        // The listener closes the stream as soon as the limit is reached, inside delivery: no acknowledgement is needed
+        // any more.
         await session.expect(AdbMessage.close(localId: 1, remoteId: 9));
       });
       final result = await adb.shell.run('yes', maxOutputBytes: 5);
@@ -111,8 +109,8 @@ void main() {
         session.send(AdbMessage.okay(localId: 9, remoteId: 1));
         clock.advance(const Duration(seconds: 11));
         await session.expect(AdbMessage.close(localId: 1, remoteId: 9));
-        // The OKAY for close-stdin may arrive after the stream closed;
-        // the client then answers it with a second CLSE, as adb does.
+        // The OKAY for close-stdin may arrive after the stream closed; the client then answers it with a second CLSE,
+        // as adb does.
       });
       await expectLater(
         adb.shell.run('sleep 100', timeout: const Duration(seconds: 10)),
@@ -125,8 +123,8 @@ void main() {
   });
 
   group('run on devices without shell protocol v2', () {
-    /// With [exec] the device has `exec:` (Android 5+); without, it refuses
-    /// it and the command goes through `shell:` and its PTY.
+    /// With [exec] the device has `exec:` (Android 5+); without, it refuses it and the command goes through `shell:`
+    /// and its PTY.
     Future<AdbShellResult> runOld(String cmd, List<String> Function(String marker) chunks, {bool exec = true}) async {
       final (adb, adbd) = await connectTo(banner: oldBanner, (session) async {
         if (!exec) {

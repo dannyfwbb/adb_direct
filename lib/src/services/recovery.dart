@@ -25,15 +25,13 @@ final class AdbRecovery {
   /// The block size offered to the device (adb's).
   static const int blockSize = 64 * 1024;
 
-  /// Serves [package] (an OTA zip) to a device in recovery's "Apply update
-  /// from ADB" (or rescue mode with [rescue]), as `adb sideload` does: the
-  /// device asks for blocks in any order, often reading the file about
-  /// twice, until it says it is done.
+  /// Serves [package] (an OTA zip) to a device in recovery's "Apply update from ADB" (or rescue mode with [rescue]), as
+  /// `adb sideload` does: the device asks for blocks in any order, often reading the file about twice, until it says it
+  /// is done.
   ///
-  /// [onProgress] reports bytes served and the file size (the served total
-  /// passes the size). Devices before Android 4.4 take the whole file at
-  /// once instead. Throws [AdbServiceUnavailableException] when the device
-  /// reports a failed install.
+  /// [onProgress] reports bytes served and the file size (the served total passes the size). Devices before Android 4.4
+  /// take the whole file at once instead. Throws [AdbServiceUnavailableException] when the device reports a failed
+  /// install.
   Future<void> sideload(File package, {bool rescue = false, AdbProgress? onProgress}) async {
     final file = await package.open();
     try {
@@ -75,9 +73,8 @@ final class AdbRecovery {
   }
 }
 
-/// The `sideload-host` exchange: the device sends eight decimal digits (a
-/// block number) or `DONEDONE` / `FAILFAIL`; each block is answered with
-/// its bytes (the last one short).
+/// The `sideload-host` exchange: the device sends eight decimal digits (a block number) or `DONEDONE` / `FAILFAIL`;
+/// each block is answered with its bytes (the last one short).
 @internal
 Future<void> serveBlocks(AdbStream stream, RandomAccessFile file, int size, AdbProgress? onProgress) async {
   final requests = ByteQueue();

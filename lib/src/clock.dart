@@ -5,8 +5,8 @@ import 'dart:async';
 
 /// The source of time and timers for everything that waits.
 ///
-/// Deadlines, stall guards and retries take an [AdbClock] so tests can move time
-/// by hand while real sockets keep working. [AdbClock.system] is the default.
+/// Deadlines, stall guards and retries take an [AdbClock] so tests can move time by hand while real sockets keep
+/// working. [AdbClock.system] is the default.
 abstract interface class AdbClock {
   /// The real clock.
   static const AdbClock system = _SystemClock();

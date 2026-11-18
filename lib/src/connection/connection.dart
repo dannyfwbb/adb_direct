@@ -29,43 +29,37 @@ import 'handshake.dart';
 import 'message_link.dart';
 import 'options.dart';
 
-/// The service opened to check that the device answers: it does not exist,
-/// so adbd refuses it at once without starting anything.
+/// The service opened to check that the device answers: it does not exist, so adbd refuses it at once without starting
+/// anything.
 @internal
 const String livenessService = 'adb-direct-ping:';
 
 /// A connection to adbd on a device.
 ///
-/// Open one with [connect]; then open streams to services with [open], or
-/// use the service helpers such as [shell]. Many streams can be open at
-/// once over one connection.
+/// Open one with [connect]; then open streams to services with [open], or use the service helpers such as [shell]. Many
+/// streams can be open at once over one connection.
 ///
-/// The connection ends when either side closes it or anything fails; every
-/// open stream and pending call then fails with the same [closeReason].
+/// The connection ends when either side closes it or anything fails; every open stream and pending call then fails with
+/// the same [closeReason].
 abstract base class AdbConnection {
-  /// For the implementations in this package (over ADB packets, and
-  /// through an adb server); not meant to be extended elsewhere. Other
-  /// links go through [connectTransport].
+  /// For the implementations in this package (over ADB packets, and through an adb server); not meant to be extended
+  /// elsewhere. Other links go through [connectTransport].
   @internal
   AdbConnection.base();
 
-  /// Connects to adbd at [host]:[port] (5555 for classic network debugging)
-  /// and authenticates with [key], then [extraKeys] in turn.
+  /// Connects to adbd at [host]:[port] (5555 for classic network debugging) and authenticates with [key], then
+  /// [extraKeys] in turn.
   ///
-  /// When the device trusts none of them and [AdbConnectOptions.allowPrompt]
-  /// is set (the default), [key]'s public key is offered and the device
-  /// shows "Allow debugging?"; [onWaitingForApproval] is called then, and
-  /// the call waits up to [AdbConnectOptions.approvalTimeout] for the user.
+  /// When the device trusts none of them and [AdbConnectOptions.allowPrompt] is set (the default), [key]'s public key
+  /// is offered and the device shows "Allow debugging?"; [onWaitingForApproval] is called then, and the call waits up
+  /// to [AdbConnectOptions.approvalTimeout] for the user.
   ///
-  /// When [cancelOn] completes before the connection is up (the user backed
-  /// out of "Allow debugging?", say), the attempt stops at once, the socket
-  /// is closed, and the call throws [AdbCancelledException].
+  /// When [cancelOn] completes before the connection is up (the user backed out of "Allow debugging?", say), the
+  /// attempt stops at once, the socket is closed, and the call throws [AdbCancelledException].
   ///
-  /// Throws [AdbUnreachableException], [AdbRefusedException],
-  /// [AdbUnauthorizedException], [AdbTimeoutException],
-  /// [AdbProtocolException], [AdbCancelledException], or
-  /// [AdbNotSupportedException] for a TLS (wireless debugging) port;
-  /// [ArgumentError] for invalid [options].
+  /// Throws [AdbUnreachableException], [AdbRefusedException], [AdbUnauthorizedException], [AdbTimeoutException],
+  /// [AdbProtocolException], [AdbCancelledException], or [AdbNotSupportedException] for a TLS (wireless debugging)
+  /// port; [ArgumentError] for invalid [options].
   static Future<AdbConnection> connect(
     Object host,
     int port, {
@@ -87,10 +81,9 @@ abstract base class AdbConnection {
     tracer: tracer,
   );
 
-  /// Like [connect], over a transport of your own: USB, a tunnel, a
-  /// socket made elsewhere. [open] makes a fresh transport each time it is
-  /// called (a TLS port needs one per key tried); it may throw
-  /// [AdbException]s as [connect] does.
+  /// Like [connect], over a transport of your own: USB, a tunnel, a socket made elsewhere. [open] makes a fresh
+  /// transport each time it is called (a TLS port needs one per key tried); it may throw [AdbException]s as [connect]
+  /// does.
   static Future<AdbConnection> connectTransport(
     Future<AdbTransport> Function() open, {
     required AdbKeyPair key,
@@ -102,9 +95,8 @@ abstract base class AdbConnection {
     AdbTracer? tracer,
   }) async {
     options.validate();
-    // Classic ports try every key in one handshake. A TLS port takes one
-    // key per TLS session, so a key the device does not trust costs a new
-    // connection to try the next.
+    // Classic ports try every key in one handshake. A TLS port takes one key per TLS session, so a key the device does
+    // not trust costs a new connection to try the next.
     for (var tlsKey = 0; ; tlsKey++) {
       try {
         return await _attempt(
@@ -121,24 +113,20 @@ abstract base class AdbConnection {
         if (tlsKey + 1 < 1 + extraKeys.length) continue;
         throw AdbUnauthorizedException(
           'The device closed the TLS session before CNXN: most likely it '
-          'does not trust the key (on a wireless debugging port, pair it '
-          'first), or the connection dropped',
+          'does not trust the key (on a wireless debugging port, pair it first), or the connection dropped',
           cause: e.cause,
         );
       }
     }
   }
 
-  /// Connects to a device that is coming back: after
-  /// [AdbDaemon.reboot], [AdbDaemon.root], [AdbDaemon.tcpip] and the like,
-  /// or a device that is still booting. Retries [connect] with a pause that
-  /// grows from 250 ms to 2 s until it succeeds or [timeout] passes.
+  /// Connects to a device that is coming back: after [AdbDaemon.reboot], [AdbDaemon.root], [AdbDaemon.tcpip] and the
+  /// like, or a device that is still booting. Retries [connect] with a pause that grows from 250 ms to 2 s until it
+  /// succeeds or [timeout] passes.
   ///
-  /// Only "not there yet" failures are retried (unreachable, refused,
-  /// closed, timeouts, a garbled exchange while adbd starts). A device that
-  /// answers and refuses the key fails at once with
-  /// [AdbUnauthorizedException]. On timeout the last failure is thrown;
-  /// [cancelOn] stops waiting with [AdbCancelledException].
+  /// Only "not there yet" failures are retried (unreachable, refused, closed, timeouts, a garbled exchange while adbd
+  /// starts). A device that answers and refuses the key fails at once with [AdbUnauthorizedException]. On timeout the
+  /// last failure is thrown; [cancelOn] stops waiting with [AdbCancelledException].
   static Future<AdbConnection> waitFor(
     Object host,
     int port, {
@@ -250,8 +238,7 @@ abstract base class AdbConnection {
       rethrow;
     } on Object catch (e) {
       link.fail(e is AdbException ? e : AdbCancelledException('The handshake was abandoned', cause: e));
-      // The link's own failure (a cancel, a lost socket) explains more than
-      // the handshake's view of it.
+      // The link's own failure (a cancel, a lost socket) explains more than the handshake's view of it.
       if (link.failure case final AdbCancelledException failure when e is AdbException && e is! AdbCancelledException) {
         throw failure;
       }
@@ -265,8 +252,7 @@ abstract base class AdbConnection {
   /// What the device said about itself: state, product, model, features.
   AdbBanner get device;
 
-  /// The key the device accepted, or null if it asked for none (or the
-  /// connection goes through an adb server).
+  /// The key the device accepted, or null if it asked for none (or the connection goes through an adb server).
   AdbKeyPair? get acceptedKey;
 
   /// The negotiated protocol version.
@@ -275,9 +261,8 @@ abstract base class AdbConnection {
   /// Whether the connection runs over TLS (a wireless debugging port).
   bool get isTls;
 
-  /// The device's TLS certificate (DER) on a TLS connection, else null.
-  /// adb has nothing to verify it against; an app can remember it (or its
-  /// public key) after the first connection and compare it later.
+  /// The device's TLS certificate (DER) on a TLS connection, else null. adb has nothing to verify it against; an app
+  /// can remember it (or its public key) after the first connection and compare it later.
   Uint8List? get deviceCertificate;
 
   /// The largest payload either side sends in one message.
@@ -286,8 +271,7 @@ abstract base class AdbConnection {
   /// Whether delayed acknowledgements are in use on this connection.
   bool get delayedAck;
 
-  /// Whether the device lists [feature] (it is used only if this library
-  /// announced it too).
+  /// Whether the device lists [feature] (it is used only if this library announced it too).
   bool supports(AdbFeature feature) => device.supports(feature);
 
   /// Whether the connection has ended.
@@ -296,8 +280,7 @@ abstract base class AdbConnection {
   /// Why the connection ended, or null while it is open.
   AdbException? get closeReason;
 
-  /// Completes when the connection has ended, for any reason. Never fails;
-  /// see [closeReason].
+  /// Completes when the connection has ended, for any reason. Never fails; see [closeReason].
   Future<void> get done;
 
   /// The options it was made with.
@@ -314,8 +297,7 @@ abstract base class AdbConnection {
     answerTimeout: options.packageManagerTimeout,
   );
 
-  /// adbd's own services: root, unroot, remount, reboot, tcpip, usb,
-  /// verity.
+  /// adbd's own services: root, unroot, remount, reboot, tcpip, usb, verity.
   late final AdbDaemon daemon = AdbDaemon(this);
 
   /// Debugging: JDWP, process tracking, logcat, screenshots, bug reports.
@@ -330,21 +312,18 @@ abstract base class AdbConnection {
   /// Reverse forwarding: connections made on the device arrive here.
   late final AdbReverse reverse = AdbReverse(this);
 
-  /// Forwards a local TCP port to [remote] on the device (`tcp:8080`,
-  /// `localabstract:<name>`, `jdwp:<pid>`, …), like `adb forward`. [port]
-  /// 0 picks a free port ([AdbForward.port] tells which). The forward ends
-  /// with [AdbForward.close] or with this connection.
+  /// Forwards a local TCP port to [remote] on the device (`tcp:8080`, `localabstract:<name>`, `jdwp:<pid>`, …), like
+  /// `adb forward`. [port] 0 picks a free port ([AdbForward.port] tells which). The forward ends with
+  /// [AdbForward.close] or with this connection.
   Future<AdbForward> forward(String remote, {int port = 0, Object address = '127.0.0.1'}) =>
       AdbForward.start(this, remote, port: port, address: address);
 
   /// Files: stat, list, read and write over the sync protocol.
   late final AdbSync sync = AdbSync(this, stallTimeout: options.transferStallTimeout);
 
-  /// Opens a stream to [service] on the device, such as `shell:ls` or
-  /// `sync:`.
+  /// Opens a stream to [service] on the device, such as `shell:ls` or `sync:`.
   ///
-  /// Completes when the device accepted it. Throws
-  /// [AdbServiceUnavailableException] when the device refuses, and the
+  /// Completes when the device accepted it. Throws [AdbServiceUnavailableException] when the device refuses, and the
   /// connection's [closeReason] when it ends first.
   Future<AdbStream> open(String service) async {
     final stream = openStream(service);
@@ -352,17 +331,15 @@ abstract base class AdbConnection {
     return stream;
   }
 
-  /// Like [open], but returns the stream at once, before the device
-  /// answered; [AdbStream.opened] tells how the open went. Writes made
-  /// before then wait.
+  /// Like [open], but returns the stream at once, before the device answered; [AdbStream.opened] tells how the open
+  /// went. Writes made before then wait.
   AdbStream openStream(String service);
 
-  /// Closes the connection. Open streams end; their pending calls fail with
-  /// [AdbCancelledException].
+  /// Closes the connection. Open streams end; their pending calls fail with [AdbCancelledException].
   ///
-  /// With [drain] (the default) bytes already written are sent first, for
-  /// up to [AdbConnectOptions.acknowledgementTimeout]; without it the socket
-  /// closes at once, which is what to do when the device may be gone.
+  /// With [drain] (the default) bytes already written are sent first, for up to
+  /// [AdbConnectOptions.acknowledgementTimeout]; without it the socket closes at once, which is what to do when the
+  /// device may be gone.
   Future<void> close({bool drain = true});
 
   /// Accepts device-initiated `OPEN`s of [label] from now on.
@@ -423,9 +400,8 @@ final class _PacketConnection extends AdbConnection {
   @override
   bool get isTls => _handshake.tls;
 
-  /// The device's TLS certificate (DER) on a TLS connection, else null.
-  /// adb has nothing to verify it against; an app can remember it (or its
-  /// public key) after the first connection and compare it later.
+  /// The device's TLS certificate (DER) on a TLS connection, else null. adb has nothing to verify it against; an app
+  /// can remember it (or its public key) after the first connection and compare it later.
   @override
   Uint8List? get deviceCertificate => _handshake.deviceCertificate;
 
@@ -445,23 +421,20 @@ final class _PacketConnection extends AdbConnection {
   @override
   AdbException? get closeReason => _closeReason;
 
-  /// Completes when the connection has ended, for any reason. Never fails;
-  /// see [closeReason].
+  /// Completes when the connection has ended, for any reason. Never fails; see [closeReason].
   @override
   Future<void> get done => _done.future;
 
-  /// Like [open], but returns the stream at once, before the device
-  /// answered; [AdbStream.opened] tells how the open went. Writes made
-  /// before then wait.
+  /// Like [open], but returns the stream at once, before the device answered; [AdbStream.opened] tells how the open
+  /// went. Writes made before then wait.
   @override
   AdbStream openStream(String service) => AdbStream(_openEndpoint(service));
 
-  /// Closes the connection. Open streams end; their pending calls fail with
-  /// [AdbCancelledException].
+  /// Closes the connection. Open streams end; their pending calls fail with [AdbCancelledException].
   ///
-  /// With [drain] (the default) bytes already written are sent first, for
-  /// up to [AdbConnectOptions.acknowledgementTimeout]; without it the socket
-  /// closes at once, which is what to do when the device may be gone.
+  /// With [drain] (the default) bytes already written are sent first, for up to
+  /// [AdbConnectOptions.acknowledgementTimeout]; without it the socket closes at once, which is what to do when the
+  /// device may be gone.
   @override
   Future<void> close({bool drain = true}) async {
     if (_closeReason == null) {
@@ -495,8 +468,7 @@ final class _PacketConnection extends AdbConnection {
         if (message.arg0 == 0 || message.arg1 == 0) return;
         final endpoint = _endpoints[message.arg1];
         if (endpoint == null) {
-          // We no longer know the stream (closed while the device answered):
-          // tell the device, as adb does.
+          // We no longer know the stream (closed while the device answered): tell the device, as adb does.
           _link.send(AdbMessage.close(localId: message.arg1, remoteId: message.arg0));
         } else if (endpoint.acceptsFrom(message.arg0)) {
           endpoint.handleOkay(message);
@@ -515,18 +487,16 @@ final class _PacketConnection extends AdbConnection {
           endpoint.handleClose();
         }
       case AdbCommand.open:
-        // The device opens a stream to us only for reverse forwarding, and
-        // only to a target registered here; anything else is refused (adb
-        // aborts on it, as an unchecked OPEN would let a device reach
-        // whatever the host can).
+        // The device opens a stream to us only for reverse forwarding, and only to a target registered here; anything
+        // else is refused (adb aborts on it, as an unchecked OPEN would let a device reach whatever the host can).
         if (message.arg0 == 0) return;
         var target = utf8.decode(message.payload, allowMalformed: true);
         while (target.endsWith('\u0000')) {
           target = target.substring(0, target.length - 1);
         }
         final handler = _reverseTargets[target];
-        // As adbd: the window must be there exactly when delayed
-        // acknowledgements are on. And a device may not flood us.
+        // As adbd: the window must be there exactly when delayed acknowledgements are on. And a device may not flood
+        // us.
         final reverseStreams = _endpoints.values.where((e) => e.accepted);
         if (handler == null || delayedAck != (message.arg1 != 0) || reverseStreams.length >= maxReverseStreams) {
           _link
@@ -536,8 +506,7 @@ final class _PacketConnection extends AdbConnection {
         }
         _acceptReverse(message, target, handler);
       case AdbCommand.connect:
-        // A new CNXN means adbd started over (restarted, or switched mode):
-        // every stream on this connection is gone.
+        // A new CNXN means adbd started over (restarted, or switched mode): every stream on this connection is gone.
         _link.fail(const AdbClosedException('The device restarted the connection (new CNXN)'));
       case AdbCommand.auth || AdbCommand.stls || AdbCommand.sync:
         _link.note('Ignored ${message.command.wireName} on an open connection');
@@ -556,23 +525,20 @@ final class _PacketConnection extends AdbConnection {
     _done.complete();
   }
 
-  /// An acknowledgement is overdue. adbd holds acknowledgements back on
-  /// purpose while a process does not read its input, so this alone does
-  /// not prove the device gone: ask it with the liveness probe. Only a probe
-  /// without an answer fails the connection.
+  /// An acknowledgement is overdue. adbd holds acknowledgements back on purpose while a process does not read its
+  /// input, so this alone does not prove the device gone: ask it with the liveness probe. Only a probe without an
+  /// answer fails the connection.
   void _onAcknowledgementOverdue(StreamEndpoint endpoint) {
     if (identical(endpoint, _livenessProbe)) {
       _link.fail(
         AdbTimeoutException(
-          'The device stopped answering (no answer to a liveness check '
-          'within ${_options.acknowledgementTimeout})',
+          'The device stopped answering (no answer to a liveness check within ${_options.acknowledgementTimeout})',
         ),
       );
       return;
     }
     _link.note(
-      'No acknowledgement on "${endpoint.service}" within '
-      '${_options.acknowledgementTimeout}: checking the device',
+      'No acknowledgement on "${endpoint.service}" within ${_options.acknowledgementTimeout}: checking the device',
     );
     _probe();
   }
@@ -596,9 +562,8 @@ final class _PacketConnection extends AdbConnection {
     _scheduleLivenessCheck();
   }
 
-  /// Opens the liveness service unless a check is already running. Any
-  /// answer (adbd refuses it) proves the device is there; no answer trips
-  /// the probe's own acknowledgement timer.
+  /// Opens the liveness service unless a check is already running. Any answer (adbd refuses it) proves the device is
+  /// there; no answer trips the probe's own acknowledgement timer.
   void _probe() {
     if (_livenessProbe != null || _closeReason != null) return;
     final probe = _livenessProbe = _openEndpoint(livenessService);
@@ -662,8 +627,7 @@ final class _PacketConnection extends AdbConnection {
   }
 }
 
-/// The connection's side facing the link and the stream endpoints, kept off
-/// [AdbConnection]'s public surface.
+/// The connection's side facing the link and the stream endpoints, kept off [AdbConnection]'s public surface.
 final class _ConnectionCore implements MessageHandler, StreamHost {
   _ConnectionCore(this._connection);
 

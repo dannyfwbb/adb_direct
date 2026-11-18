@@ -6,10 +6,9 @@ import 'dart:typed_data';
 
 /// A FIFO of bytes that arrive in chunks and leave in arbitrary sizes.
 ///
-/// Chunks are kept as they came; nothing is copied until bytes are taken, and
-/// a take that falls inside one chunk returns a view of it. Used by every
-/// framing layer (messages, shell protocol, sync) so each one parses from a
-/// single, tested buffer.
+/// Chunks are kept as they came; nothing is copied until bytes are taken, and a take that falls inside one chunk
+/// returns a view of it. Used by every framing layer (messages, shell protocol, sync) so each one parses from a single,
+/// tested buffer.
 final class ByteQueue {
   final Queue<Uint8List> _chunks = Queue<Uint8List>();
   int _headOffset = 0;
@@ -21,8 +20,7 @@ final class ByteQueue {
   /// Whether no bytes are buffered.
   bool get isEmpty => _length == 0;
 
-  /// Appends [bytes]. The queue keeps a reference: callers must not modify
-  /// the list afterwards.
+  /// Appends [bytes]. The queue keeps a reference: callers must not modify the list afterwards.
   void add(List<int> bytes) {
     if (bytes.isEmpty) return;
     _chunks.add(bytes is Uint8List ? bytes : Uint8List.fromList(bytes));

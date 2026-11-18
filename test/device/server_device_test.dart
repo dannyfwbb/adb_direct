@@ -10,8 +10,7 @@ import 'dart:typed_data';
 import 'package:adb_direct/adb_direct.dart';
 import 'package:test/test.dart';
 
-/// Through a running adb server (port 5037) to the device it knows as
-/// ADB_DIRECT_TEST_SERVER_SERIAL.
+/// Through a running adb server (port 5037) to the device it knows as ADB_DIRECT_TEST_SERVER_SERIAL.
 final String? serial = Platform.environment['ADB_DIRECT_TEST_SERVER_SERIAL'];
 final String? skip = serial == null ? 'ADB_DIRECT_TEST_SERVER_SERIAL is not set (see test/device/README.md)' : null;
 
@@ -41,10 +40,7 @@ void main() {
     final watch = Stopwatch()..start();
     await adb.sync.writeAll(path, data);
     final back = await adb.sync.readAll(path);
-    print(
-      'sync round trip of 2 MiB through the server: '
-      '${watch.elapsedMilliseconds} ms',
-    );
+    print('sync round trip of 2 MiB through the server: ${watch.elapsedMilliseconds} ms');
     expect(back, data);
     await adb.shell.run('rm -f $path');
 

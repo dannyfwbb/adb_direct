@@ -16,8 +16,8 @@ enum PairingServerMode {
   /// Pairs like adbd: answers with its GUID when the code matches.
   normal,
 
-  /// Closes the session when the client's info does not decrypt, as adbd
-  /// does with a wrong code (it never sends its own then).
+  /// Closes the session when the client's info does not decrypt, as adbd does with a wrong code (it never sends its own
+  /// then).
   closeOnWrongCode,
 
   /// Sends a SPAKE2 message that is not a curve point.
@@ -27,12 +27,11 @@ enum PairingServerMode {
   silent,
 }
 
-/// adbd's pairing server, built from the library's own pairing primitives
-/// in the server role. It proves the two roles agree (symmetry), not that
-/// adbd does: the SPAKE2 vectors and the real device test cover that.
+/// adbd's pairing server, built from the library's own pairing primitives in the server role. It proves the two roles
+/// agree (symmetry), not that adbd does: the SPAKE2 vectors and the real device test cover that.
 ///
-/// dart:io gives a TLS server no key log, so the exporter comes from the
-/// client's [keyLog] lines (the secret is the same on both ends).
+/// dart:io gives a TLS server no key log, so the exporter comes from the client's [keyLog] lines (the secret is the
+/// same on both ends).
 final class FakePairingServer {
   FakePairingServer._(this._server, this.code, this.guid, this.mode);
 
@@ -114,8 +113,7 @@ final class FakePairingServer {
         write: socket.add,
       );
     }
-    // adbd's order on a wrong code: read the client's info first, fail to
-    // decrypt it, close without answering.
+    // adbd's order on a wrong code: read the client's info first, fail to decrypt it, close without answering.
     final spake = Spake2(Spake2Role.bob, myName: pairingServerName, theirName: pairingClientName);
     socket.add(pairingPacket(PairingPacket.spake2Message, spake.generateMessage(password)));
     final (_, theirMessage) = await reader.next();

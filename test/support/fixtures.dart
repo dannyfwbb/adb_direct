@@ -27,8 +27,7 @@ final class FixturePacket {
   /// The message.
   final AdbMessage message;
 
-  /// The bytes exactly as they crossed the wire: header (with the sender's
-  /// checksum) and payload.
+  /// The bytes exactly as they crossed the wire: header (with the sender's checksum) and payload.
   final Uint8List raw;
 
   @override
@@ -70,12 +69,10 @@ final class Fixture {
   /// The packets in the order they were sent or received.
   final List<FixturePacket> packets;
 
-  /// Whether the recording starts at the TCP connection (`connection`) or
-  /// on an already online connection (`online`).
+  /// Whether the recording starts at the TCP connection (`connection`) or on an already online connection (`online`).
   bool get startsOnline => header['starts'] == 'online';
 
-  /// The host features the recorder announced, for fixtures that start
-  /// online.
+  /// The host features the recorder announced, for fixtures that start online.
   String? get hostFeatures => header['host_features'] as String?;
 
   /// Packets the device sent.
@@ -108,8 +105,7 @@ final class Fixture {
     return FixturePacket(direction, message, raw);
   }
 
-  /// A fixture whose fields disagree with its raw bytes was edited by hand
-  /// or recorded wrongly; refuse it.
+  /// A fixture whose fields disagree with its raw bytes was edited by hand or recorded wrongly; refuse it.
   static void _checkRaw(AdbMessage message, Uint8List raw) {
     final header = ByteData.sublistView(raw);
     final consistent =
@@ -120,10 +116,7 @@ final class Fixture {
         header.getUint32(12, Endian.little) == message.payload.length &&
         _sameBytes(Uint8List.sublistView(raw, 24), message.payload);
     if (!consistent) {
-      throw FormatException(
-        'Fixture packet $message disagrees with its raw '
-        'bytes',
-      );
+      throw FormatException('Fixture packet $message disagrees with its raw bytes');
     }
   }
 

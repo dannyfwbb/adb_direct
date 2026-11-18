@@ -49,15 +49,13 @@ final class HandshakeResult {
   final Uint8List? deviceCertificate;
 }
 
-/// Thrown by [Handshake.run] when the device closed the TLS session before
-/// `CNXN`: it does not trust the key presented, and the caller may try the
-/// next key on a new connection.
+/// Thrown by [Handshake.run] when the device closed the TLS session before `CNXN`: it does not trust the key presented,
+/// and the caller may try the next key on a new connection.
 final class TlsKeyRejected implements Exception {
   /// Creates the signal; [cause] is how the session ended.
   const TlsKeyRejected(this.cause);
 
-  /// The close or error seen. A dropped network looks the same from here,
-  /// so callers keep it for the final error.
+  /// The close or error seen. A dropped network looks the same from here, so callers keep it for the final error.
   final AdbException cause;
 }
 
@@ -70,16 +68,16 @@ final class TlsKeyRejected implements Exception {
 /// < CNXN(version, maxdata, "device::…")
 /// ```
 ///
-/// A device without authentication answers `CNXN` with `CNXN`. A device on
-/// a wireless-debugging port answers with `STLS`:
+/// A device without authentication answers `CNXN` with `CNXN`. A device on a wireless-debugging port answers with
+/// `STLS`:
 ///
 /// ```
 /// < STLS                   > STLS, then TLS 1.3 with the key's certificate
 /// < CNXN(…) inside TLS     (no AUTH: the certificate is the authentication)
 /// ```
 ///
-/// One TLS handshake presents one key ([tlsKey]); a device that does not
-/// trust it closes the session, and [run] throws [TlsKeyRejected].
+/// One TLS handshake presents one key ([tlsKey]); a device that does not trust it closes the session, and [run] throws
+/// [TlsKeyRejected].
 final class Handshake {
   /// Prepares a handshake over [link] trying [keys] in order.
   Handshake(this.link, {required this.keys, required this.options, this.onWaitingForApproval, this.tlsKey = 0});
@@ -90,19 +88,16 @@ final class Handshake {
   /// The link, started and not yet routed.
   final MessageLink link;
 
-  /// Keys to try, in order. The first one is offered to the user when none
-  /// is trusted and prompting is allowed.
+  /// Keys to try, in order. The first one is offered to the user when none is trusted and prompting is allowed.
   final List<AdbKeyPair> keys;
 
   /// Timeouts and features.
   final AdbConnectOptions options;
 
-  /// Called when the public key has been offered and the device is showing
-  /// "Allow debugging?".
+  /// Called when the public key has been offered and the device is showing "Allow debugging?".
   final void Function()? onWaitingForApproval;
 
-  /// Runs the handshake. Throws an [AdbException] when it fails; the caller
-  /// closes the link then.
+  /// Runs the handshake. Throws an [AdbException] when it fails; the caller closes the link then.
   Future<HandshakeResult> run() async {
     final banner = AdbBanner.host(options.hostFeatures).encode();
     final bannerBytes = utf8.encode(banner);
@@ -119,8 +114,8 @@ final class Handshake {
     AdbKeyPair? accepted;
     var tls = false;
     Uint8List? deviceCertificate;
-    // One deadline per phase (before the offer, then the user's answer):
-    // messages that do not move the handshake on cannot extend it.
+    // One deadline per phase (before the offer, then the user's answer): messages that do not move the handshake on
+    // cannot extend it.
     var deadline = link.clock.elapsed + options.handshakeTimeout;
     while (true) {
       final left = deadline - link.clock.elapsed;
@@ -129,18 +124,12 @@ final class Handshake {
         message = await link.next(
           timeout: left > Duration.zero ? left : Duration.zero,
           onTimeout: () => offered
-              ? AdbUnauthorizedException(
-                  'The device did not accept the key within '
-                  '${options.approvalTimeout}',
-                )
-              : AdbTimeoutException(
-                  'The device did not answer the handshake within '
-                  '${options.handshakeTimeout}',
-                ),
+              ? AdbUnauthorizedException('The device did not accept the key within ${options.approvalTimeout}')
+              : AdbTimeoutException('The device did not answer the handshake within ${options.handshakeTimeout}'),
         );
       } on AdbClosedException catch (e) {
-        // After TLS the device closes a session whose key it does not
-        // trust (TLS 1.3 completes on our side before it decides).
+        // After TLS the device closes a session whose key it does not trust (TLS 1.3 completes on our side before it
+        // decides).
         if (tls) throw TlsKeyRejected(e);
         rethrow;
       }
@@ -214,8 +203,7 @@ final class Handshake {
     }
   }
 
-  /// [future] or a timeout on the link's clock; the caller destroys the
-  /// link on failure.
+  /// [future] or a timeout on the link's clock; the caller destroys the link on failure.
   Future<T> _within<T>(Future<T> future, Duration timeout) {
     final done = Completer<T>();
     final timer = link.clock.timer(timeout, () {
@@ -257,10 +245,7 @@ final class Handshake {
     link
       ..withChecksum = version < AdbProtocol.versionSkipChecksum
       ..maxIncomingPayload = maxPayload
-      ..note(
-        'Handshake: online, version 0x${version.toRadixString(16)}, '
-        'maxdata $maxPayload, delayed ACK $delayedAck',
-      );
+      ..note('Handshake: online, version 0x${version.toRadixString(16)}, maxdata $maxPayload, delayed ACK $delayedAck');
     return HandshakeResult(
       banner: banner,
       protocolVersion: version,

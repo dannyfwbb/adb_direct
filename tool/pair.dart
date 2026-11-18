@@ -16,10 +16,7 @@ import 'package:adb_direct/adb_direct.dart';
 
 Future<void> main(List<String> args) async {
   if (args.length < 4) {
-    stderr.writeln(
-      'usage: dart run tool/pair.dart <host> <pairing port> <code> '
-      '<key file> [<connect port>]',
-    );
+    stderr.writeln('usage: dart run tool/pair.dart <host> <pairing port> <code> <key file> [<connect port>]');
     exitCode = 64;
     return;
   }

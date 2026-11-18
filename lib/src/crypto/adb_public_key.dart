@@ -9,17 +9,16 @@ import 'package:meta/meta.dart';
 
 import 'der.dart';
 
-/// An RSA public key in the form adb and adbd exchange: a 524-byte
-/// structure in base64, followed by a comment such as `user@host`.
+/// An RSA public key in the form adb and adbd exchange: a 524-byte structure in base64, followed by a comment such as
+/// `user@host`.
 ///
-/// This is the format of `adbkey.pub` and of the key a device shows in
-/// "Allow debugging?".
+/// This is the format of `adbkey.pub` and of the key a device shows in "Allow debugging?".
 @immutable
 final class AdbPublicKey {
   /// Creates a key from its RSA modulus and exponent.
   ///
-  /// Throws [ArgumentError] unless the modulus is an odd 2048-bit number
-  /// and the exponent is odd, at least 3 and fits in 32 bits.
+  /// Throws [ArgumentError] unless the modulus is an odd 2048-bit number and the exponent is odd, at least 3 and fits
+  /// in 32 bits.
   AdbPublicKey({required this.modulus, required this.exponent, this.comment = ''}) {
     if (modulus.bitLength != _modulusBytes * 8 || modulus.isEven) {
       throw ArgumentError.value(modulus.bitLength, 'modulus', 'adb keys are 2048-bit RSA with an odd modulus');
@@ -29,8 +28,8 @@ final class AdbPublicKey {
     }
   }
 
-  /// Parses `<base64> <comment>`, the content of an `adbkey.pub` file or
-  /// of an `AUTH` public key payload (a trailing NUL is allowed).
+  /// Parses `<base64> <comment>`, the content of an `adbkey.pub` file or of an `AUTH` public key payload (a trailing
+  /// NUL is allowed).
   ///
   /// Throws [FormatException] for anything that is not a valid adb key.
   factory AdbPublicKey.parse(String text) {
@@ -47,8 +46,7 @@ final class AdbPublicKey {
     return AdbPublicKey.fromBytes(bytes, comment: comment);
   }
 
-  /// Decodes the 524-byte structure. Throws [FormatException] when it is
-  /// malformed or inconsistent.
+  /// Decodes the 524-byte structure. Throws [FormatException] when it is malformed or inconsistent.
   factory AdbPublicKey.fromBytes(List<int> bytes, {String comment = ''}) {
     if (bytes.length != encodedLength) {
       throw FormatException('adb public key has ${bytes.length} bytes; expected $encodedLength');
@@ -85,8 +83,8 @@ final class AdbPublicKey {
   /// The text after the key, conventionally `user@host`. Empty if none.
   final String comment;
 
-  /// The 524-byte structure: word count, n0inv = −n⁻¹ mod 2³², n and
-  /// rr = (2²⁰⁴⁸)² mod n in little-endian, then the exponent.
+  /// The 524-byte structure: word count, n0inv = −n⁻¹ mod 2³², n and rr = (2²⁰⁴⁸)² mod n in little-endian, then the
+  /// exponent.
   Uint8List toBytes() {
     final out = Uint8List(encodedLength);
     final data = ByteData.sublistView(out);
@@ -109,17 +107,15 @@ final class AdbPublicKey {
     return comment.isEmpty ? key : '$key $comment';
   }
 
-  /// The fingerprint a device shows in "Allow debugging?": MD5 of the
-  /// 524-byte structure, uppercase hex bytes separated by colons.
+  /// The fingerprint a device shows in "Allow debugging?": MD5 of the 524-byte structure, uppercase hex bytes separated
+  /// by colons.
   String get md5Fingerprint =>
       hashes.md5.convert(toBytes()).bytes.map((b) => b.toRadixString(16).padLeft(2, '0').toUpperCase()).join(':');
 
-  /// Whether [other] is the same RSA key, whatever the comments say. A
-  /// device identifies a client by this alone.
+  /// Whether [other] is the same RSA key, whatever the comments say. A device identifies a client by this alone.
   bool hasSameKey(AdbPublicKey other) => other.modulus == modulus && other.exponent == exponent;
 
-  /// Equal when the key and the comment are equal; see [hasSameKey] to
-  /// compare keys only.
+  /// Equal when the key and the comment are equal; see [hasSameKey] to compare keys only.
   @override
   bool operator ==(Object other) =>
       other is AdbPublicKey && other.modulus == modulus && other.exponent == exponent && other.comment == comment;

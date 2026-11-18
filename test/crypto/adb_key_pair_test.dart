@@ -14,8 +14,7 @@ import 'package:test/test.dart';
 
 import '../support/tools.dart';
 
-/// A test-only key pair made with `adb keygen` (never trusted by any
-/// device), with adb's own public key file for it.
+/// A test-only key pair made with `adb keygen` (never trusted by any device), with adb's own public key file for it.
 final String keyPem = File('test/fixtures/keys/adbkey').readAsStringSync();
 final String keyPkcs1Pem = File('test/fixtures/keys/adbkey_pkcs1.pem').readAsStringSync();
 final String adbPub = File('test/fixtures/keys/adbkey.pub').readAsStringSync();
@@ -217,8 +216,7 @@ void main() {
     });
   });
 
-  test('the user’s own ~/.android/adbkey yields its adbkey.pub '
-      '(set ADB_DIRECT_TEST_ADBKEY_DIR to run)', () {
+  test('the user’s own ~/.android/adbkey yields its adbkey.pub (set ADB_DIRECT_TEST_ADBKEY_DIR to run)', () {
     final dir = Platform.environment['ADB_DIRECT_TEST_ADBKEY_DIR']!;
     final pub = File('$dir/adbkey.pub').readAsStringSync().trim();
     final comment = pub.substring(pub.indexOf(' ') + 1);

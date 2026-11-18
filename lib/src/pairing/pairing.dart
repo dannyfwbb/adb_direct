@@ -23,35 +23,29 @@ final class AdbPairedDevice {
   /// Creates the result.
   const AdbPairedDevice({required this.guid, required this.certificate});
 
-  /// The device's wireless debugging GUID (`adb-<serial>-<random>`): the
-  /// instance name it announces on mDNS, so the paired device can be found
-  /// again on `_adb-tls-connect._tcp`.
+  /// The device's wireless debugging GUID (`adb-<serial>-<random>`): the instance name it announces on mDNS, so the
+  /// paired device can be found again on `_adb-tls-connect._tcp`.
   final String guid;
 
   /// The certificate (DER) the device presented on the pairing port.
   final Uint8List certificate;
 }
 
-/// Pairing with Android 11+ wireless debugging: puts a key into the
-/// device's trusted keys with the code it shows, without a cable or a
-/// prompt.
+/// Pairing with Android 11+ wireless debugging: puts a key into the device's trusted keys with the code it shows,
+/// without a cable or a prompt.
 abstract final class AdbPairing {
-  /// Pairs [key] with the device at [host]:[port], the pairing port (not
-  /// the connection port) from "Pair device with pairing code", using the
-  /// six-digit [code] on its screen (or the password of a QR code).
+  /// Pairs [key] with the device at [host]:[port], the pairing port (not the connection port) from "Pair device with
+  /// pairing code", using the six-digit [code] on its screen (or the password of a QR code).
   ///
-  /// Afterwards [AdbConnection.connect] to the device's wireless debugging
-  /// port with [key] works without a prompt. The key's comment
-  /// (`user@host`) is what the device lists under paired devices.
+  /// Afterwards [AdbConnection.connect] to the device's wireless debugging port with [key] works without a prompt. The
+  /// key's comment (`user@host`) is what the device lists under paired devices.
   ///
-  /// Throws [AdbPairingException] (with [AdbPairingFailure.wrongCode] for a
-  /// code the device rejects), [AdbUnreachableException],
-  /// [AdbRefusedException] (no pairing server: the dialog was closed),
-  /// [AdbTimeoutException] after [timeout], or [AdbCancelledException]
-  /// when [cancelOn] completes first.
+  /// Throws [AdbPairingException] (with [AdbPairingFailure.wrongCode] for a code the device rejects),
+  /// [AdbUnreachableException], [AdbRefusedException] (no pairing server: the dialog was closed), [AdbTimeoutException]
+  /// after [timeout], or [AdbCancelledException] when [cancelOn] completes first.
   ///
-  /// [keyLog] receives the TLS session's key-log lines (NSS format), for
-  /// decrypting a capture in Wireshark; they are secrets.
+  /// [keyLog] receives the TLS session's key-log lines (NSS format), for decrypting a capture in Wireshark; they are
+  /// secrets.
   static Future<AdbPairedDevice> pair(
     Object host,
     int port, {
@@ -98,8 +92,8 @@ abstract final class AdbPairing {
           host,
           port,
           context: context,
-          // Neither side checks the other's certificate: the code, bound to
-          // this TLS session by the exporter, is what authenticates.
+          // Neither side checks the other's certificate: the code, bound to this TLS session by the exporter, is what
+          // authenticates.
           onBadCertificate: (_) => true,
           keyLog: (line) {
             lines.add(line);
@@ -158,9 +152,8 @@ abstract final class AdbPairing {
     }
   }
 
-  /// The exported keying material. dart:io delivers key-log lines through
-  /// the event queue; if they are not there yet when the handshake
-  /// completes, give them one turn.
+  /// The exported keying material. dart:io delivers key-log lines through the event queue; if they are not there yet
+  /// when the handshake completes, give them one turn.
   static Future<Uint8List> _exporter(List<String> lines) async {
     for (var attempt = 0; ; attempt++) {
       try {

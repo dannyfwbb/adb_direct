@@ -16,8 +16,8 @@ final Map<String, String> answers =
     (jsonDecode(File('test/fixtures/services/answers.json').readAsStringSync()) as Map<String, Object?>)
         .cast<String, String>();
 
-/// Connects to a fake that answers one service with [text], closing the
-/// stream ([closeStream]) or dropping the whole connection after it.
+/// Connects to a fake that answers one service with [text], closing the stream ([closeStream]) or dropping the whole
+/// connection after it.
 Future<(AdbConnection, FakeAdbd, Completer<String>)> serve(String text, {bool closeStream = true}) async {
   final service = Completer<String>();
   final adbd = await FakeAdbd.start((session) async {

@@ -16,18 +16,15 @@ import '../stream/adb_stream.dart';
 import '../stream/progress_watchdog.dart';
 import '../stream/stream_reader.dart';
 
-/// Called as a transfer progresses with the bytes done so far and the total
-/// when known.
+/// Called as a transfer progresses with the bytes done so far and the total when known.
 typedef AdbProgress = void Function(int done, int? total);
 
 /// Files on the device: [AdbConnection.sync].
 ///
-/// Uses the sync protocol (`adb push`, `adb pull`, `adb ls`). Operations run
-/// one at a time on a sync session; several at once open several sessions.
-/// An idle session is closed after a short while.
+/// Uses the sync protocol (`adb push`, `adb pull`, `adb ls`). Operations run one at a time on a sync session; several
+/// at once open several sessions. An idle session is closed after a short while.
 final class AdbSync {
-  /// Creates the namespace for [_connection]; transfers that make no
-  /// progress for [stallTimeout] fail.
+  /// Creates the namespace for [_connection]; transfers that make no progress for [stallTimeout] fail.
   @internal
   AdbSync(this._connection, {required this.stallTimeout}) {
     unawaited(_connection.done.then((_) => _idleTimer?.cancel()));
@@ -39,8 +36,7 @@ final class AdbSync {
   @internal
   AdbConnection get connection => _connection;
 
-  /// How long a transfer may make no progress before it fails with
-  /// [AdbTimeoutException] (the connection stays up).
+  /// How long a transfer may make no progress before it fails with [AdbTimeoutException] (the connection stays up).
   final Duration stallTimeout;
 
   _SyncSession? _idle;
@@ -57,14 +53,11 @@ final class AdbSync {
 
   /// Information about [path], or null when it does not exist.
   ///
-  /// With [followLinks] false (the default, like `lstat`) a link is
-  /// described itself; with true its target is, which needs
-  /// [canFollowLinks]. Devices without `stat_v2` (Android 7 and older)
-  /// report sizes modulo 4 GiB and cannot tell a missing file from an
-  /// unreadable one (both null).
+  /// With [followLinks] false (the default, like `lstat`) a link is described itself; with true its target is, which
+  /// needs [canFollowLinks]. Devices without `stat_v2` (Android 7 and older) report sizes modulo 4 GiB and cannot tell
+  /// a missing file from an unreadable one (both null).
   ///
-  /// Throws [AdbSyncException] when the device refuses (permission denied,
-  /// not a directory in the path, …).
+  /// Throws [AdbSyncException] when the device refuses (permission denied, not a directory in the path, …).
   Future<AdbFileStat?> stat(String path, {bool followLinks = false}) async {
     if (followLinks && !_v2Stat) {
       throw const AdbNotSupportedException('Following links in stat needs stat_v2 (Android 8 and later)');
@@ -75,9 +68,8 @@ final class AdbSync {
 
   /// The entries of the directory [path] (without `.` and `..`).
   ///
-  /// A directory the device cannot read, or a path that is not one, gives
-  /// an empty list (adbd answers so on every version); `stat` tells them
-  /// apart. Entries the device can name but not describe are left out.
+  /// A directory the device cannot read, or a path that is not one, gives an empty list (adbd answers so on every
+  /// version); `stat` tells them apart. Entries the device can name but not describe are left out.
   Future<List<AdbDirectoryEntry>> list(String path) async {
     _checkPath(path);
     return _run((session) => session.list(path));
@@ -85,8 +77,8 @@ final class AdbSync {
 
   /// The content of the file [path], as it arrives.
   ///
-  /// Throws [AdbSyncException] (for example permission denied) when the
-  /// device refuses. Cancelling the subscription stops the transfer.
+  /// Throws [AdbSyncException] (for example permission denied) when the device refuses. Cancelling the subscription
+  /// stops the transfer.
   Stream<Uint8List> read(String path, {AdbProgress? onProgress}) async* {
     _checkPath(path);
     final session = await _acquire();
@@ -120,17 +112,13 @@ final class AdbSync {
 
   /// Writes [data] to the file [path] on the device, replacing it.
   ///
-  /// [permissions] are the file's mode bits (`0644` by default). adbd
-  /// copies the owner's bits to group and others (`0644` becomes `0666`,
-  /// `0755` becomes `0777`), as with `adb push`; only the owner's bits
-  /// matter. [modified] sets its modification time (now when null; seconds
-  /// from 1970 to 2106). [size], when given, is passed to [onProgress] as
+  /// [permissions] are the file's mode bits (`0644` by default). adbd copies the owner's bits to group and others
+  /// (`0644` becomes `0666`, `0755` becomes `0777`), as with `adb push`; only the owner's bits matter. [modified] sets
+  /// its modification time (now when null; seconds from 1970 to 2106). [size], when given, is passed to [onProgress] as
   /// the total; progress counts bytes the device has acknowledged.
   ///
-  /// Throws [AdbSyncException] when the device refuses (read-only file
-  /// system, no space, permission denied) — as soon as it does, not after
-  /// the whole file was sent. Fails if [data] fails; adbd then removes the
-  /// partial file.
+  /// Throws [AdbSyncException] when the device refuses (read-only file system, no space, permission denied) — as soon
+  /// as it does, not after the whole file was sent. Fails if [data] fails; adbd then removes the partial file.
   Future<void> write(
     String path,
     Stream<List<int>> data, {
@@ -152,8 +140,7 @@ final class AdbSync {
   Future<void> writeAll(String path, List<int> bytes, {int permissions = 0x1a4, DateTime? modified}) =>
       write(path, Stream.value(bytes), permissions: permissions, modified: modified, size: bytes.length);
 
-  /// Creates the symbolic link [path] pointing at [target], as `adb push`
-  /// does for links.
+  /// Creates the symbolic link [path] pointing at [target], as `adb push` does for links.
   Future<void> writeLink(String path, String target, {DateTime? modified}) {
     final mode = 0xa000 | 0x1ff;
     _checkPath(_v2Transfer ? path : '$path,$mode');
@@ -261,9 +248,8 @@ final class _SyncSession {
   /// Longest `FAIL` message accepted.
   static const int _maxFailMessage = 64 * 1024;
 
-  // A request whose answer was not read completely leaves the session in
-  // an unknown place; a FAIL makes adbd close it. Either way it is not
-  // reused.
+  // A request whose answer was not read completely leaves the session in an unknown place; a FAIL makes adbd close it.
+  // Either way it is not reused.
   bool _dirty = false;
   bool _broken = false;
 
@@ -282,8 +268,7 @@ final class _SyncSession {
 
   Future<AdbFileStat?> stat(String path, {required bool followLinks}) async {
     final request = SyncRequest.withPath(v2Stat ? (followLinks ? SyncId.stat2 : SyncId.lstat2) : SyncId.stat, path);
-    // The answer is read completely before an errno turns into an
-    // exception, so the session stays reusable.
+    // The answer is read completely before an errno turns into an exception, so the session stays reusable.
     final (stat, error) = await _exchange(() => _stat(request, followLinks));
     if (error == 0 || error == 2) return stat;
     throw AdbSyncException('Cannot stat $path: ${errnoName(error)}', path: path);
@@ -351,8 +336,7 @@ final class _SyncSession {
     unawaited(_stream.write(request).catchError((Object _) {}));
   }
 
-  /// The next chunk of a transfer started with [startRead], or null at its
-  /// end.
+  /// The next chunk of a transfer started with [startRead], or null at its end.
   Future<Uint8List?> nextReadChunk(String path) async {
     final head = await _reader.readExactly(8);
     final data = ByteData.sublistView(head);
@@ -406,8 +390,8 @@ final class _SyncSession {
     int? size,
     AdbProgress? onProgress,
   ) async {
-    // Progress counts file bytes the device acknowledged, not the framing:
-    // each DATA frame records where its payload ends on the wire.
+    // Progress counts file bytes the device acknowledged, not the framing: each DATA frame records where its payload
+    // ends on the wire.
     final start = _stream.acknowledgedBytes;
     final frames = <(int, int)>[]; // (wire end, payload end)
     var wire = 0;
@@ -429,8 +413,8 @@ final class _SyncSession {
       await _stream.write(request);
       await for (final chunk in data) {
         for (var offset = 0; offset < chunk.length;) {
-          // adbd answers a write error with FAIL at once and then drains
-          // until DONE: stop sending as soon as anything comes back.
+          // adbd answers a write error with FAIL at once and then drains until DONE: stop sending as soon as anything
+          // comes back.
           if (_reader.buffered > 0) return await _finishEarly(path, mtime);
           final end = offset + SyncLimits.maxData < chunk.length ? offset + SyncLimits.maxData : chunk.length;
           final frame = Uint8List(8 + end - offset);
@@ -459,8 +443,7 @@ final class _SyncSession {
     if (error != null) throw error;
   }
 
-  /// The device answered before the end of the data: send DONE (adbd drains
-  /// until it) and report its answer.
+  /// The device answered before the end of the data: send DONE (adbd drains until it) and report its answer.
   Future<void> _finishEarly(String path, int mtime) async {
     await _stream.write(SyncRequest.header(SyncId.done, mtime));
     throw await _pushError(path) ?? AdbProtocolException('The device accepted an unfinished push');

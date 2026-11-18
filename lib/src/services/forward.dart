@@ -10,20 +10,17 @@ import '../connection/connection.dart';
 import '../errors.dart';
 import 'pipe.dart';
 
-/// A local port forwarded to a device service (`adb forward`): each
-/// connection to [port] here opens [remote] on the device and copies bytes
-/// both ways.
+/// A local port forwarded to a device service (`adb forward`): each connection to [port] here opens [remote] on the
+/// device and copies bytes both ways.
 ///
-/// There is no adb server here, so the forward lives in this process and
-/// ends with [close] or with the connection.
+/// There is no adb server here, so the forward lives in this process and ends with [close] or with the connection.
 final class AdbForward {
   AdbForward._(this._server, this.remote, this._connection) : port = _server.port, address = _server.address {
     _server.listen(_accept, onError: (Object _) {});
     _connection.done.then((_) => close()).ignore();
   }
 
-  /// Listens on [address]:[port] (0: any free port) and forwards to
-  /// [remote] on [connection].
+  /// Listens on [address]:[port] (0: any free port) and forwards to [remote] on [connection].
   @internal
   static Future<AdbForward> start(
     AdbConnection connection,
@@ -41,8 +38,7 @@ final class AdbForward {
   final Set<Socket> _clients = {};
   bool _closed = false;
 
-  /// The device service (`tcp:8080`, `localabstract:chrome_devtools_remote`,
-  /// `jdwp:1234`, …).
+  /// The device service (`tcp:8080`, `localabstract:chrome_devtools_remote`, `jdwp:1234`, …).
   final String remote;
 
   /// The local port.
@@ -82,8 +78,7 @@ final class AdbForward {
       }
       await pipe(stream, client);
     } on AdbException {
-      // The device refused the service or the connection ended: the local
-      // peer sees its connection close.
+      // The device refused the service or the connection ended: the local peer sees its connection close.
     } finally {
       _clients.remove(client);
       client.destroy();

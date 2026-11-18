@@ -26,8 +26,7 @@ abstract final class Pem {
       PemBlock(match.group(1)!, base64.decode(match.group(2)!.replaceAll(RegExp(r'\s'), ''))),
   ];
 
-  /// [der] as a PEM block with [label], lines of 64 characters, ending with
-  /// a newline.
+  /// [der] as a PEM block with [label], lines of 64 characters, ending with a newline.
   static String encode(String label, List<int> der) {
     final body = base64.encode(der);
     final lines = [

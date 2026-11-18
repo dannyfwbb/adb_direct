@@ -17,8 +17,7 @@ typedef FakeAdbdScript = Future<void> Function(FakeAdbdSession session);
 /// Decides whether a message the client sent matches the recorded one.
 typedef PacketMatcher = bool Function(AdbMessage recorded, AdbMessage actual);
 
-/// Thrown inside a script when the client does something the script did not
-/// expect. It fails [FakeAdbd.done].
+/// Thrown inside a script when the client does something the script did not expect. It fails [FakeAdbd.done].
 final class FakeAdbdFailure implements Exception {
   /// Creates the failure.
   FakeAdbdFailure(this.message);
@@ -32,17 +31,14 @@ final class FakeAdbdFailure implements Exception {
 
 /// A scripted adbd on a loopback port.
 ///
-/// Each accepted connection runs the script in a [FakeAdbdSession]. The
-/// fake is as strict as the script makes it: an unexpected message from the
-/// client fails [done], so tests check what the client sent, not only how it
-/// reacts.
+/// Each accepted connection runs the script in a [FakeAdbdSession]. The fake is as strict as the script makes it: an
+/// unexpected message from the client fails [done], so tests check what the client sent, not only how it reacts.
 final class FakeAdbd {
   FakeAdbd._(this._server, this._script, this._connections) {
     _subscription = _server.listen(_accept);
   }
 
-  /// Starts a fake that serves exactly [connections] connections with
-  /// [script], then stops listening.
+  /// Starts a fake that serves exactly [connections] connections with [script], then stops listening.
   static Future<FakeAdbd> start(FakeAdbdScript script, {int connections = 1}) async {
     RangeError.checkValueInInterval(connections, 1, 1 << 16, 'connections');
     final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
@@ -64,18 +60,15 @@ final class FakeAdbd {
   /// The port to connect to.
   int get port => _server.port;
 
-  /// Completes when the expected connections were served and every script
-  /// finished.
+  /// Completes when the expected connections were served and every script finished.
   ///
-  /// Fails with the first script error, or with a [FakeAdbdFailure] when
-  /// fewer connections than expected arrived within [timeout].
+  /// Fails with the first script error, or with a [FakeAdbdFailure] when fewer connections than expected arrived within
+  /// [timeout].
   Future<void> done({Duration timeout = const Duration(seconds: 10)}) async {
     await _allAccepted.future.timeout(
       timeout,
-      onTimeout: () => throw FakeAdbdFailure(
-        'expected $_connections connection(s), got ${_runs.length} '
-        'within $timeout',
-      ),
+      onTimeout: () =>
+          throw FakeAdbdFailure('expected $_connections connection(s), got ${_runs.length} within $timeout'),
     );
     await Future.wait(_runs);
     if (_firstError case final error?) {
@@ -95,8 +88,8 @@ final class FakeAdbd {
       return;
     }
     final session = FakeAdbdSession._(socket);
-    // Errors are captured here, at once, so a failing script never becomes
-    // an unhandled error while other connections are still expected.
+    // Errors are captured here, at once, so a failing script never becomes an unhandled error while other connections
+    // are still expected.
     final run = Future(() => _script(session))
         .then<void>(
           (_) {},
@@ -116,12 +109,11 @@ final class FakeAdbd {
 
 /// adbd's side of one connection, driven by a script.
 ///
-/// One script drives a session: concurrent waits on the same session are a
-/// test bug and throw [StateError].
+/// One script drives a session: concurrent waits on the same session are a test bug and throw [StateError].
 final class FakeAdbdSession {
   FakeAdbdSession._(this._socket) {
-    // Writes to a client that already went away fail on `done`; the session
-    // learns about the close from the read side, so these are expected.
+    // Writes to a client that already went away fail on `done`; the session learns about the close from the read side,
+    // so these are expected.
     unawaited(_socket.done.then((_) {}, onError: (Object _) {}));
     _subscription = _socket.listen(
       _onData,
@@ -157,8 +149,8 @@ final class FakeAdbdSession {
   /// Every message the client sent so far.
   List<AdbMessage> get received => List.unmodifiable(_received);
 
-  /// The exact bytes of every message the client sent, in [received] order
-  /// (header included, so checksums can be checked).
+  /// The exact bytes of every message the client sent, in [received] order (header included, so checksums can be
+  /// checked).
   List<Uint8List> get receivedRaw => List.unmodifiable(_receivedRaw);
 
   /// Sends [message] to the client.
@@ -169,8 +161,7 @@ final class FakeAdbdSession {
 
   /// The next message from the client.
   ///
-  /// Fails when the client closes the connection or sends nothing within
-  /// [timeout].
+  /// Fails when the client closes the connection or sends nothing within [timeout].
   Future<AdbMessage> receive({Duration timeout = const Duration(seconds: 5)}) async {
     final deadline = DateTime.now().add(timeout);
     while (true) {
@@ -185,8 +176,7 @@ final class FakeAdbdSession {
     }
   }
 
-  /// Receives the next message and checks it against [expected] with
-  /// [matches] (exact equality by default).
+  /// Receives the next message and checks it against [expected] with [matches] (exact equality by default).
   Future<AdbMessage> expect(AdbMessage expected, {PacketMatcher? matches}) async {
     final actual = await receive();
     if (!(matches ?? _exact)(expected, actual)) {
@@ -195,24 +185,21 @@ final class FakeAdbdSession {
     return actual;
   }
 
-  /// Fails if the client sends anything within [duration]. The client may
-  /// close the connection.
+  /// Fails if the client sends anything within [duration]. The client may close the connection.
   Future<void> expectQuiet(Duration duration) async {
     final deadline = DateTime.now().add(duration);
     while (true) {
       _throwIfFailed();
       if (_inbox.isNotEmpty) {
         throw FakeAdbdFailure(
-          'unexpected message from the client: ${_inbox.first} '
-          '(payload ${_preview(_inbox.first)})',
+          'unexpected message from the client: ${_inbox.first} (payload ${_preview(_inbox.first)})',
         );
       }
       if (_clientClosed || !await _waitUntil(deadline)) return;
     }
   }
 
-  /// Waits until the client closes the connection, failing if it sends a
-  /// message first.
+  /// Waits until the client closes the connection, failing if it sends a message first.
   Future<void> expectClientClose({Duration timeout = const Duration(seconds: 5)}) async {
     final deadline = DateTime.now().add(timeout);
     while (true) {
@@ -236,8 +223,8 @@ final class FakeAdbdSession {
   /// Drops the connection at once, without sending what is queued.
   void destroy() => _socket.destroy();
 
-  /// Waits for news (a message, a close, an error) until [deadline].
-  /// Returns false when the deadline passed without news.
+  /// Waits for news (a message, a close, an error) until [deadline]. Returns false when the deadline passed without
+  /// news.
   Future<bool> _waitUntil(DateTime deadline) async {
     final left = deadline.difference(DateTime.now());
     if (left <= Duration.zero) return false;
@@ -278,8 +265,8 @@ final class FakeAdbdSession {
     if (waiter != null && !waiter.isCompleted) waiter.complete();
   }
 
-  /// Ends the session: sends what is queued, then closes. A client that
-  /// went away makes the flush fail; then the socket is just dropped.
+  /// Ends the session: sends what is queued, then closes. A client that went away makes the flush fail; then the socket
+  /// is just dropped.
   Future<void> _dispose() async {
     const grace = Duration(seconds: 1);
     try {
@@ -295,12 +282,10 @@ final class FakeAdbdSession {
   }
 }
 
-/// A script that replays [fixture]: it sends what the device sent and
-/// expects what the recorder sent, in the recorded order. After the last
-/// packet it fails if the client sends anything within [quietAfter].
+/// A script that replays [fixture]: it sends what the device sent and expects what the recorder sent, in the recorded
+/// order. After the last packet it fails if the client sends anything within [quietAfter].
 ///
-/// [matches] compares client messages with recorded ones; the default is
-/// [recordedPacketMatcher].
+/// [matches] compares client messages with recorded ones; the default is [recordedPacketMatcher].
 FakeAdbdScript replay(
   Fixture fixture, {
   PacketMatcher? matches,
@@ -317,9 +302,8 @@ FakeAdbdScript replay(
   await session.expectQuiet(quietAfter);
 };
 
-/// Matches a client message to a recorded one exactly, except where the
-/// bytes are expected to differ between runs: a token signature (it signs a
-/// different random token with a possibly different key).
+/// Matches a client message to a recorded one exactly, except where the bytes are expected to differ between runs: a
+/// token signature (it signs a different random token with a possibly different key).
 bool recordedPacketMatcher(AdbMessage recorded, AdbMessage actual) {
   if (recorded.command != actual.command || recorded.arg0 != actual.arg0 || recorded.arg1 != actual.arg1) {
     return false;

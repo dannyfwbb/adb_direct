@@ -8,10 +8,9 @@
 ///   "DEVICE" "ADBD VERSION" "NOTE" SERVICE [--online]
 /// ```
 ///
-/// Connects with the key, opens SERVICE, reads until the device closes it
-/// and waits half a second for late messages. Every packet is written with
-/// its raw bytes (format: test/fixtures/README.md). With `--online` the
-/// handshake is left out and the fixture starts on the open connection.
+/// Connects with the key, opens SERVICE, reads until the device closes it and waits half a second for late messages.
+/// Every packet is written with its raw bytes (format: test/fixtures/README.md). With `--online` the handshake is left
+/// out and the fixture starts on the open connection.
 library;
 
 import 'dart:convert';
@@ -21,10 +20,7 @@ import 'package:adb_direct/adb_direct.dart';
 
 Future<void> main(List<String> args) async {
   if (args.length < 8) {
-    stderr.writeln(
-      'usage: record_fixture HOST PORT KEY OUT DEVICE ADBD NOTE SERVICE '
-      '[--online]',
-    );
+    stderr.writeln('usage: record_fixture HOST PORT KEY OUT DEVICE ADBD NOTE SERVICE [--online]');
     exitCode = 64;
     return;
   }

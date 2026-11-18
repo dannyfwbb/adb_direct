@@ -3,8 +3,8 @@
 
 import 'dart:io';
 
-/// External programs used as independent oracles. Tests that need one are
-/// skipped, with the reason, when it is not installed.
+/// External programs used as independent oracles. Tests that need one are skipped, with the reason, when it is not
+/// installed.
 abstract final class Tools {
   /// `openssl`, if on the PATH.
   static final String? openssl = _find(['openssl']);
@@ -19,8 +19,8 @@ abstract final class Tools {
   /// Skip reason for tests needing [tool] named [name], or null to run.
   static String? skipUnless(String? tool, String name) => tool == null ? '$name is not installed' : null;
 
-  /// Runs [executable] with [arguments] and returns its stdout as text.
-  /// Throws with its output when it fails, and kills it after [timeout].
+  /// Runs [executable] with [arguments] and returns its stdout as text. Throws with its output when it fails, and kills
+  /// it after [timeout].
   static Future<String> run(
     String executable,
     List<String> arguments, {

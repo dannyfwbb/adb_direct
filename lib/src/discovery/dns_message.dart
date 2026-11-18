@@ -1,9 +1,8 @@
 // Copyright 2026 The adb_direct authors
 // SPDX-License-Identifier: Apache-2.0
 
-/// The part of DNS (RFC 1035) and multicast DNS (RFC 6762) that browsing
-/// for DNS-SD services (RFC 6763) needs: queries out, PTR, SRV, TXT, A and
-/// AAAA records in, with name compression, the cache-flush bit and TTLs.
+/// The part of DNS (RFC 1035) and multicast DNS (RFC 6762) that browsing for DNS-SD services (RFC 6763) needs: queries
+/// out, PTR, SRV, TXT, A and AAAA records in, with name compression, the cache-flush bit and TTLs.
 library;
 
 import 'dart:convert';
@@ -63,8 +62,8 @@ final class DnsRecord {
   /// The cache-flush bit: this record replaces older ones of its set.
   final bool cacheFlush;
 
-  /// PTR: the target name (String). SRV: [DnsSrv]. TXT: `List<String>`.
-  /// A/AAAA: [InternetAddress]. Others: the raw bytes.
+  /// PTR: the target name (String). SRV: [DnsSrv]. TXT: `List<String>`. A/AAAA: [InternetAddress]. Others: the raw
+  /// bytes.
   final Object data;
 
   @override
@@ -100,8 +99,7 @@ final class DnsMessage {
   final bool isResponse;
   final List<DnsQuestion> questions;
 
-  /// Answers, authority and additional records together (mDNS treats the
-  /// additional ones as answers too).
+  /// Answers, authority and additional records together (mDNS treats the additional ones as answers too).
   final List<DnsRecord> answers;
 
   /// A query for [questions] (mDNS: id 0, no flags).

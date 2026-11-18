@@ -9,19 +9,16 @@ import 'dart:io';
 import 'package:adb_direct/adb_direct.dart';
 import 'package:test/test.dart';
 
-/// adbd's own services. On ADB_DIRECT_TEST_HOST:ADB_DIRECT_TEST_PORT:
-/// `tcpip` (on the same port) and `waitFor`, and `root` as the build
-/// allows. Root, remount and unroot need a rootable device: set
-/// ADB_DIRECT_TEST_ROOTABLE=1 (the phone emulator, never a real TV).
-/// Reboot is not a test: see test/device/README.md.
+/// adbd's own services. On ADB_DIRECT_TEST_HOST:ADB_DIRECT_TEST_PORT: `tcpip` (on the same port) and `waitFor`, and
+/// `root` as the build allows. Root, remount and unroot need a rootable device: set ADB_DIRECT_TEST_ROOTABLE=1 (the
+/// phone emulator, never a real TV). Reboot is not a test: see test/device/README.md.
 final String? host = Platform.environment['ADB_DIRECT_TEST_HOST'];
 final int port = int.parse(Platform.environment['ADB_DIRECT_TEST_PORT'] ?? '5555');
 final String? keyPath = Platform.environment['ADB_DIRECT_TEST_KEY'];
 final bool rootable = Platform.environment['ADB_DIRECT_TEST_ROOTABLE'] == '1';
 final String? devicePort = Platform.environment['ADB_DIRECT_TEST_DEVICE_PORT'];
 final String? skip = host == null || keyPath == null
-    ? 'ADB_DIRECT_TEST_HOST and ADB_DIRECT_TEST_KEY are not set '
-          '(see test/device/README.md)'
+    ? 'ADB_DIRECT_TEST_HOST and ADB_DIRECT_TEST_KEY are not set (see test/device/README.md)'
     : null;
 
 void main() {

@@ -34,15 +34,14 @@ final Uint8List tvBanner = Fixture.load('handshake/trusted_key').fromDevice.last
 
 /// A banner like [tvBanner] without `delayed_ack`.
 final Uint8List classicBanner = utf8.encode(
-  'device::ro.product.name=p;ro.product.model=Classic;ro.product.device=d;'
-  'features=shell_v2,cmd,stat_v2,ls_v2',
+  'device::ro.product.name=p;ro.product.model=Classic;ro.product.device=d;features=shell_v2,cmd,stat_v2,ls_v2',
 );
 
 /// A banner of a device without shell protocol v2 (Android 6 and older).
 final Uint8List oldBanner = utf8.encode('device::ro.product.name=p;ro.product.model=Old;ro.product.device=d;');
 
-/// Whether [signature] is [publicKey]'s PKCS#1 v1.5 SHA-1 signature of
-/// [token], checked the way adbd does (`RSA_verify(NID_sha1, token, …)`).
+/// Whether [signature] is [publicKey]'s PKCS#1 v1.5 SHA-1 signature of [token], checked the way adbd does
+/// (`RSA_verify(NID_sha1, token, …)`).
 bool verifyTokenSignature(AdbPublicKey publicKey, List<int> token, List<int> signature) {
   final s = Der.unsignedValue(signature);
   final m = s.modPow(publicKey.exponent, publicKey.modulus);
@@ -58,9 +57,8 @@ bool verifyTokenSignature(AdbPublicKey publicKey, List<int> token, List<int> sig
   return true;
 }
 
-/// Plays adbd's side of the handshake: expects our `CNXN`, challenges with a
-/// token, verifies the signature against [trusted], then answers with
-/// [banner]. Returns the client's `CNXN`.
+/// Plays adbd's side of the handshake: expects our `CNXN`, challenges with a token, verifies the signature against
+/// [trusted], then answers with [banner]. Returns the client's `CNXN`.
 Future<AdbMessage> acceptHandshake(
   FakeAdbdSession session, {
   List<AdbPublicKey>? trusted,

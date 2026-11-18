@@ -9,11 +9,10 @@ import 'package:test/test.dart';
 
 import '../support/hex.dart';
 
-/// Vectors from BoringSSL's SPAKE2_generate_msg and SPAKE2_process_msg,
-/// built with FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION (RAND_bytes is
-/// deterministic there): both sides draw [random] as their 64 secret
-/// bytes; names "client" (Alice) and "server" (Bob). The passwords cover
-/// the password scalar corrections 0, 1, 2, 3, 6 and 7.
+/// Vectors from BoringSSL's SPAKE2_generate_msg and SPAKE2_process_msg, built with
+/// FUZZING_BUILD_MODE_UNSAFE_FOR_PRODUCTION (RAND_bytes is deterministic there): both sides draw [random] as their 64
+/// secret bytes; names "client" (Alice) and "server" (Bob). The passwords cover the password scalar corrections 0, 1,
+/// 2, 3, 6 and 7.
 const random =
     '7d92cd33b7935bd9ef77d7700ddb4c0972ac611476559829d158d74b0bb7326c'
     '3e48e572d81eaedc13452d6ec225ce223f69608668f925ae4e71e7fa12e92728';

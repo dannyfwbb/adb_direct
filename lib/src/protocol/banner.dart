@@ -7,9 +7,8 @@ import 'package:meta/meta.dart';
 
 /// A capability named in a `CNXN` banner.
 ///
-/// A feature is used only when both sides list it. Names the library does
-/// not know are kept as they are, so [AdbBanner.features] always holds what
-/// the device said.
+/// A feature is used only when both sides list it. Names the library does not know are kept as they are, so
+/// [AdbBanner.features] always holds what the device said.
 extension type const AdbFeature(String name) implements Object {
   /// Shell protocol v2: separate stdout and stderr, and the exit code.
   static const shellV2 = AdbFeature('shell_v2');
@@ -65,9 +64,8 @@ extension type const AdbFeature(String name) implements Object {
   /// The `dev-raw:` service.
   static const devRaw = AdbFeature('devraw');
 
-  // Features that concern the adb host and server rather than a device
-  // connection. adbd shares the feature table, so devices may list some of
-  // them (the Android 14 TV emulator sends `openscreen_mdns`).
+  // Features that concern the adb host and server rather than a device connection. adbd shares the feature table, so
+  // devices may list some of them (the Android 14 TV emulator sends `openscreen_mdns`).
 
   /// The adb server uses libusb.
   static const libusb = AdbFeature('libusb');
@@ -123,8 +121,7 @@ enum AdbDeviceState {
   }
 }
 
-/// The identity string carried in a `CNXN` message:
-/// `<systemtype>:<serial>:<key>=<value>;…;features=<a>,<b>,…`.
+/// The identity string carried in a `CNXN` message: `<systemtype>:<serial>:<key>=<value>;…;features=<a>,<b>,…`.
 @immutable
 final class AdbBanner {
   /// Creates a banner.
@@ -138,8 +135,7 @@ final class AdbBanner {
 
   /// Parses the payload of a `CNXN` message.
   ///
-  /// Tolerates trailing NULs and semicolons, empty entries and entries
-  /// without a value. Values may contain `=` and `:`.
+  /// Tolerates trailing NULs and semicolons, empty entries and entries without a value. Values may contain `=` and `:`.
   factory AdbBanner.parse(List<int> payload) {
     var text = utf8.decode(payload, allowMalformed: true);
     final end = text.indexOf('\u0000');
@@ -166,8 +162,8 @@ final class AdbBanner {
     return AdbBanner(systemType: systemType, serial: serial, properties: properties, features: features);
   }
 
-  /// The banner a host sends: `host::features=<a>,<b>,…`, with no trailing
-  /// NUL (adbd would keep a NUL as part of the last feature's name).
+  /// The banner a host sends: `host::features=<a>,<b>,…`, with no trailing NUL (adbd would keep a NUL as part of the
+  /// last feature's name).
   factory AdbBanner.host(Iterable<AdbFeature> features) => AdbBanner(systemType: 'host', features: features.toSet());
 
   static const String _featuresKey = 'features';

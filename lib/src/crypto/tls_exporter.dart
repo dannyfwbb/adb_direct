@@ -8,22 +8,18 @@ import 'package:crypto/crypto.dart';
 
 import 'hkdf.dart';
 
-/// TLS 1.3 keying material exporter (RFC 8446 7.5), computed from the
-/// `EXPORTER_SECRET` that `dart:io` reports through `keyLog`.
+/// TLS 1.3 keying material exporter (RFC 8446 7.5), computed from the `EXPORTER_SECRET` that `dart:io` reports through
+/// `keyLog`.
 ///
-/// `dart:io` exposes no exporter, but its key log carries the exporter
-/// master secret in the NSS key-log format. Pairing needs 64 bytes with the
-/// label `adb-label\0`; this was checked byte for byte against OpenSSL's
-/// exporter.
+/// `dart:io` exposes no exporter, but its key log carries the exporter master secret in the NSS key-log format. Pairing
+/// needs 64 bytes with the label `adb-label\0`; this was checked byte for byte against OpenSSL's exporter.
 final class TlsExporter {
   TlsExporter._(this._secret, this._hash);
 
-  /// Finds the `EXPORTER_SECRET` among the key-log [lines] of one TLS 1.3
-  /// connection.
+  /// Finds the `EXPORTER_SECRET` among the key-log [lines] of one TLS 1.3 connection.
   ///
-  /// The hash is the cipher suite's: SHA-256 for a 32-byte secret, SHA-384
-  /// for a 48-byte one. Throws [FormatException] when no usable line is
-  /// there (for example on TLS 1.2, which has no exporter secret).
+  /// The hash is the cipher suite's: SHA-256 for a 32-byte secret, SHA-384 for a 48-byte one. Throws [FormatException]
+  /// when no usable line is there (for example on TLS 1.2, which has no exporter secret).
   factory TlsExporter.fromKeyLog(Iterable<String> lines) {
     for (final line in lines) {
       final parts = line.trim().split(RegExp(r'\s+'));
@@ -42,12 +38,11 @@ final class TlsExporter {
   final Uint8List _secret;
   final Hash _hash;
 
-  /// `TLS-Exporter(label, context, length)`:
-  /// `HKDF-Expand-Label(Derive-Secret(secret, label, ""), "exporter",
+  /// `TLS-Exporter(label, context, length)`: `HKDF-Expand-Label(Derive-Secret(secret, label, ""), "exporter",
   /// Hash(context), length)`.
   ///
-  /// [label] is bytes because adb's includes its terminating NUL. An absent
-  /// context and an empty one give the same result in TLS 1.3.
+  /// [label] is bytes because adb's includes its terminating NUL. An absent context and an empty one give the same
+  /// result in TLS 1.3.
   Uint8List export(List<int> label, int length, {List<int> context = const []}) {
     final emptyHash = _hash.convert(const []).bytes;
     final derived = _expandLabel(_secret, label, emptyHash, emptyHash.length);

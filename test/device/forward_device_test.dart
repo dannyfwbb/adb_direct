@@ -16,8 +16,7 @@ final String? host = Platform.environment['ADB_DIRECT_TEST_HOST'];
 final int port = int.parse(Platform.environment['ADB_DIRECT_TEST_PORT'] ?? '5555');
 final String? keyPath = Platform.environment['ADB_DIRECT_TEST_KEY'];
 final String? skip = host == null || keyPath == null
-    ? 'ADB_DIRECT_TEST_HOST and ADB_DIRECT_TEST_KEY are not set '
-          '(see test/device/README.md)'
+    ? 'ADB_DIRECT_TEST_HOST and ADB_DIRECT_TEST_KEY are not set (see test/device/README.md)'
     : null;
 
 /// Sends [data] to [port] here and reads until the peer closes.
@@ -44,16 +43,14 @@ void main() {
     adb = await AdbConnection.connect(host!, port, key: key);
   });
 
-  /// The device side of these tests needs toybox's nc (Android 6 and
-  /// later); older devices have none.
+  /// The device side of these tests needs toybox's nc (Android 6 and later); older devices have none.
   Future<bool> hasNc() async {
     final ok = (await adb.shell.run('toybox nc --help')).exitCode == 0;
     if (!ok) markTestSkipped('no toybox nc on this device');
     return ok;
   }
 
-  /// Old adbd (Android 5 on the emulator) refuses reverse with "more than
-  /// one device and emulator".
+  /// Old adbd (Android 5 on the emulator) refuses reverse with "more than one device and emulator".
   Future<T?> reverse<T>(Future<T> Function() action) async {
     try {
       return await action();
@@ -108,10 +105,8 @@ void main() {
     expect(forward.devicePort, isPositive);
     expect(await adb.reverse.list(), contains(AdbReverseEntry(forward.deviceSpec, 'tcp:${echo.port}')));
     final result = await adb.shell.run(
-      // stdin stays open a moment: toybox nc drops the connection at once
-      // on EOF, before sending.
-      '(echo hello from the device; sleep 2) | toybox nc 127.0.0.1 '
-      '${forward.devicePort}',
+      // stdin stays open a moment: toybox nc drops the connection at once on EOF, before sending.
+      '(echo hello from the device; sleep 2) | toybox nc 127.0.0.1 ${forward.devicePort}',
     );
     expect(result.stdoutText, 'hello from the device\n');
     await forward.remove();
@@ -123,8 +118,7 @@ void main() {
     if (!await hasNc()) return;
     final forward = await reverse(
       () => adb.reverse.add('tcp:0', (stream) {
-        // Reading must not cancel the input (`first` would): cancelling it
-        // closes the stream.
+        // Reading must not cancel the input (`first` would): cancelling it closes the stream.
         stream.input.listen((request) async {
           await stream.write(utf8.encode('got ${utf8.decode(request)}'));
           await stream.flush();

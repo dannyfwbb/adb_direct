@@ -13,8 +13,7 @@ import 'answers.dart';
 
 /// What a daemon service did.
 enum AdbDaemonOutcome {
-  /// adbd is restarting (or the device rebooting): this connection ends;
-  /// [AdbConnection.waitFor] connects again.
+  /// adbd is restarting (or the device rebooting): this connection ends; [AdbConnection.waitFor] connects again.
   restarting,
 
   /// Nothing to do (`adbd is already running as root`).
@@ -46,12 +45,11 @@ final class AdbDaemonAnswer {
   String toString() => 'AdbDaemonAnswer($outcome, ${output.trim()})';
 }
 
-/// Services that change adbd itself or the device: `adb root`, `unroot`,
-/// `remount`, `reboot`, `tcpip`, `usb`, `disable-verity`, `enable-verity`.
+/// Services that change adbd itself or the device: `adb root`, `unroot`, `remount`, `reboot`, `tcpip`, `usb`,
+/// `disable-verity`, `enable-verity`.
 ///
-/// Those that restart adbd end this connection: the answer says
-/// [AdbDaemonOutcome.restarting] and the connection is closed by then.
-/// Connect again with [AdbConnection.waitFor].
+/// Those that restart adbd end this connection: the answer says [AdbDaemonOutcome.restarting] and the connection is
+/// closed by then. Connect again with [AdbConnection.waitFor].
 final class AdbDaemon {
   /// Creates the namespace.
   @internal
@@ -80,26 +78,21 @@ final class AdbDaemon {
     return _run('tcpip:$port', const {'restarting in TCP mode': AdbDaemonOutcome.restarting});
   }
 
-  /// Restarts adbd on USB only. Over the network that ends the device's
-  /// network debugging until someone turns it on again on the device or
-  /// over USB.
+  /// Restarts adbd on USB only. Over the network that ends the device's network debugging until someone turns it on
+  /// again on the device or over USB.
   Future<AdbDaemonAnswer> usb() => _run('usb:', const {'restarting in USB mode': AdbDaemonOutcome.restarting});
 
-  /// Remounts the system partitions read-write (root; may need
-  /// [disableVerity] and a reboot first, which its output says).
+  /// Remounts the system partitions read-write (root; may need [disableVerity] and a reboot first, which its output
+  /// says).
   ///
-  /// [AdbDaemonOutcome.refused] for the refusals adb prints (not root, a
-  /// locked bootloader, a user build, no such tool); otherwise
-  /// [AdbDaemonOutcome.done], and [AdbDaemonAnswer.output] says what
-  /// happened.
+  /// [AdbDaemonOutcome.refused] for the refusals adb prints (not root, a locked bootloader, a user build, no such
+  /// tool); otherwise [AdbDaemonOutcome.done], and [AdbDaemonAnswer.output] says what happened.
   Future<AdbDaemonAnswer> remount() => _run('remount:', _refusals);
 
-  /// Turns dm-verity off (root, userdebug); takes effect after a reboot.
-  /// Outcomes as [remount].
+  /// Turns dm-verity off (root, userdebug); takes effect after a reboot. Outcomes as [remount].
   Future<AdbDaemonAnswer> disableVerity() => _run('disable-verity:', _refusals);
 
-  /// Turns dm-verity on again; takes effect after a reboot. Outcomes as
-  /// [remount].
+  /// Turns dm-verity on again; takes effect after a reboot. Outcomes as [remount].
   Future<AdbDaemonAnswer> enableVerity() => _run('enable-verity:', _refusals);
 
   static const Map<String, AdbDaemonOutcome> _refusals = {
@@ -109,10 +102,9 @@ final class AdbDaemon {
     'inaccessible or not found': AdbDaemonOutcome.refused,
   };
 
-  /// Reboots the device; [target] is `bootloader`, `recovery`, `sideload`,
-  /// `sideload-auto-reboot`, `fastboot`, or null for a normal reboot. The
-  /// connection ends; a device on the network comes back after it booted
-  /// and its network is up.
+  /// Reboots the device; [target] is `bootloader`, `recovery`, `sideload`, `sideload-auto-reboot`, `fastboot`, or null
+  /// for a normal reboot. The connection ends; a device on the network comes back after it booted and its network is
+  /// up.
   Future<AdbDaemonAnswer> reboot([String? target]) async {
     if (target != null && !RegExp(r'^[a-z0-9,_-]+$').hasMatch(target)) {
       throw ArgumentError.value(target, 'target', 'not a reboot target');

@@ -21,20 +21,17 @@ abstract interface class MessageHandler {
   void onLinkClosed(AdbException reason);
 }
 
-/// ADB messages over an [AdbTransport]: framing both ways, checksums by
-/// protocol version, tracing, and two ways of receiving.
+/// ADB messages over an [AdbTransport]: framing both ways, checksums by protocol version, tracing, and two ways of
+/// receiving.
 ///
-/// During the handshake, code pulls messages one at a time with [next] and a
-/// deadline. Once online, [route] hands every message to a handler as it
-/// arrives. Messages received in between are kept and delivered in order.
+/// During the handshake, code pulls messages one at a time with [next] and a deadline. Once online, [route] hands every
+/// message to a handler as it arrives. Messages received in between are kept and delivered in order.
 final class MessageLink implements AdbTransportListener {
   /// Wraps `transport`. Call [start] to begin receiving.
   MessageLink(this._transport, {required this.clock, this.tracer}) {
     _reader = AdbMessageReader(
-      onUnknownCommand: (command, length) => _note(
-        'Skipped a message with unknown command '
-        '0x${command.toRadixString(16)} ($length bytes)',
-      ),
+      onUnknownCommand: (command, length) =>
+          _note('Skipped a message with unknown command 0x${command.toRadixString(16)} ($length bytes)'),
       onRawMessage: tracer == null ? null : _traceIncoming,
     );
   }
@@ -53,9 +50,8 @@ final class MessageLink implements AdbTransportListener {
   MessageHandler? _handler;
   AdbException? _failure;
 
-  /// Whether outgoing messages carry payload checksums. True until both
-  /// sides have agreed on version `0x01000001`: AOSP's host computes them
-  /// for everything sent before the device's `CNXN`.
+  /// Whether outgoing messages carry payload checksums. True until both sides have agreed on version `0x01000001`:
+  /// AOSP's host computes them for everything sent before the device's `CNXN`.
   bool withChecksum = true;
 
   /// Why the link ended, or null while it works.
@@ -75,8 +71,8 @@ final class MessageLink implements AdbTransportListener {
     _transport.write(bytes);
   }
 
-  /// The next message, failing with [onTimeout]'s exception when none
-  /// arrives within [timeout], and with the link's failure when it ends.
+  /// The next message, failing with [onTimeout]'s exception when none arrives within [timeout], and with the link's
+  /// failure when it ends.
   Future<AdbMessage> next({required Duration timeout, required AdbException Function() onTimeout}) async {
     if (_handler != null) throw StateError('MessageLink is routed');
     var timedOut = false;
@@ -117,8 +113,7 @@ final class MessageLink implements AdbTransportListener {
     _handler?.onLinkClosed(reason);
   }
 
-  /// Sends what is queued (for at most [drainTimeout]) and closes the
-  /// connection; the link ends with [reason].
+  /// Sends what is queued (for at most [drainTimeout]) and closes the connection; the link ends with [reason].
   Future<void> close(AdbException reason, {Duration drainTimeout = const Duration(seconds: 10)}) async {
     if (_failure != null) return;
     _failure = reason;
@@ -131,8 +126,7 @@ final class MessageLink implements AdbTransportListener {
   /// Writes a note to the tracer.
   void note(String message) => _note(message);
 
-  /// Switches the transport to TLS (after `STLS`); see
-  /// [AdbTransport.startTls].
+  /// Switches the transport to TLS (after `STLS`); see [AdbTransport.startTls].
   Future<X509Certificate?> startTls({required SecurityContext context, void Function(String line)? keyLog}) {
     note('TLS: handshake');
     return _transport.startTls(context: context, keyLog: keyLog);
@@ -185,8 +179,8 @@ final class MessageLink implements AdbTransportListener {
 
   void _note(String message) => tracer?.call(AdbNoteTrace(at: clock.elapsed, message: message));
 
-  /// The raw bytes of the message the reader is about to return; set by
-  /// the reader's callback just before the message comes out of `drain`.
+  /// The raw bytes of the message the reader is about to return; set by the reader's callback just before the message
+  /// comes out of `drain`.
   Uint8List? _lastRaw;
 
   void _traceIncoming(Uint8List raw) => _lastRaw = raw;

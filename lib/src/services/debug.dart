@@ -69,8 +69,7 @@ final class AdbAppProcess {
 /// The progress of a bug report: [done] of [total] steps.
 typedef AdbBugReportProgress = void Function(int done, int total);
 
-/// Debugging services: JDWP, process tracking, logcat, screenshots and bug
-/// reports.
+/// Debugging services: JDWP, process tracking, logcat, screenshots and bug reports.
 final class AdbDebug {
   /// Creates the namespace.
   @internal
@@ -78,20 +77,18 @@ final class AdbDebug {
 
   final AdbConnection _connection;
 
-  /// A stream to the JDWP agent of [pid] (a debuggable process): the
-  /// debugger's side of the wire, starting with the `JDWP-Handshake`.
+  /// A stream to the JDWP agent of [pid] (a debuggable process): the debugger's side of the wire, starting with the
+  /// `JDWP-Handshake`.
   Future<AdbStream> jdwp(int pid) => _connection.open('jdwp:$pid');
 
-  /// The pids of debuggable processes: a new list each time it changes,
-  /// starting with the current one. Never ends by itself; cancel the
-  /// subscription to stop.
+  /// The pids of debuggable processes: a new list each time it changes, starting with the current one. Never ends by
+  /// itself; cancel the subscription to stop.
   Stream<List<int>> trackJdwp() => _frames('track-jdwp').map(
     (frame) => [for (final line in utf8.decode(frame, allowMalformed: true).split('\n')) ?int.tryParse(line.trim())],
   );
 
-  /// The app processes (Android 12+, feature `track_app`): a new list each
-  /// time it changes, starting with the current one. Throws
-  /// [AdbNotSupportedException] on older devices.
+  /// The app processes (Android 12+, feature `track_app`): a new list each time it changes, starting with the current
+  /// one. Throws [AdbNotSupportedException] on older devices.
   Stream<List<AdbAppProcess>> trackApps() {
     if (!_connection.supports(AdbFeature.trackApp)) {
       return Stream.error(const AdbNotSupportedException('The device cannot track app processes (Android 12+)'));
@@ -99,17 +96,16 @@ final class AdbDebug {
     return _frames('track-app').map(decodeAppProcesses);
   }
 
-  /// The device log as lines (`logcat` with [arguments], for example
-  /// `['-v', 'threadtime', '*:W']`). Without `-d` it follows the log until
-  /// the subscription is cancelled.
+  /// The device log as lines (`logcat` with [arguments], for example `['-v', 'threadtime', '*:W']`). Without `-d` it
+  /// follows the log until the subscription is cancelled.
   Stream<String> logcat({List<String> arguments = const []}) async* {
     final command = 'logcat${arguments.map((a) => ' ${shellQuote(a)}').join()}';
     AdbStream stream;
     try {
       stream = await _connection.open('exec:$command');
     } on AdbServiceUnavailableException {
-      // Before Android 5 there is no exec:; the shell's PTY ends lines
-      // with CR LF, which the line splitter takes as one break.
+      // Before Android 5 there is no exec:; the shell's PTY ends lines with CR LF, which the line splitter takes as one
+      // break.
       stream = await _connection.open('shell:$command');
     }
     try {
@@ -132,8 +128,7 @@ final class AdbDebug {
       await stream.input.forEach(png.add);
       bytes = png.takeBytes();
     } on AdbServiceUnavailableException {
-      // Before Android 5 there is no exec:, and a PTY would mangle the
-      // bytes: write a file on the device and copy it.
+      // Before Android 5 there is no exec:, and a PTY would mangle the bytes: write a file on the device and copy it.
       bytes = await _screencapToFile(command);
     }
     const signature = [0x89, 0x50, 0x4e, 0x47];
@@ -154,9 +149,8 @@ final class AdbDebug {
     }
   }
 
-  /// Writes a bug report (a zip, Android 7+) to [local], as `adb bugreport`
-  /// does: `bugreportz -p` on the device, then a pull, then the device copy
-  /// is removed. Takes minutes; [onProgress] follows it.
+  /// Writes a bug report (a zip, Android 7+) to [local], as `adb bugreport` does: `bugreportz -p` on the device, then a
+  /// pull, then the device copy is removed. Takes minutes; [onProgress] follows it.
   ///
   /// Throws [AdbException] when the device reports a failure.
   Future<void> bugreport(File local, {AdbBugReportProgress? onProgress}) async {
@@ -199,8 +193,7 @@ final class AdbDebug {
     }
   }
 
-  /// The payloads of a `<hex4 length><payload>` stream, however the bytes
-  /// are split into messages.
+  /// The payloads of a `<hex4 length><payload>` stream, however the bytes are split into messages.
   Stream<Uint8List> _frames(String service) async* {
     final stream = await _connection.open(service);
     final buffer = ByteQueue();
@@ -227,8 +220,8 @@ final class AdbDebug {
   }
 }
 
-/// One line of `bugreportz -p`: (done, total) for `PROGRESS:n/total`, the
-/// path for `OK:path`, the reason for `FAIL:reason`; null otherwise.
+/// One line of `bugreportz -p`: (done, total) for `PROGRESS:n/total`, the path for `OK:path`, the reason for
+/// `FAIL:reason`; null otherwise.
 @internal
 (int?, int?, String?, String?)? parseBugreportLine(String line) {
   final text = line.trim();
@@ -246,9 +239,8 @@ final class AdbDebug {
   return null;
 }
 
-/// Decodes an `AppProcesses` protobuf (`adb/proto/app_processes.proto`)
-/// with a minimal reader: varints and length-delimited fields only, as the
-/// message has; unknown fields are skipped.
+/// Decodes an `AppProcesses` protobuf (`adb/proto/app_processes.proto`) with a minimal reader: varints and
+/// length-delimited fields only, as the message has; unknown fields are skipped.
 @internal
 List<AdbAppProcess> decodeAppProcesses(Uint8List bytes) {
   final processes = <AdbAppProcess>[];

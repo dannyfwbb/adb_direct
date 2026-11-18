@@ -25,8 +25,7 @@ final class AdbServerDevice {
   /// Creates one.
   const AdbServerDevice({required this.serial, required this.state, this.properties = const {}});
 
-  /// Parses one line of `host:devices-l`:
-  /// `<serial> <state> product:… model:… device:… transport_id:…`.
+  /// Parses one line of `host:devices-l`: `<serial> <state> product:… model:… device:… transport_id:…`.
   factory AdbServerDevice.parse(String line) {
     final parts = line.trim().split(RegExp(r'\s+'));
     if (parts.length < 2) {
@@ -49,12 +48,10 @@ final class AdbServerDevice {
     );
   }
 
-  /// The serial the server knows the device by (`emulator-5554`,
-  /// `192.168.0.20:5555`, a USB serial).
+  /// The serial the server knows the device by (`emulator-5554`, `192.168.0.20:5555`, a USB serial).
   final String serial;
 
-  /// `device`, `offline`, `unauthorized`, `authorizing`, `recovery`,
-  /// `sideload`, `bootloader`, `no permissions`, …
+  /// `device`, `offline`, `unauthorized`, `authorizing`, `recovery`, `sideload`, `bootloader`, `no permissions`, …
   final String state;
 
   /// `product`, `model`, `device`, `transport_id`, `usb` where given.
@@ -70,13 +67,11 @@ final class AdbServerDevice {
   String toString() => 'AdbServerDevice($serial $state)';
 }
 
-/// A client of a running adb server (port 5037): the devices it knows,
-/// whether over USB or the network, and connections to them through it.
+/// A client of a running adb server (port 5037): the devices it knows, whether over USB or the network, and connections
+/// to them through it.
 ///
-/// Use it on a desktop where `adb` runs anyway (USB devices, for one,
-/// are only reachable this way from Dart). [device] gives an
-/// [AdbConnection] with the same services as a direct one: shell, files,
-/// apps, forwarding.
+/// Use it on a desktop where `adb` runs anyway (USB devices, for one, are only reachable this way from Dart). [device]
+/// gives an [AdbConnection] with the same services as a direct one: shell, files, apps, forwarding.
 final class AdbServer {
   /// A client of the server at [host]:[port].
   AdbServer({this.host = '127.0.0.1', this.port = 5037, this.timeout = const Duration(seconds: 10)});
@@ -90,12 +85,10 @@ final class AdbServer {
   /// How long to wait for the server to answer a request.
   final Duration timeout;
 
-  /// How long `connect` and `pair` may take: the server tries the device
-  /// itself first, for about ten seconds.
+  /// How long `connect` and `pair` may take: the server tries the device itself first, for about ten seconds.
   static const Duration _deviceTimeout = Duration(seconds: 45);
 
-  /// The server's protocol version (`adb version` prints it as
-  /// "Android Debug Bridge version 1.0.n").
+  /// The server's protocol version (`adb version` prints it as "Android Debug Bridge version 1.0.n").
   Future<int> version() async {
     final text = await _ask('host:version');
     final value = parseHex4(text);
@@ -108,8 +101,8 @@ final class AdbServer {
   /// The devices the server knows.
   Future<List<AdbServerDevice>> devices() async => _parseDevices(await _ask('host:devices-l'));
 
-  /// The device list each time it changes, starting with the current one.
-  /// It stays quiet while nothing changes; cancel the subscription to stop.
+  /// The device list each time it changes, starting with the current one. It stays quiet while nothing changes; cancel
+  /// the subscription to stop.
   Stream<List<AdbServerDevice>> trackDevices() async* {
     final socket = await _SmartSocket.open(host, port, timeout);
     try {
@@ -124,11 +117,9 @@ final class AdbServer {
     }
   }
 
-  /// Asks the server to connect to a device on the network (`adb connect`).
-  /// Returns the server's message ("connected to …", "already connected
-  /// to …"). Throws [AdbUnauthorizedException] when the device refused the
-  /// server's key, [AdbUnreachableException] for other failures, with the
-  /// server's message.
+  /// Asks the server to connect to a device on the network (`adb connect`). Returns the server's message ("connected to
+  /// …", "already connected to …"). Throws [AdbUnauthorizedException] when the device refused the server's key,
+  /// [AdbUnreachableException] for other failures, with the server's message.
   Future<String> connect(String deviceHost, [int devicePort = 5555]) async {
     final message = await _ask('host:connect:${_target(deviceHost, devicePort)}', timeout: _deviceTimeout);
     final lower = message.toLowerCase();
@@ -145,8 +136,8 @@ final class AdbServer {
   Future<String> disconnect(String deviceHost, [int devicePort = 5555]) =>
       _ask('host:disconnect:${_target(deviceHost, devicePort)}');
 
-  /// Asks the server to pair with a device (`adb pair`), with its own key.
-  /// Throws [AdbPairingException] with the server's message when it failed.
+  /// Asks the server to pair with a device (`adb pair`), with its own key. Throws [AdbPairingException] with the
+  /// server's message when it failed.
   Future<String> pair(String deviceHost, int pairingPort, String code) async {
     final message = await _ask('host:pair:$code:${_target(deviceHost, pairingPort)}', timeout: _deviceTimeout);
     if (message.toLowerCase().contains('failed')) {
@@ -155,16 +146,13 @@ final class AdbServer {
     return message;
   }
 
-  /// A connection to [serial] through the server. Every stream is a
-  /// connection to the server asking it to relay one service; the
-  /// connection ends when the server stops listing the device as online.
+  /// A connection to [serial] through the server. Every stream is a connection to the server asking it to relay one
+  /// service; the connection ends when the server stops listing the device as online.
   ///
-  /// The server holds the device's authentication, so the connection has
-  /// no [AdbConnection.acceptedKey]. Reverse forwarding works to local
-  /// ports (`AdbReverse.toLocalPort`: the server connects them), not to
-  /// handlers in code; the server keeps such forwards until they are
-  /// removed or the device goes. [options] sets the stall and package
-  /// manager timeouts as for a direct connection.
+  /// The server holds the device's authentication, so the connection has no [AdbConnection.acceptedKey]. Reverse
+  /// forwarding works to local ports (`AdbReverse.toLocalPort`: the server connects them), not to handlers in code; the
+  /// server keeps such forwards until they are removed or the device goes. [options] sets the stall and package manager
+  /// timeouts as for a direct connection.
   Future<AdbConnection> device(String serial, {AdbConnectOptions options = const AdbConnectOptions()}) async {
     options.validate();
     final listed = (await devices()).where((d) => d.serial == serial);
@@ -259,9 +247,8 @@ final class _SmartSocket {
   Object? _error;
   bool _closed = false;
 
-  /// Sends [request] and reads `OKAY`; a `FAIL` throws with the server's
-  /// message, mapped by what it says. [transport] marks the request that
-  /// picks the device: its refusals are about the device, not a service.
+  /// Sends [request] and reads `OKAY`; a `FAIL` throws with the server's message, mapped by what it says. [transport]
+  /// marks the request that picks the device: its refusals are about the device, not a service.
   Future<void> request(String request, {bool transport = false, Duration? timeout}) async {
     final bytes = utf8.encode(request);
     if (bytes.length > 0xffff) {
@@ -287,8 +274,8 @@ final class _SmartSocket {
     throw AdbServiceUnavailableException('The adb server refused "$request": $message', service: request);
   }
 
-  /// A `<hex4><text>` frame; [timeout] null waits as long as it takes
-  /// (tracking, where the server is quiet until something changes).
+  /// A `<hex4><text>` frame; [timeout] null waits as long as it takes (tracking, where the server is quiet until
+  /// something changes).
   Future<String> readFrame({required Duration? timeout}) async {
     final length = parseHex4(ascii.decode(await _take(4, timeout: timeout), allowInvalid: true));
     if (length == null) {
@@ -328,8 +315,8 @@ final class _SmartSocket {
     waiting?.complete();
   }
 
-  /// Hands the socket over as a raw stream: what is buffered, whether it
-  /// ended already, and the subscription for the rest.
+  /// Hands the socket over as a raw stream: what is buffered, whether it ended already, and the subscription for the
+  /// rest.
   (Socket, Uint8List, bool, StreamSubscription<Uint8List>) detach() =>
       (_socket, _buffer.take(_buffer.length), _closed || _error != null, _subscription);
 
@@ -359,8 +346,7 @@ final class ServerConnection extends AdbConnection {
   AdbException? _closeReason;
   StreamSubscription<List<AdbServerDevice>>? _tracking;
 
-  /// Ends the connection when the server stops listing the device online
-  /// (or the server goes away).
+  /// Ends the connection when the server stops listing the device online (or the server goes away).
   void _watch() {
     _tracking = _server.trackDevices().listen(
       (devices) {
@@ -441,9 +427,8 @@ final class ServerConnection extends AdbConnection {
     }
   }
 
-  /// The server connects reverse forwards to local ports itself
-  /// (`tcp:<port>` targets on this machine); handlers in code need the ADB
-  /// protocol here.
+  /// The server connects reverse forwards to local ports itself (`tcp:<port>` targets on this machine); handlers in
+  /// code need the ADB protocol here.
   @override
   void registerReverseTarget(String label, FutureOr<void> Function(AdbStream) handler) {
     if (!RegExp(r'^tcp:\d+$').hasMatch(label)) {
@@ -458,8 +443,7 @@ final class ServerConnection extends AdbConnection {
   void unregisterReverseTarget(String label) {}
 }
 
-/// A stream relayed by the server: a socket that asked for
-/// `host:transport:<serial>`, then for the service.
+/// A stream relayed by the server: a socket that asked for `host:transport:<serial>`, then for the service.
 final class _SocketStreamCore implements StreamCore {
   _SocketStreamCore(this.service) {
     _input = StreamController<Uint8List>(onCancel: close);
@@ -540,8 +524,7 @@ final class _SocketStreamCore implements StreamCore {
   @override
   AdbException? get closeReason => _closeReason;
 
-  /// What the server's socket has taken: the device's own
-  /// acknowledgements stay between the server and the device.
+  /// What the server's socket has taken: the device's own acknowledgements stay between the server and the device.
   @override
   int get acknowledgedBytes => _flushed;
 

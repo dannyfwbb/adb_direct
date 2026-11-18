@@ -4,9 +4,8 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-/// The small subset of ASN.1 DER this library writes and reads: what RSA
-/// keys (PKCS#1, PKCS#8, SubjectPublicKeyInfo) and a self-signed X.509
-/// certificate need. Not a general ASN.1 library.
+/// The small subset of ASN.1 DER this library writes and reads: what RSA keys (PKCS#1, PKCS#8, SubjectPublicKeyInfo)
+/// and a self-signed X.509 certificate need. Not a general ASN.1 library.
 abstract final class Der {
   /// Universal tags used here.
   static const int tagInteger = 0x02;
@@ -56,8 +55,7 @@ abstract final class Der {
   /// SEQUENCE of already encoded [items].
   static Uint8List sequence(List<List<int>> items) => element(tagSequence, [for (final item in items) ...item]);
 
-  /// SET of already encoded [items] (one item in all uses here, so no
-  /// sorting is needed).
+  /// SET of already encoded [items] (one item in all uses here, so no sorting is needed).
   static Uint8List set(List<List<int>> items) => element(tagSet, [for (final item in items) ...item]);
 
   /// INTEGER (two's complement, minimal length).
@@ -102,19 +100,15 @@ abstract final class Der {
   /// UTF8String.
   static Uint8List utf8String(String text) => element(tagUtf8String, utf8.encode(text));
 
-  /// A certificate validity time: UTCTime for 1950 through 2049,
-  /// GeneralizedTime from 2050 on, as RFC 5280 4.1.2.5 requires. Seconds
-  /// precision, UTC. Earlier years cannot be encoded unambiguously and are
-  /// refused.
+  /// A certificate validity time: UTCTime for 1950 through 2049, GeneralizedTime from 2050 on, as RFC 5280 4.1.2.5
+  /// requires. Seconds precision, UTC. Earlier years cannot be encoded unambiguously and are refused.
   static Uint8List time(DateTime time) {
     final t = time.toUtc();
     if (t.year < 1950) {
       throw ArgumentError.value(time, 'time', 'years before 1950');
     }
     String two(int v) => v.toString().padLeft(2, '0');
-    final rest =
-        '${two(t.month)}${two(t.day)}${two(t.hour)}${two(t.minute)}'
-        '${two(t.second)}Z';
+    final rest = '${two(t.month)}${two(t.day)}${two(t.hour)}${two(t.minute)}${two(t.second)}Z';
     return t.year < 2050
         ? element(tagUtcTime, ascii.encode('${two(t.year % 100)}$rest'))
         : element(tagGeneralizedTime, ascii.encode('${t.year.toString().padLeft(4, '0')}$rest'));
@@ -133,8 +127,8 @@ abstract final class Der {
     return magnitude[0] & 0x80 != 0 ? Uint8List.fromList([0, ...magnitude]) : magnitude;
   }
 
-  /// The big-endian bytes of a non-negative [value], without sign padding,
-  /// left-padded with zeros to [length] when given.
+  /// The big-endian bytes of a non-negative [value], without sign padding, left-padded with zeros to [length] when
+  /// given.
   static Uint8List unsignedBytes(BigInt value, {int? length}) {
     if (value.isNegative) throw ArgumentError.value(value, 'value');
     var hex = value.toRadixString(16);
@@ -171,9 +165,8 @@ abstract final class Der {
 
 /// One decoded DER element.
 ///
-/// Reading is lenient where it does not matter for the keys read here: a
-/// length or an INTEGER in a non-minimal form is accepted. What would change
-/// a value (truncation, trailing bytes, negative integers) is refused.
+/// Reading is lenient where it does not matter for the keys read here: a length or an INTEGER in a non-minimal form is
+/// accepted. What would change a value (truncation, trailing bytes, negative integers) is refused.
 final class DerElement {
   DerElement._(this.tag, this.content);
 
@@ -208,8 +201,7 @@ final class DerElement {
     return children;
   }
 
-  /// The value of an INTEGER; throws for negative values, which no field
-  /// read here may hold.
+  /// The value of an INTEGER; throws for negative values, which no field read here may hold.
   BigInt get integer {
     _expect(Der.tagInteger, 'INTEGER');
     if (content.isEmpty) throw const FormatException('Empty INTEGER');

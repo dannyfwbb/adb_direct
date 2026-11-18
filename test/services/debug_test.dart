@@ -16,8 +16,7 @@ import '../support/fake_adbd.dart';
 
 Uint8List fixture(String name) => File('test/fixtures/services/$name').readAsBytesSync();
 
-/// Connects to a fake whose script gets the next OPEN (its service and the
-/// client's id) after the handshake.
+/// Connects to a fake whose script gets the next OPEN (its service and the client's id) after the handshake.
 Future<(AdbConnection, FakeAdbd)> serve(
   Future<void> Function(FakeAdbdSession session, String service, int id) script, {
   Uint8List? banner,

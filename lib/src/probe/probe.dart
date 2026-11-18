@@ -23,15 +23,13 @@ enum AdbEndpointKind {
   /// adbd asking for authentication (`AUTH`): classic network debugging.
   adbAuthentication,
 
-  /// adbd that needs no authentication (`CNXN` at once; userdebug builds,
-  /// emulators).
+  /// adbd that needs no authentication (`CNXN` at once; userdebug builds, emulators).
   adbOpen,
 
   /// adbd asking for TLS (`STLS`): a wireless debugging connect port.
   adbTls,
 
-  /// Something that is not adbd: it closed, stayed silent, or sent
-  /// something else.
+  /// Something that is not adbd: it closed, stayed silent, or sent something else.
   notAdb,
 }
 
@@ -55,15 +53,13 @@ final class AdbEndpoint {
 
 /// Questions to a device that never make it ask its user anything.
 ///
-/// Neither probe sends a public key, so no "Allow debugging?" appears on any
-/// screen: safe for scanning a network full of other people's TVs.
+/// Neither probe sends a public key, so no "Allow debugging?" appears on any screen: safe for scanning a network full
+/// of other people's TVs.
 abstract final class AdbProbe {
-  /// Tells whether adbd answers at [host]:[port], and how: sends one
-  /// `CNXN` and reads one message header.
+  /// Tells whether adbd answers at [host]:[port], and how: sends one `CNXN` and reads one message header.
   ///
-  /// Throws [AdbUnreachableException] or [AdbRefusedException] when no
-  /// connection can be made; returns [AdbEndpointKind.notAdb] when something
-  /// else answers or nothing does within [timeout].
+  /// Throws [AdbUnreachableException] or [AdbRefusedException] when no connection can be made; returns
+  /// [AdbEndpointKind.notAdb] when something else answers or nothing does within [timeout].
   static Future<AdbEndpoint> identify(
     Object host,
     int port, {
@@ -100,13 +96,11 @@ abstract final class AdbProbe {
     }
   }
 
-  /// Tells whether the device at [host]:[port] trusts [key], without
-  /// offering it: signs the device's token and closes after the answer.
+  /// Tells whether the device at [host]:[port] trusts [key], without offering it: signs the device's token and closes
+  /// after the answer.
   ///
-  /// Returns true when the device accepted the signature (or needs no
-  /// authentication), false when it did not. Throws
-  /// [AdbUnreachableException], [AdbRefusedException],
-  /// [AdbTimeoutException], [AdbProtocolException], or
+  /// Returns true when the device accepted the signature (or needs no authentication), false when it did not. Throws
+  /// [AdbUnreachableException], [AdbRefusedException], [AdbTimeoutException], [AdbProtocolException], or
   /// [AdbNotSupportedException] on a TLS port.
   static Future<bool> knowsKey(
     Object host,
@@ -132,17 +126,14 @@ abstract final class AdbProbe {
     }
   }
 
-  /// Identifies many endpoints at once, for a scan: at most [concurrency]
-  /// connections open together; [timeout] bounds the connect and then the
-  /// answer, so a silent endpoint costs up to twice it. Pausing the
-  /// subscription stops new probes; cancelling lets running ones finish
-  /// their timeout and close. Emits a result for
-  /// each target where adbd answered (any [AdbEndpointKind] but
-  /// [AdbEndpointKind.notAdb]), in the order they answer; targets that
-  /// refuse, time out or speak something else are left out.
+  /// Identifies many endpoints at once, for a scan: at most [concurrency] connections open together; [timeout] bounds
+  /// the connect and then the answer, so a silent endpoint costs up to twice it. Pausing the subscription stops new
+  /// probes; cancelling lets running ones finish their timeout and close. Emits a result for each target where adbd
+  /// answered (any [AdbEndpointKind] but [AdbEndpointKind.notAdb]), in the order they answer; targets that refuse, time
+  /// out or speak something else are left out.
   ///
-  /// Like [identify] it never authenticates, so no device shows a prompt.
-  /// Which targets to try (a subnet, a port list) is the caller's policy.
+  /// Like [identify] it never authenticates, so no device shows a prompt. Which targets to try (a subnet, a port list)
+  /// is the caller's policy.
   static Stream<AdbScanResult> scan(
     Iterable<(Object host, int port)> targets, {
     int concurrency = 32,

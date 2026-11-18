@@ -1,15 +1,12 @@
 // Copyright 2026 The adb_direct authors
 // SPDX-License-Identifier: Apache-2.0
 
-/// The edwards25519 group (RFC 8032, section 5.1) as SPAKE2 needs it:
-/// points from and to bytes, addition, negation, scalar multiplication,
-/// and scalars reduced modulo the group order.
+/// The edwards25519 group (RFC 8032, section 5.1) as SPAKE2 needs it: points from and to bytes, addition, negation,
+/// scalar multiplication, and scalars reduced modulo the group order.
 ///
-/// Field elements are 16 signed limbs of 16 bits (the layout TweetNaCl,
-/// public domain, uses). Secret-dependent work has no secret-dependent
-/// branches or indexes at source level: point selection uses masks, and
-/// the scalar ladder always does the same steps. That is best effort in
-/// Dart, whose integer representation may still vary in cost with values.
+/// Field elements are 16 signed limbs of 16 bits (the layout TweetNaCl, public domain, uses). Secret-dependent work has
+/// no secret-dependent branches or indexes at source level: point selection uses masks, and the scalar ladder always
+/// does the same steps. That is best effort in Dart, whose integer representation may still vary in cost with values.
 /// Decoding is variable time, as it only ever sees public points.
 library;
 
@@ -52,8 +49,8 @@ final _Fe _d2 = _add(_d, _d);
 /// sqrt(-1) = 2^((p-1)/4).
 final _Fe _sqrtM1 = _fromBigInt(BigInt.two.modPow((_p - BigInt.one) ~/ BigInt.from(4), _p));
 
-/// Propagates carries so every limb is back in 16 bits (the top limb's
-/// overflow folds into limb 0 times 38, as 2^256 = 38 mod p).
+/// Propagates carries so every limb is back in 16 bits (the top limb's overflow folds into limb 0 times 38, as 2^256 =
+/// 38 mod p).
 void _carry(_Fe o) {
   for (var i = 0; i < 16; i++) {
     o[i] += 1 << 16;
@@ -67,8 +64,7 @@ void _carry(_Fe o) {
   }
 }
 
-/// Swaps [p] and [q] when [b] is 1, leaves them when it is 0, without a
-/// branch on [b].
+/// Swaps [p] and [q] when [b] is 1, leaves them when it is 0, without a branch on [b].
 void _select(_Fe p, _Fe q, int b) {
   final mask = ~(b - 1);
   for (var i = 0; i < 16; i++) {
@@ -104,8 +100,7 @@ Uint8List _pack(_Fe n) {
   return o;
 }
 
-/// 255 bits of [n] (the top bit is ignored); values from p to 2^255 - 1
-/// are accepted and reduced, as BoringSSL does.
+/// 255 bits of [n] (the top bit is ignored); values from p to 2^255 - 1 are accepted and reduced, as BoringSSL does.
 _Fe _unpack(List<int> n) {
   final o = _fe();
   for (var i = 0; i < 16; i++) {
@@ -192,9 +187,8 @@ final class EdPoint {
   final _Fe _z;
   final _Fe _t;
 
-  /// Decodes 32 bytes as BoringSSL's `x25519_ge_frombytes_vartime` does:
-  /// y from the low 255 bits (not required to be below p), x from the
-  /// curve equation with the sign in the top bit. Null when no x exists.
+  /// Decodes 32 bytes as BoringSSL's `x25519_ge_frombytes_vartime` does: y from the low 255 bits (not required to be
+  /// below p), x from the curve equation with the sign in the top bit. Null when no x exists.
   static EdPoint? decode(List<int> s) {
     if (s.length != 32) return null;
     final one = _fromBigInt(BigInt.one);
@@ -240,15 +234,15 @@ final class EdPoint {
 
   EdPoint operator -(EdPoint q) => this + -q;
 
-  /// [scalar] (32 bytes, little-endian, all 256 bits used) times this
-  /// point, by a ladder that does the same work for every scalar.
+  /// [scalar] (32 bytes, little-endian, all 256 bits used) times this point, by a ladder that does the same work for
+  /// every scalar.
   EdPoint multiply(List<int> scalar) {
     if (scalar.length != 32) {
       throw ArgumentError.value(scalar.length, 'scalar', 'must be 32 bytes');
     }
     var p = EdPoint.identity();
-    // A copy: the masked swaps work in place and must not touch this point
-    // (the base point and SPAKE2's M and N are shared).
+    // A copy: the masked swaps work in place and must not touch this point (the base point and SPAKE2's M and N are
+    // shared).
     var q = EdPoint._(_copy(_x), _copy(_y), _copy(_z), _copy(_t));
     for (var i = 255; i >= 0; i--) {
       final bit = (scalar[i >> 3] >> (i & 7)) & 1;
@@ -291,8 +285,8 @@ const List<int> _l = [
 @internal
 Uint8List get groupOrder => Uint8List.fromList(_l);
 
-/// [x] (64 bytes, little-endian) modulo l, as 32 bytes: the same result
-/// as BoringSSL's `x25519_sc_reduce`, computed as TweetNaCl's `modL` does.
+/// [x] (64 bytes, little-endian) modulo l, as 32 bytes: the same result as BoringSSL's `x25519_sc_reduce`, computed as
+/// TweetNaCl's `modL` does.
 @internal
 Uint8List reduceScalar(List<int> x) {
   if (x.length != 64) {

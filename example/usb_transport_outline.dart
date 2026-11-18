@@ -1,11 +1,9 @@
 // Copyright 2026 The adb_direct authors
 // SPDX-License-Identifier: Apache-2.0
 
-// An outline of a USB transport, to show what [AdbTransport] asks of one.
-// Not part of the package: USB needs libusb (desktop) or Android's USB
-// host API, which belong in a package of their own. [UsbBulkPipe] stands
-// for whatever such a package offers: the adb interface's two bulk
-// endpoints (class 0xff, subclass 0x42, protocol 0x01), claimed.
+// An outline of a USB transport, to show what [AdbTransport] asks of one. Not part of the package: USB needs libusb
+// (desktop) or Android's USB host API, which belong in a package of their own. [UsbBulkPipe] stands for whatever such a
+// package offers: the adb interface's two bulk endpoints (class 0xff, subclass 0x42, protocol 0x01), claimed.
 
 import 'dart:async';
 import 'dart:collection';
@@ -15,12 +13,11 @@ import 'package:adb_direct/adb_direct.dart';
 
 /// The two bulk endpoints of an adb interface.
 abstract interface class UsbBulkPipe {
-  /// Reads up to [maxLength] bytes from the IN endpoint; an empty result
-  /// means the device went away.
+  /// Reads up to [maxLength] bytes from the IN endpoint; an empty result means the device went away.
   Future<Uint8List> read(int maxLength);
 
-  /// Writes [data] to the OUT endpoint. adbd wants each ADB message in
-  /// its own transfers: the 24-byte header, then the payload.
+  /// Writes [data] to the OUT endpoint. adbd wants each ADB message in its own transfers: the 24-byte header, then the
+  /// payload.
   Future<void> write(Uint8List data);
 
   /// Releases the interface.

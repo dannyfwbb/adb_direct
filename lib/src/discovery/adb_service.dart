@@ -9,8 +9,7 @@ import '../pairing/pairing_qr.dart' show AdbPairingService;
 
 /// The DNS-SD service types adb devices announce.
 abstract final class AdbServiceType {
-  /// Classic network debugging (`adb tcpip`, a TV's network debugging
-  /// switch), usually port 5555.
+  /// Classic network debugging (`adb tcpip`, a TV's network debugging switch), usually port 5555.
   static const String connect = '_adb._tcp';
 
   /// Wireless debugging's connection port (Android 11+, TLS).
@@ -66,9 +65,8 @@ final class AdbService {
   /// The address to use: the first of [addresses].
   InternetAddress? get address => addresses.isEmpty ? null : addresses.first;
 
-  /// Splits `adb-<serial>[-<suffix>]`. Serials may contain `-`; the suffix
-  /// is the last part when it looks like one (6 letters or digits, as
-  /// mDNS backends append), else everything is the serial.
+  /// Splits `adb-<serial>[-<suffix>]`. Serials may contain `-`; the suffix is the last part when it looks like one (6
+  /// letters or digits, as mDNS backends append), else everything is the serial.
   static (String, String?)? parseInstance(String instance) {
     if (!instance.startsWith('adb-') || instance.length == 4) return null;
     final rest = instance.substring(4);
@@ -133,12 +131,10 @@ final class AdbServiceLost extends AdbServiceEvent {
   String toString() => 'lost $service';
 }
 
-/// Anything that finds adb services: `AdbMdnsBrowser` on `dart:io`, or an
-/// adapter over a platform browser (iOS `NWBrowser`, Android NSD), which
-/// apps need where raw multicast is not allowed.
+/// Anything that finds adb services: `AdbMdnsBrowser` on `dart:io`, or an adapter over a platform browser (iOS
+/// `NWBrowser`, Android NSD), which apps need where raw multicast is not allowed.
 abstract interface class AdbServiceBrowser {
-  /// Services of [types] (from [AdbServiceType]): found, updated, lost,
-  /// until the subscription is cancelled.
+  /// Services of [types] (from [AdbServiceType]): found, updated, lost, until the subscription is cancelled.
   Stream<AdbServiceEvent> browse(List<String> types);
 }
 
@@ -148,8 +144,7 @@ String fullType(String type) => type.endsWith('.local') ? type : '$type.local';
 
 /// Pairing services from any browser, for `AdbPairingQr.pair`.
 extension AdbServiceBrowserPairing on AdbServiceBrowser {
-  /// The `_adb-tls-pairing._tcp` services as they are found (and when they
-  /// change), as `AdbPairingQr.pair` takes them.
+  /// The `_adb-tls-pairing._tcp` services as they are found (and when they change), as `AdbPairingQr.pair` takes them.
   Stream<AdbPairingService> pairingServices() => browse(const [AdbServiceType.tlsPairing])
       .where((e) => e is! AdbServiceLost && e.service.address != null)
       .map((e) => AdbPairingService(name: e.service.instance, host: e.service.address!, port: e.service.port));

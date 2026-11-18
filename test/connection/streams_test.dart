@@ -15,8 +15,8 @@ import '../support/adbd_scripts.dart';
 import '../support/fake_adbd.dart';
 import '../support/fake_clock.dart';
 
-/// Starts a fake device with [banner] (classic flow control unless it lists
-/// `delayed_ack`) running [script] after the handshake, and connects.
+/// Starts a fake device with [banner] (classic flow control unless it lists `delayed_ack`) running [script] after the
+/// handshake, and connects.
 Future<(AdbConnection, FakeAdbd)> connectTo(
   Future<void> Function(FakeAdbdSession session) script, {
   Uint8List? banner,
@@ -31,8 +31,7 @@ Future<(AdbConnection, FakeAdbd)> connectTo(
   return (adb, adbd);
 }
 
-/// Options for tests that move a fake clock and do not want the liveness
-/// probe in their script.
+/// Options for tests that move a fake clock and do not want the liveness probe in their script.
 const AdbConnectOptions noLiveness = AdbConnectOptions(livenessInterval: null);
 
 AdbMessage open(int id, String service, {int window = 0}) =>
@@ -176,8 +175,7 @@ void main() {
   });
 
   group('delayed acknowledgements', () {
-    test('windows in OPEN and OKAY, writes within the budget, '
-        'acknowledged byte counts', () async {
+    test('windows in OPEN and OKAY, writes within the budget, acknowledged byte counts', () async {
       final window = const AdbConnectOptions().receiveWindow;
       final (adb, adbd) = await connectTo(banner: tvBanner, (session) async {
         await session.expect(open(1, 'exec:cat', window: window));
@@ -207,8 +205,7 @@ void main() {
       await adb.close();
     });
 
-    test('an OPEN answer without a window is ignored, as adbd ignores a '
-        'malformed OKAY', () async {
+    test('an OPEN answer without a window is ignored, as adbd ignores a malformed OKAY', () async {
       final (adb, adbd) = await connectTo(banner: tvBanner, (session) async {
         await session.receive();
         session
@@ -224,8 +221,7 @@ void main() {
   });
 
   group('routing', () {
-    test('duplicate and late messages are ignored; OKAY for an unknown '
-        'stream is answered with CLSE', () async {
+    test('duplicate and late messages are ignored; OKAY for an unknown stream is answered with CLSE', () async {
       final (adb, adbd) = await connectTo((session) async {
         await session.expect(open(1, 'shell:x'));
         session
@@ -300,8 +296,7 @@ void main() {
   });
 
   group('failures end everything', () {
-    test('an overdue acknowledgement checks the device; no answer fails '
-        'the connection (frozen device)', () async {
+    test('an overdue acknowledgement checks the device; no answer fails the connection (frozen device)', () async {
       final clock = FakeClock();
       final (adb, adbd) = await connectTo(clock: clock, options: noLiveness, (session) async {
         await session.expect(open(1, 'exec:cat'));
@@ -403,8 +398,7 @@ void main() {
   });
 
   group('liveness', () {
-    test('silence on an open stream sends the ping; an answer keeps the '
-        'connection', () async {
+    test('silence on an open stream sends the ping; an answer keeps the connection', () async {
       final clock = FakeClock();
       final (adb, adbd) = await connectTo(clock: clock, (session) async {
         await session.expect(open(1, 'shell:sleep 60'));

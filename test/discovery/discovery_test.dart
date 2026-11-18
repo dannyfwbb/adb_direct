@@ -13,8 +13,7 @@ import 'package:test/test.dart';
 
 import '../support/fake_clock.dart';
 
-/// A test-side writer for mDNS answers, independent of the library's code:
-/// plain labels, no compression.
+/// A test-side writer for mDNS answers, independent of the library's code: plain labels, no compression.
 final class Answer {
   final BytesBuilder _records = BytesBuilder();
   int _count = 0;

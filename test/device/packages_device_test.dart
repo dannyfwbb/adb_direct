@@ -13,8 +13,7 @@ final String? host = Platform.environment['ADB_DIRECT_TEST_HOST'];
 final int port = int.parse(Platform.environment['ADB_DIRECT_TEST_PORT'] ?? '5555');
 final String? keyPath = Platform.environment['ADB_DIRECT_TEST_KEY'];
 final String? skip = host == null || keyPath == null
-    ? 'ADB_DIRECT_TEST_HOST and ADB_DIRECT_TEST_KEY are not set '
-          '(see test/device/README.md)'
+    ? 'ADB_DIRECT_TEST_HOST and ADB_DIRECT_TEST_KEY are not set (see test/device/README.md)'
     : null;
 
 /// The test app (test/fixtures/apks); removed after every test.
@@ -27,8 +26,7 @@ void main() {
   AdbConnection adb() => connection!;
   var sdk = 0;
 
-  /// Install sessions came with Android 5 (API 21): before, the library
-  /// says so.
+  /// Install sessions came with Android 5 (API 21): before, the library says so.
   Future<bool> hasSessions() async {
     if (sdk >= 21) return true;
     await expectLater(adb().packages.installMultiple([apk('app-v2')]), throwsA(isA<AdbNotSupportedException>()));
@@ -77,8 +75,8 @@ void main() {
 
   test('a split without its base is refused ("Full install must include a base package")', () async {
     if (!await hasSessions()) return;
-    // That the session is then abandoned is checked by the unit tests: this
-    // device offers the shell user no way to list install sessions.
+    // That the session is then abandoned is checked by the unit tests: this device offers the shell user no way to list
+    // install sessions.
     await expectLater(
       adb().packages.installMultiple([apk('app-v2-extra')]),
       throwsA(isA<AdbInstallException>().having((e) => e.failureCode, 'failureCode', 'INSTALL_FAILED_INVALID_APK')),

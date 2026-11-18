@@ -9,13 +9,11 @@ import '../errors.dart';
 import '../protocol/byte_queue.dart';
 import 'adb_stream.dart';
 
-/// Reads framed data from an [AdbStream]: exact byte counts, with
-/// backpressure and a stall guard.
+/// Reads framed data from an [AdbStream]: exact byte counts, with backpressure and a stall guard.
 ///
-/// Holds about [highWater] bytes between reads: past that the stream is
-/// paused, which (through ADB flow control) stops the device. A read that sees no
-/// byte for [stallTimeout] fails with [AdbTimeoutException]; the caller
-/// decides what to do with the stream.
+/// Holds about [highWater] bytes between reads: past that the stream is paused, which (through ADB flow control) stops
+/// the device. A read that sees no byte for [stallTimeout] fails with [AdbTimeoutException]; the caller decides what to
+/// do with the stream.
 final class StreamReader {
   /// Starts reading [stream].
   StreamReader(
@@ -64,20 +62,16 @@ final class StreamReader {
 
   /// Reads exactly [count] bytes.
   ///
-  /// Throws [AdbClosedException] when the stream ends first (with what the
-  /// connection said, if it failed), [AdbTimeoutException] after
-  /// [stallTimeout] without progress.
+  /// Throws [AdbClosedException] when the stream ends first (with what the connection said, if it failed),
+  /// [AdbTimeoutException] after [stallTimeout] without progress.
   Future<Uint8List> readExactly(int count) async {
     while (_buffer.length < count) {
       if (_error case final error?) throw error;
       if (_ended) {
-        throw AdbClosedException(
-          'The stream to "${stream.service}" ended after '
-          '${_buffer.length} of $count bytes',
-        );
+        throw AdbClosedException('The stream to "${stream.service}" ended after ${_buffer.length} of $count bytes');
       }
-      // More is needed than is buffered: let the device send, even past
-      // the high-water mark (a frame larger than it must still complete).
+      // More is needed than is buffered: let the device send, even past the high-water mark (a frame larger than it
+      // must still complete).
       if (_subscription.isPaused) _subscription.resume();
       await _waitForData();
     }
@@ -86,8 +80,7 @@ final class StreamReader {
     return out;
   }
 
-  /// Stops reading; a read waiting for data fails with
-  /// [AdbClosedException].
+  /// Stops reading; a read waiting for data fails with [AdbClosedException].
   Future<void> cancel() {
     _error ??= AdbClosedException('Stopped reading "${stream.service}"');
     _wake();
@@ -125,8 +118,7 @@ final class StreamReader {
     } finally {
       timer.cancel();
     }
-    // Stalled means no byte at all during the whole period, even when part
-    // of a frame is already buffered.
+    // Stalled means no byte at all during the whole period, even when part of a frame is already buffered.
     if (stalled && _received == before && !_ended && _error == null) {
       throw AdbTimeoutException('No data on "${stream.service}" for $stallTimeout');
     }

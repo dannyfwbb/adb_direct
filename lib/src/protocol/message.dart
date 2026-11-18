@@ -38,8 +38,7 @@ enum AdbCommand {
 
   const AdbCommand(this.value);
 
-  /// The value on the wire: four ASCII letters read as a little-endian
-  /// unsigned 32-bit integer.
+  /// The value on the wire: four ASCII letters read as a little-endian unsigned 32-bit integer.
   final int value;
 
   /// The four letters, such as `CNXN`.
@@ -82,15 +81,14 @@ enum AdbAuthType {
 
 /// One message of the ADB protocol: a command, two arguments and a payload.
 ///
-/// Stream ids in `arg0` and `arg1` are relative to the sender: in a message
-/// we send, `arg0` is our id; in one we receive, `arg0` is the device's.
+/// Stream ids in `arg0` and `arg1` are relative to the sender: in a message we send, `arg0` is our id; in one we
+/// receive, `arg0` is the device's.
 @immutable
 final class AdbMessage {
   /// Creates a message. Arguments must fit in 32 bits unsigned.
   ///
-  /// A [Uint8List] payload is taken over, not copied (messages carry up to
-  /// 1 MiB): the caller must not modify it afterwards. Any other list is
-  /// copied.
+  /// A [Uint8List] payload is taken over, not copied (messages carry up to 1 MiB): the caller must not modify it
+  /// afterwards. Any other list is copied.
   AdbMessage(this.command, this.arg0, this.arg1, [List<int>? payload]) : payload = _readOnly(payload) {
     _checkUint32(arg0, 'arg0');
     _checkUint32(arg1, 'arg1');
@@ -111,16 +109,15 @@ final class AdbMessage {
 
   /// `OPEN(localId, window, "service\0")`.
   ///
-  /// [window] is our receive window when delayed acknowledgements are in
-  /// use, and must be 0 otherwise. The service name is sent with a trailing
-  /// NUL, as adb does; adbd strips it.
+  /// [window] is our receive window when delayed acknowledgements are in use, and must be 0 otherwise. The service name
+  /// is sent with a trailing NUL, as adb does; adbd strips it.
   factory AdbMessage.open({required int localId, required String service, int window = 0}) {
     _checkStreamId(localId, 'localId');
     return AdbMessage(AdbCommand.open, localId, window, [...utf8.encode(service), 0]);
   }
 
-  /// `OKAY(localId, remoteId)`, with the number of bytes consumed as a
-  /// little-endian `int32` payload when delayed acknowledgements are in use.
+  /// `OKAY(localId, remoteId)`, with the number of bytes consumed as a little-endian `int32` payload when delayed
+  /// acknowledgements are in use.
   factory AdbMessage.okay({required int localId, required int remoteId, int? acknowledged}) {
     _checkStreamId(localId, 'localId');
     _checkStreamId(remoteId, 'remoteId');
@@ -158,12 +155,10 @@ final class AdbMessage {
   /// The payload, as a read-only view. Empty when there is none.
   final Uint8List payload;
 
-  /// The `int32` acknowledgement in an `OKAY` payload, or null when the
-  /// payload is empty (no delayed acknowledgements).
+  /// The `int32` acknowledgement in an `OKAY` payload, or null when the payload is empty (no delayed acknowledgements).
   ///
-  /// Throws [AdbProtocolException] when the payload has any other size.
-  /// adbd drops such an `OKAY` and keeps the connection; callers should do
-  /// the same rather than fail.
+  /// Throws [AdbProtocolException] when the payload has any other size. adbd drops such an `OKAY` and keeps the
+  /// connection; callers should do the same rather than fail.
   int? get acknowledgedBytes {
     if (payload.isEmpty) return null;
     if (payload.length != 4) {
@@ -185,8 +180,7 @@ final class AdbMessage {
 
   @override
   String toString() =>
-      '${command.wireName}(0x${arg0.toRadixString(16)}, '
-      '0x${arg1.toRadixString(16)}, ${payload.length} bytes)';
+      '${command.wireName}(0x${arg0.toRadixString(16)}, 0x${arg1.toRadixString(16)}, ${payload.length} bytes)';
 
   static final Uint8List _empty = Uint8List(0).asUnmodifiableView();
 
@@ -201,8 +195,8 @@ final class AdbMessage {
 abstract final class AdbMessageCodec {
   /// The bytes of [message]: the 24-byte header followed by the payload.
   ///
-  /// Set [withChecksum] when the negotiated protocol version is below
-  /// [AdbProtocol.versionSkipChecksum]; otherwise the checksum field is 0.
+  /// Set [withChecksum] when the negotiated protocol version is below [AdbProtocol.versionSkipChecksum]; otherwise the
+  /// checksum field is 0.
   static Uint8List encode(AdbMessage message, {required bool withChecksum}) {
     final payload = message.payload;
     final out = Uint8List(AdbProtocol.headerLength + payload.length);
@@ -217,8 +211,8 @@ abstract final class AdbMessageCodec {
     return out;
   }
 
-  /// The payload checksum of protocol version 1.0: the sum of the bytes,
-  /// modulo 2³². (adb calls the field `data_crc32`; it is not a CRC.)
+  /// The payload checksum of protocol version 1.0: the sum of the bytes, modulo 2³². (adb calls the field `data_crc32`;
+  /// it is not a CRC.)
   static int checksum(List<int> payload) {
     var sum = 0;
     for (final byte in payload) {
@@ -230,35 +224,29 @@ abstract final class AdbMessageCodec {
 
 /// Called for a message whose command this library does not know.
 ///
-/// [command] is the raw wire value, [length] the size of the payload that
-/// was skipped with it.
+/// [command] is the raw wire value, [length] the size of the payload that was skipped with it.
 typedef AdbUnknownCommandCallback = void Function(int command, int length);
 
 /// Turns a byte stream into [AdbMessage]s.
 ///
-/// Feed chunks as they arrive with [add] and take complete messages with
-/// [next] or [drain]. Checksums are not verified, as adbd does not verify
-/// them either.
+/// Feed chunks as they arrive with [add] and take complete messages with [next] or [drain]. Checksums are not verified,
+/// as adbd does not verify them either.
 ///
-/// Like adbd, the reader rejects only what breaks the framing: a wrong
-/// magic or a payload above [maxPayload]. A message with an unknown
-/// command (or the obsolete `SYNC`) is skipped, reported to
-/// [onUnknownCommand], and reading continues, so a newer device that adds a
-/// command does not lose the connection.
+/// Like adbd, the reader rejects only what breaks the framing: a wrong magic or a payload above [maxPayload]. A message
+/// with an unknown command (or the obsolete `SYNC`) is skipped, reported to [onUnknownCommand], and reading continues,
+/// so a newer device that adds a command does not lose the connection.
 final class AdbMessageReader {
   /// Creates a reader that accepts payloads up to [maxPayload] bytes.
   AdbMessageReader({this.maxPayload = AdbProtocol.maxPayload, this.onUnknownCommand, this.onRawMessage});
 
-  /// The largest payload accepted. A larger `data_length` is a protocol
-  /// error.
+  /// The largest payload accepted. A larger `data_length` is a protocol error.
   int maxPayload;
 
-  /// Receives the messages that were skipped because their command is
-  /// unknown.
+  /// Receives the messages that were skipped because their command is unknown.
   final AdbUnknownCommandCallback? onUnknownCommand;
 
-  /// Receives the exact bytes (header and payload) of each message
-  /// returned, for tracing and recording. Costs a copy per message when set.
+  /// Receives the exact bytes (header and payload) of each message returned, for tracing and recording. Costs a copy
+  /// per message when set.
   final void Function(Uint8List raw)? onRawMessage;
 
   final ByteQueue _buffer = ByteQueue();
@@ -266,14 +254,12 @@ final class AdbMessageReader {
   /// Bytes received but not yet returned as messages.
   int get bufferedLength => _buffer.length;
 
-  /// Appends received bytes. The reader keeps a reference to [chunk]: do
-  /// not modify it afterwards.
+  /// Appends received bytes. The reader keeps a reference to [chunk]: do not modify it afterwards.
   void add(List<int> chunk) => _buffer.add(chunk);
 
   /// Every complete message buffered so far, in order.
   ///
-  /// Lazy: each message is decoded as the iteration reaches it, and a
-  /// protocol error is thrown at that point.
+  /// Lazy: each message is decoded as the iteration reaches it, and a protocol error is thrown at that point.
   Iterable<AdbMessage> drain() sync* {
     for (var message = next(); message != null; message = next()) {
       yield message;
@@ -282,28 +268,24 @@ final class AdbMessageReader {
 
   /// The next complete message, or null if more bytes are needed.
   ///
-  /// Throws [AdbProtocolException] for a header with a wrong magic or an
-  /// oversized payload. The reader is unusable after that: the stream can
-  /// no longer be framed.
+  /// Throws [AdbProtocolException] for a header with a wrong magic or an oversized payload. The reader is unusable
+  /// after that: the stream can no longer be framed.
   ///
-  /// The payload of the returned message may be a view of a received chunk
-  /// and keeps that chunk alive as long as the message is referenced.
+  /// The payload of the returned message may be a view of a received chunk and keeps that chunk alive as long as the
+  /// message is referenced.
   AdbMessage? next() {
     while (_buffer.length >= AdbProtocol.headerLength) {
       final commandValue = _buffer.peekUint32Le(0);
       final magic = _buffer.peekUint32Le(20);
       if (magic != commandValue ^ 0xffffffff) {
         throw AdbProtocolException(
-          'Bad message magic 0x${magic.toRadixString(16)} for command '
-          '0x${commandValue.toRadixString(16)}',
+          'Bad message magic 0x${magic.toRadixString(16)} for command 0x${commandValue.toRadixString(16)}',
         );
       }
       final length = _buffer.peekUint32Le(12);
       if (length > maxPayload) {
         throw AdbProtocolException(
-          'Payload of $length bytes for command '
-          '0x${commandValue.toRadixString(16)} exceeds the limit of '
-          '$maxPayload',
+          'Payload of $length bytes for command 0x${commandValue.toRadixString(16)} exceeds the limit of $maxPayload',
         );
       }
       if (_buffer.length < AdbProtocol.headerLength + length) return null;

@@ -14,8 +14,8 @@ import 'dns_message.dart';
 /// How mDNS packets come and go. Internal: tests replace it.
 @internal
 abstract interface class MdnsTransport {
-  /// Starts receiving; [onPacket] gets every datagram from port 5353 and
-  /// who sent it; [onError] a failure of the socket.
+  /// Starts receiving; [onPacket] gets every datagram from port 5353 and who sent it; [onError] a failure of the
+  /// socket.
   Future<void> start(
     void Function(Uint8List packet, InternetAddress from) onPacket,
     void Function(Object error) onError,
@@ -24,8 +24,7 @@ abstract interface class MdnsTransport {
   /// Sends a query to the mDNS group.
   void send(Uint8List packet);
 
-  /// Whether it hears multicast (announcements and goodbyes), or only the
-  /// unicast answers to its own queries.
+  /// Whether it hears multicast (announcements and goodbyes), or only the unicast answers to its own queries.
   bool get hearsMulticast;
 
   /// Joins the group on interfaces that came up since the last call.
@@ -35,22 +34,17 @@ abstract interface class MdnsTransport {
   Future<void> close();
 }
 
-/// A DNS-SD browser on `dart:io` multicast (RFC 6762, 6763): desktop and
-/// Android.
+/// A DNS-SD browser on `dart:io` multicast (RFC 6762, 6763): desktop and Android.
 ///
-/// It listens on port 5353 next to the system's responder (sharing the
-/// port) and hears announcements and goodbyes; where the port cannot be
-/// shared it falls back to asking from a port of its own, and then notices
-/// a device leaving only when its records expire. It asks again at growing
-/// intervals (1 s, 2 s, 4 s, … up to [maxQueryInterval]), refreshes records
-/// at 80 % and 90 % of their TTL, resolves what a PTR names (SRV, TXT,
-/// addresses), and keeps only records that belong to the browsed types.
+/// It listens on port 5353 next to the system's responder (sharing the port) and hears announcements and goodbyes;
+/// where the port cannot be shared it falls back to asking from a port of its own, and then notices a device leaving
+/// only when its records expire. It asks again at growing intervals (1 s, 2 s, 4 s, … up to [maxQueryInterval]),
+/// refreshes records at 80 % and 90 % of their TTL, resolves what a PTR names (SRV, TXT, addresses), and keeps only
+/// records that belong to the browsed types.
 ///
-/// IPv4 only; queries leave through the system's default multicast
-/// interface. On Android the app must hold a `WifiManager.MulticastLock`
-/// while browsing, or Wi-Fi drivers drop multicast. On iOS raw multicast
-/// needs an entitlement: use a platform browser through
-/// [AdbServiceBrowser] instead.
+/// IPv4 only; queries leave through the system's default multicast interface. On Android the app must hold a
+/// `WifiManager.MulticastLock` while browsing, or Wi-Fi drivers drop multicast. On iOS raw multicast needs an
+/// entitlement: use a platform browser through [AdbServiceBrowser] instead.
 final class AdbMdnsBrowser implements AdbServiceBrowser {
   /// Creates a browser.
   AdbMdnsBrowser({
@@ -70,8 +64,8 @@ final class AdbMdnsBrowser implements AdbServiceBrowser {
   Stream<AdbServiceEvent> browse(List<String> types) {
     if (types.isEmpty) throw ArgumentError.value(types, 'types', 'is empty');
     late final _Session session;
-    // Synchronous: events come from packet and timer callbacks, never
-    // from inside a caller's own call. Ends when the subscriber cancels.
+    // Synchronous: events come from packet and timer callbacks, never from inside a caller's own call. Ends when the
+    // subscriber cancels.
     // ignore: close_sinks
     final controller = StreamController<AdbServiceEvent>(
       sync: true,
@@ -212,8 +206,7 @@ final class _Session {
     }
   }
 
-  /// A question unless it was asked recently; each repeat waits twice as
-  /// long, up to a minute (RFC 6762 5.2).
+  /// A question unless it was asked recently; each repeat waits twice as long, up to a minute (RFC 6762 5.2).
   DnsQuestion? _limited(String name, int type) {
     final now = clock.elapsed;
     final key = (name.toLowerCase(), type);
@@ -226,8 +219,7 @@ final class _Session {
     return DnsQuestion(name, type);
   }
 
-  /// SRV/TXT of instances without an SRV, addresses of targets without one,
-  /// each rate-limited.
+  /// SRV/TXT of instances without an SRV, addresses of targets without one, each rate-limited.
   List<DnsQuestion> _missing() {
     final questions = <DnsQuestion>[];
     for (final instance in _instances()) {
@@ -255,9 +247,8 @@ final class _Session {
     final now = clock.elapsed;
     final sender = from.address;
 
-    // Only what belongs to the browsed types: their PTRs, the instances
-    // those name (in the cache or in this packet), and the hosts their
-    // SRVs name. Everything else on the network is ignored.
+    // Only what belongs to the browsed types: their PTRs, the instances those name (in the cache or in this packet),
+    // and the hosts their SRVs name. Everything else on the network is ignored.
     final answers = message.answers;
     final instances = {
       ..._instances().map((i) => i.toLowerCase()),
@@ -278,8 +269,8 @@ final class _Session {
     };
 
     var changed = false;
-    // Cache-flush: the bit replaces the older records of the set from the
-    // same sender that are more than a second old (RFC 6762 10.2).
+    // Cache-flush: the bit replaces the older records of the set from the same sender that are more than a second old
+    // (RFC 6762 10.2).
     for (final r in answers) {
       if (!r.cacheFlush || r.ttl == 0 || !relevant(r)) continue;
       final name = r.name.toLowerCase();
@@ -294,8 +285,8 @@ final class _Session {
       if (!relevant(r)) continue;
       final key = (r.name.toLowerCase(), r.type, _dataKey(r), sender);
       if (r.ttl == 0) {
-        // A goodbye: this sender's record goes in a second (RFC 6762
-        // 10.1); the same record from another interface stays.
+        // A goodbye: this sender's record goes in a second (RFC 6762 10.1); the same record from another interface
+        // stays.
         final entry = _cache[key];
         if (entry != null) {
           entry
@@ -325,8 +316,8 @@ final class _Session {
     }
   }
 
-  /// Once a second: expiry, refresh questions at 80 % and 90 % of a
-  /// record's TTL (RFC 6762 5.2), questions for what is still missing.
+  /// Once a second: expiry, refresh questions at 80 % and 90 % of a record's TTL (RFC 6762 5.2), questions for what is
+  /// still missing.
   void _maintain() {
     final now = clock.elapsed;
     final before = _cache.length;
@@ -352,8 +343,8 @@ final class _Session {
     if (_cache.length != before) _scheduleReport();
   }
 
-  /// Reports a little later, so the records of one announcement (often
-  /// several packets, one per interface) arrive together.
+  /// Reports a little later, so the records of one announcement (often several packets, one per interface) arrive
+  /// together.
   void _scheduleReport() {
     _reportTimer ??= clock.timer(const Duration(milliseconds: 100), () {
       _reportTimer = null;
@@ -388,8 +379,8 @@ final class _Session {
 
   DnsSrv? _srv(String instance) => _newest(instance, DnsType.srv)?.record.data as DnsSrv?;
 
-  /// The host's addresses, most useful first: IPv4 before IPv6, routable
-  /// before link-local, loopback last; no duplicates.
+  /// The host's addresses, most useful first: IPv4 before IPv6, routable before link-local, loopback last; no
+  /// duplicates.
   List<InternetAddress> _addresses(String host) {
     final lower = host.toLowerCase();
     final found = {
@@ -403,8 +394,8 @@ final class _Session {
     return found;
   }
 
-  /// The pairs of the newest TXT record (RFC 6763 6.4: keys compare without
-  /// case, the first occurrence wins, an empty key is ignored).
+  /// The pairs of the newest TXT record (RFC 6763 6.4: keys compare without case, the first occurrence wins, an empty
+  /// key is ignored).
   Map<String, String> _txt(String instance) {
     final strings = _newest(instance, DnsType.txt)?.record.data as List<String>? ?? const [];
     final txt = <String, String>{};
@@ -470,8 +461,8 @@ final class _Session {
   };
 }
 
-/// mDNS over `dart:io`: port 5353 shared with the system responder when
-/// possible, else a port of its own (legacy unicast answers, RFC 6762 6.7).
+/// mDNS over `dart:io`: port 5353 shared with the system responder when possible, else a port of its own (legacy
+/// unicast answers, RFC 6762 6.7).
 final class _IoTransport implements MdnsTransport {
   static final InternetAddress _group = InternetAddress('224.0.0.251');
   RawDatagramSocket? _socket;

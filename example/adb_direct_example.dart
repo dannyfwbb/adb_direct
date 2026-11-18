@@ -1,13 +1,12 @@
 // Copyright 2026 The adb_direct authors
 // SPDX-License-Identifier: Apache-2.0
 
-// Connects to a device, runs a command, lists a directory and installs an
-// APK:
+// Connects to a device, runs a command, lists a directory and installs an APK:
 //
 //   dart run example/adb_direct_example.dart 192.168.0.20 5555 [app.apk]
 //
-// The first time, the device asks "Allow debugging?" for this key, which
-// is kept in adbkey.pem next to the working directory.
+// The first time, the device asks "Allow debugging?" for this key, which is kept in adbkey.pem next to the working
+// directory.
 
 import 'dart:io';
 

@@ -7,9 +7,8 @@ import 'package:adb_direct/src/clock.dart';
 
 /// An [AdbClock] that moves only when told to.
 ///
-/// Timers fire synchronously inside [advance], in deadline order, each with
-/// [elapsed] set to its own deadline. Sockets and microtasks keep running in
-/// real time, which is what deadline and stall-guard tests need.
+/// Timers fire synchronously inside [advance], in deadline order, each with [elapsed] set to its own deadline. Sockets
+/// and microtasks keep running in real time, which is what deadline and stall-guard tests need.
 final class FakeClock implements AdbClock {
   Duration _elapsed = Duration.zero;
   final List<_FakeTimer> _timers = [];

@@ -10,10 +10,9 @@ import 'dart:io';
 import 'package:adb_direct/adb_direct.dart';
 import 'package:test/test.dart';
 
-/// Browses a service the local Avahi daemon publishes (tool/mdns_publish.py,
-/// Linux, python3 with dbus): the real network stack and a real responder.
-/// Set ADB_DIRECT_TEST_MDNS=1. It uses its own service type, so no device
-/// on the network is involved.
+/// Browses a service the local Avahi daemon publishes (tool/mdns_publish.py, Linux, python3 with dbus): the real
+/// network stack and a real responder. Set ADB_DIRECT_TEST_MDNS=1. It uses its own service type, so no device on the
+/// network is involved.
 final String? skip = Platform.environment['ADB_DIRECT_TEST_MDNS'] == '1'
     ? null
     : 'set ADB_DIRECT_TEST_MDNS=1 (needs Avahi; see test/device/README.md)';
@@ -36,8 +35,7 @@ void main() {
     expect(found.service.suffix, 'Xy12Ab');
     expect(found.service.port, 40123);
     expect(found.service.txt, {'v': '1'});
-    // The report waits for the announcement's packets from every
-    // interface: the first address is a routable one.
+    // The report waits for the announcement's packets from every interface: the first address is a routable one.
     expect(found.service.address!.isLoopback, isFalse);
 
     watch.reset();

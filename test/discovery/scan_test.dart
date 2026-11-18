@@ -55,8 +55,8 @@ void main() {
   });
 
   test('scan: at most `concurrency` probes at a time', () async {
-    // A server that accepts and says nothing: each probe waits for its
-    // timeout. 12 targets, 3 at a time, 150 ms each: at least 4 rounds.
+    // A server that accepts and says nothing: each probe waits for its timeout. 12 targets, 3 at a time, 150 ms each:
+    // at least 4 rounds.
     final silent = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
     final sockets = <Socket>[];
     silent.listen(sockets.add);

@@ -3,9 +3,8 @@
 
 /// A pure Dart ADB client that talks to adbd over the network.
 ///
-/// Start with [AdbKeyPair] (the identity a device trusts) and
-/// [AdbConnection.connect]; [AdbProbe] answers questions about a device
-/// without making it ask its user anything.
+/// Start with [AdbKeyPair] (the identity a device trusts) and [AdbConnection.connect]; [AdbProbe] answers questions
+/// about a device without making it ask its user anything.
 library;
 
 import 'src/connection/connection.dart';

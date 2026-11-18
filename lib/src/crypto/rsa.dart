@@ -20,9 +20,8 @@ const int adbRsaBits = 2048;
 
 /// An RSA-2048 private key with its CRT parameters.
 ///
-/// Every way in validates the key completely, so a key that exists is
-/// consistent: a broken or hostile key file fails on import with a
-/// [FormatException] instead of producing wrong signatures later.
+/// Every way in validates the key completely, so a key that exists is consistent: a broken or hostile key file fails on
+/// import with a [FormatException] instead of producing wrong signatures later.
 ///
 /// Internal: the public face is `AdbKeyPair`.
 final class RsaPrivateKey {
@@ -37,13 +36,12 @@ final class RsaPrivateKey {
     required this.qInv,
   });
 
-  /// Creates a key from its parameters after checking that they form a
-  /// valid RSA-2048 key; derives or checks the CRT values.
+  /// Creates a key from its parameters after checking that they form a valid RSA-2048 key; derives or checks the CRT
+  /// values.
   ///
-  /// Throws [FormatException] for anything inconsistent: factors that do
-  /// not multiply to the modulus, a modulus that is not 2048 bits, an even
-  /// or out-of-range exponent, a private exponent that does not invert the
-  /// public one, or CRT values that do not match.
+  /// Throws [FormatException] for anything inconsistent: factors that do not multiply to the modulus, a modulus that is
+  /// not 2048 bits, an even or out-of-range exponent, a private exponent that does not invert the public one, or CRT
+  /// values that do not match.
   factory RsaPrivateKey({
     required BigInt modulus,
     required BigInt publicExponent,
@@ -96,8 +94,7 @@ final class RsaPrivateKey {
 
   /// Generates an RSA-2048 key with exponent 65537.
   ///
-  /// CPU-heavy (up to about half a second in pure Dart): call it from an
-  /// isolate.
+  /// CPU-heavy (up to about half a second in pure Dart): call it from an isolate.
   factory RsaPrivateKey.generate() {
     final seed = Random.secure();
     final random = pc.FortunaRandom()
@@ -204,10 +201,9 @@ final class RsaPrivateKey {
 
   /// The private-key operation m^d mod n.
   ///
-  /// The input comes from the other side (a device chooses the token we
-  /// sign), so the operation is blinded with a fresh random factor against
-  /// timing attacks on the CRT, and the result is verified with the public
-  /// exponent before it leaves, against faults.
+  /// The input comes from the other side (a device chooses the token we sign), so the operation is blinded with a fresh
+  /// random factor against timing attacks on the CRT, and the result is verified with the public exponent before it
+  /// leaves, against faults.
   BigInt privateOperation(BigInt message) {
     if (message.isNegative || message >= modulus) {
       throw ArgumentError('RSA input out of range');
@@ -224,8 +220,8 @@ final class RsaPrivateKey {
     return signature;
   }
 
-  /// RSASSA-PKCS1-v1_5 over a [digest] that is already hashed, prefixed
-  /// with the algorithm's [digestInfoPrefix] (RFC 8017 9.2).
+  /// RSASSA-PKCS1-v1_5 over a [digest] that is already hashed, prefixed with the algorithm's [digestInfoPrefix] (RFC
+  /// 8017 9.2).
   Uint8List signDigest(List<int> digestInfoPrefix, List<int> digest) {
     final t = [...digestInfoPrefix, ...digest];
     final k = modulusLength;

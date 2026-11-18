@@ -7,8 +7,7 @@ import 'package:crypto/crypto.dart';
 
 /// HKDF (RFC 5869) over an HMAC [hash].
 abstract final class Hkdf {
-  /// HKDF-Extract: a pseudorandom key from [inputKeyMaterial] and [salt]
-  /// (all-zero, hash-sized, when empty).
+  /// HKDF-Extract: a pseudorandom key from [inputKeyMaterial] and [salt] (all-zero, hash-sized, when empty).
   static Uint8List extract(Hash hash, List<int> inputKeyMaterial, {List<int> salt = const []}) {
     final key = salt.isEmpty ? List<int>.filled(_hashLength(hash), 0) : salt;
     return Uint8List.fromList(Hmac(hash, key).convert(inputKeyMaterial).bytes);

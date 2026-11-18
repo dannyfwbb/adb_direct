@@ -22,8 +22,8 @@ final Uint8List abbBanner = utf8.encode('${utf8.decode(classicBanner)},cmd,abb_e
 /// A device with `cmd` but no `abb_exec` (Android 7-10).
 final Uint8List cmdBanner = utf8.encode('${utf8.decode(classicBanner)},cmd');
 
-/// adbd's side of one package manager command: accepts the OPEN, reads
-/// [expectInput] bytes of stdin (acknowledging), answers [output], closes.
+/// adbd's side of one package manager command: accepts the OPEN, reads [expectInput] bytes of stdin (acknowledging),
+/// answers [output], closes.
 Future<String> command(
   FakeAdbdSession session, {
   required String output,
@@ -59,11 +59,7 @@ void main() {
         service = await command(session, output: 'Success\n', expectInput: 10);
       });
       await adb.packages.install(tiny, options: const AdbInstallOptions(grantPermissions: true, user: 0));
-      expect(
-        service,
-        'abb_exec:package\u0000install\u0000-r\u0000-g\u0000--user\u0000'
-        '0\u0000-S\u000010',
-      );
+      expect(service, 'abb_exec:package\u0000install\u0000-r\u0000-g\u0000--user\u00000\u0000-S\u000010');
       await adbd.done();
       await adb.close();
     });
