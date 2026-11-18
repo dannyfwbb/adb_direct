@@ -8,6 +8,7 @@ import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
 
+import '../bytes.dart';
 import '../clock.dart';
 import '../connection/connection.dart';
 import '../errors.dart';
@@ -179,9 +180,7 @@ final class AdbShell {
   }
 
   static String _exitMarker() {
-    final random = Random.secure();
-    final id = List.generate(12, (_) => random.nextInt(16).toRadixString(16)).join();
-    return 'ADB_DIRECT_EXIT_${id}_';
+    return 'ADB_DIRECT_EXIT_${randomHex(6)}_';
   }
 }
 

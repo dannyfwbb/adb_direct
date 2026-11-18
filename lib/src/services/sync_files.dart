@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import 'dart:io';
-import 'dart:math';
 
 import 'package:path/path.dart' as p;
 
+import '../bytes.dart';
 import '../errors.dart';
 import '../protocol/banner.dart';
 import '../protocol/sync_protocol.dart';
@@ -19,7 +19,7 @@ extension AdbSyncFiles on AdbSync {
   /// The local file gets the device file's modification time. A failed transfer leaves no partial file behind.
   Future<void> pullFile(String remote, File local, {AdbProgress? onProgress}) async {
     final info = await _target(remote);
-    final partial = File('${local.path}.${Random.secure().nextInt(1 << 32).toRadixString(16)}.part');
+    final partial = File('${local.path}.${randomHex()}.part');
     final sink = partial.openWrite();
     try {
       await sink.addStream(read(remote, onProgress: (done, _) => onProgress?.call(done, info?.size)));

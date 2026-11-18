@@ -3,6 +3,7 @@
 
 import 'dart:io';
 
+import 'package:collection/collection.dart';
 import 'package:meta/meta.dart';
 
 import '../pairing/pairing_qr.dart' show AdbPairingService;
@@ -25,7 +26,7 @@ abstract final class AdbServiceType {
 /// A device's service, as an mDNS browser (or a platform one) found it.
 @immutable
 final class AdbService {
-  /// Creates one; [serial] and [suffix] come from [instance] when not given.
+  /// Creates one.
   AdbService({
     required this.type,
     required this.instance,
@@ -83,14 +84,8 @@ final class AdbService {
       other.instance == instance &&
       other.port == port &&
       other.host == host &&
-      _sameList(other.addresses, addresses) &&
-      _sameMap(other.txt, txt);
-
-  static bool _sameList(List<InternetAddress> a, List<InternetAddress> b) =>
-      a.length == b.length && List.generate(a.length, (i) => a[i] == b[i]).every((x) => x);
-
-  static bool _sameMap(Map<String, String> a, Map<String, String> b) =>
-      a.length == b.length && a.entries.every((e) => b[e.key] == e.value);
+      const ListEquality<InternetAddress>().equals(other.addresses, addresses) &&
+      const MapEquality<String, String>().equals(other.txt, txt);
 
   @override
   String toString() => 'AdbService($instance.$type ${address?.address ?? host}:$port)';

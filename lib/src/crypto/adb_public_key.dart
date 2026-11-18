@@ -7,6 +7,7 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart' as hashes;
 import 'package:meta/meta.dart';
 
+import '../bytes.dart';
 import 'der.dart';
 
 /// An RSA public key in the form adb and adbd exchange: a 524-byte structure in base64, followed by a comment such as
@@ -62,7 +63,7 @@ final class AdbPublicKey {
     } on ArgumentError catch (e) {
       throw FormatException('Invalid adb public key: ${e.message}');
     }
-    if (!_sameBytes(key.toBytes(), bytes)) {
+    if (!sameBytes(key.toBytes(), bytes)) {
       throw const FormatException('adb public key has inconsistent n0inv or rr fields');
     }
     return key;
@@ -109,8 +110,7 @@ final class AdbPublicKey {
 
   /// The fingerprint a device shows in "Allow debugging?": MD5 of the 524-byte structure, uppercase hex bytes separated
   /// by colons.
-  String get md5Fingerprint =>
-      hashes.md5.convert(toBytes()).bytes.map((b) => b.toRadixString(16).padLeft(2, '0').toUpperCase()).join(':');
+  String get md5Fingerprint => hexEncode(hashes.md5.convert(toBytes()).bytes, separator: ':').toUpperCase();
 
   /// Whether [other] is the same RSA key, whatever the comments say. A device identifies a client by this alone.
   bool hasSameKey(AdbPublicKey other) => other.modulus == modulus && other.exponent == exponent;
@@ -134,12 +134,4 @@ final class AdbPublicKey {
   }
 
   static BigInt _littleEndian(List<int> bytes) => Der.unsignedValue(bytes.reversed.toList());
-
-  static bool _sameBytes(List<int> a, List<int> b) {
-    if (a.length != b.length) return false;
-    for (var i = 0; i < a.length; i++) {
-      if (a[i] != b[i]) return false;
-    }
-    return true;
-  }
 }

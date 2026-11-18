@@ -4,11 +4,11 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
 
+import '../bytes.dart';
 import '../clock.dart';
 import '../connection/connection.dart';
 import '../errors.dart';
@@ -270,8 +270,7 @@ final class AdbPackages {
   /// For old devices, which have no binary stdin through `shell:`: pushes [apk] to a temporary file, runs [use] with
   /// its path, and removes the file whatever happens, a failed push included.
   Future<T> _withPushedFile<T>(AdbApk apk, AdbProgress? onProgress, Future<T> Function(String path) use) async {
-    final id = Random.secure().nextInt(1 << 32).toRadixString(16);
-    final path = '/data/local/tmp/adb_direct_$id.apk';
+    final path = '/data/local/tmp/adb_direct_${randomHex()}.apk';
     try {
       await _connection.sync.write(path, apk.open(), size: apk.size, onProgress: onProgress);
       return await use(path);

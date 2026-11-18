@@ -1,12 +1,12 @@
 // Copyright 2026 The adb_direct authors
 // SPDX-License-Identifier: Apache-2.0
 
-import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:meta/meta.dart';
 
+import '../bytes.dart';
 import 'ed25519.dart';
 
 /// The two sides of SPAKE2. The pairing client is [alice].
@@ -27,7 +27,7 @@ final class Spake2 {
   Spake2(this.role, {required List<int> myName, required List<int> theirName, Uint8List Function(int length)? random})
     : _myName = Uint8List.fromList(myName),
       _theirName = Uint8List.fromList(theirName),
-      _random = random ?? _secureRandom;
+      _random = random ?? randomBytes;
 
   /// The side this context plays.
   final Spake2Role role;
@@ -44,8 +44,12 @@ final class Spake2 {
 
   /// M (Alice's mask) and N (Bob's): fixed points from BoringSSL, the first entries of its `kSpakeMSmallPrecomp` and
   /// `kSpakeNSmallPrecomp` tables.
-  static final EdPoint _m = EdPoint.decode(_bytes('5ada7e4bf6ddd9adb6626d32131c6b5c51a1e347a3478f53cfcf441b88eed12e'))!;
-  static final EdPoint _n = EdPoint.decode(_bytes('10e3df0ae37d8e7a99b5fe74b44672103dbddcbd06af680d71329a11693bc778'))!;
+  static final EdPoint _m = EdPoint.decode(
+    hexDecode('5ada7e4bf6ddd9adb6626d32131c6b5c51a1e347a3478f53cfcf441b88eed12e'),
+  )!;
+  static final EdPoint _n = EdPoint.decode(
+    hexDecode('10e3df0ae37d8e7a99b5fe74b44672103dbddcbd06af680d71329a11693bc778'),
+  )!;
 
   EdPoint get _myMask => role == Spake2Role.alice ? _m : _n;
   EdPoint get _theirMask => role == Spake2Role.alice ? _n : _m;
@@ -146,11 +150,4 @@ final class Spake2 {
     }
     return o;
   }
-
-  static final Random _rng = Random.secure();
-
-  static Uint8List _secureRandom(int length) => Uint8List.fromList(List.generate(length, (_) => _rng.nextInt(256)));
-
-  static Uint8List _bytes(String hex) =>
-      Uint8List.fromList([for (var i = 0; i < hex.length; i += 2) int.parse(hex.substring(i, i + 2), radix: 16)]);
 }

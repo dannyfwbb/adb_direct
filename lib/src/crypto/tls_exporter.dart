@@ -6,6 +6,7 @@ import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 
+import '../bytes.dart';
 import 'hkdf.dart';
 
 /// TLS 1.3 keying material exporter (RFC 8446 7.5), computed from the `EXPORTER_SECRET` that `dart:io` reports through
@@ -24,7 +25,7 @@ final class TlsExporter {
     for (final line in lines) {
       final parts = line.trim().split(RegExp(r'\s+'));
       if (parts.length != 3 || parts[0] != 'EXPORTER_SECRET') continue;
-      final secret = _hex(parts[2]);
+      final secret = hexDecode(parts[2]);
       final hash = switch (secret.length) {
         32 => sha256,
         48 => sha384,
@@ -56,10 +57,5 @@ final class TlsExporter {
     }
     final info = [length >> 8, length & 0xff, fullLabel.length, ...fullLabel, context.length, ...context];
     return Hkdf.expand(_hash, secret, info, length);
-  }
-
-  static Uint8List _hex(String hex) {
-    if (hex.length.isOdd) throw const FormatException('Odd-length hex');
-    return Uint8List.fromList([for (var i = 0; i < hex.length; i += 2) int.parse(hex.substring(i, i + 2), radix: 16)]);
   }
 }

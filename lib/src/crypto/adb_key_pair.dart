@@ -7,6 +7,7 @@ import 'dart:typed_data';
 import 'package:crypto/crypto.dart' as hashes;
 import 'package:meta/meta.dart';
 
+import '../bytes.dart';
 import '../protocol/constants.dart';
 import 'adb_public_key.dart';
 import 'certificate.dart';
@@ -71,11 +72,7 @@ final class AdbKeyPair {
 
   /// SHA-256 of the DER `SubjectPublicKeyInfo`, uppercase hex: how a device names this key in the trusted-key list it
   /// sends during a TLS handshake.
-  String get spkiSha256 => hashes.sha256
-      .convert(_key.subjectPublicKeyInfo())
-      .bytes
-      .map((b) => b.toRadixString(16).padLeft(2, '0').toUpperCase())
-      .join();
+  String get spkiSha256 => hexEncode(hashes.sha256.convert(_key.subjectPublicKeyInfo()).bytes).toUpperCase();
 
   /// Signs the 20-byte token of an `AUTH` challenge the way adb does: PKCS#1 v1.5 with the SHA-1 `DigestInfo`, the
   /// token standing in for the digest (it is not hashed again).

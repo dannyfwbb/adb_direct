@@ -1,12 +1,12 @@
 // Copyright 2026 The adb_direct authors
 // SPDX-License-Identifier: Apache-2.0
 
-import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart' as hashes;
 import 'package:pointycastle/export.dart' as pc;
 
+import '../bytes.dart';
 import 'der.dart';
 
 /// OID of `rsaEncryption`.
@@ -96,9 +96,7 @@ final class RsaPrivateKey {
   ///
   /// CPU-heavy (up to about half a second in pure Dart): call it from an isolate.
   factory RsaPrivateKey.generate() {
-    final seed = Random.secure();
-    final random = pc.FortunaRandom()
-      ..seed(pc.KeyParameter(Uint8List.fromList(List.generate(32, (_) => seed.nextInt(256)))));
+    final random = pc.FortunaRandom()..seed(pc.KeyParameter(randomBytes(32)));
     final generator = pc.RSAKeyGenerator()
       ..init(pc.ParametersWithRandom(pc.RSAKeyGeneratorParameters(BigInt.from(65537), adbRsaBits, 64), random));
     final pair = generator.generateKeyPair();
@@ -240,10 +238,8 @@ final class RsaPrivateKey {
 
   /// A random r in [2, n − 1] coprime with n.
   BigInt _blindingFactor() {
-    final random = Random.secure();
     while (true) {
-      final bytes = List.generate(modulusLength, (_) => random.nextInt(256));
-      final r = Der.unsignedValue(bytes) % modulus;
+      final r = Der.unsignedValue(randomBytes(modulusLength)) % modulus;
       if (r > BigInt.one && r.gcd(modulus) == BigInt.one) return r;
     }
   }

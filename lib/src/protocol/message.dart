@@ -6,6 +6,7 @@ import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
 
+import '../bytes.dart';
 import '../errors.dart';
 import 'byte_queue.dart';
 import 'constants.dart';
@@ -173,7 +174,7 @@ final class AdbMessage {
       other.command == command &&
       other.arg0 == arg0 &&
       other.arg1 == arg1 &&
-      _bytesEqual(other.payload, payload);
+      sameBytes(other.payload, payload);
 
   @override
   int get hashCode => Object.hash(command, arg0, arg1, Object.hashAll(payload));
@@ -323,12 +324,4 @@ void _checkStreamId(int value, String name) {
   if (value <= 0 || value > 0xffffffff) {
     throw RangeError.range(value, 1, 0xffffffff, name);
   }
-}
-
-bool _bytesEqual(Uint8List a, Uint8List b) {
-  if (a.length != b.length) return false;
-  for (var i = 0; i < a.length; i++) {
-    if (a[i] != b[i]) return false;
-  }
-  return true;
 }
