@@ -104,6 +104,21 @@ void main() {
       await adbd.done();
     });
 
+    test('a tracking stream that ends inside a frame is a protocol error, after the whole frames', () async {
+      final (adb, adbd) = await serve((session, service, id) async {
+        write(session, id, [...ascii.encode('0005'), ...ascii.encode('8646\n'), ...ascii.encode('000a12')]);
+        close(session, id);
+        await session.expectClientClose(timeout: const Duration(seconds: 5)).catchError((Object _) {});
+      });
+      final lists = <List<int>>[];
+      await expectLater(adb.debug.trackJdwp().forEach(lists.add), throwsA(isA<AdbProtocolException>()));
+      expect(lists, [
+        [8646],
+      ]);
+      await adb.close();
+      await adbd.done();
+    });
+
     test('track-app needs the feature', () async {
       final adbd = await FakeAdbd.start((session) async {
         await acceptHandshake(session, banner: classicBanner);

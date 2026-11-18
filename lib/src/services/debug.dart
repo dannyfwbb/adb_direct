@@ -8,6 +8,7 @@ import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
 
+import '../bytes.dart';
 import '../connection/connection.dart';
 import '../errors.dart';
 import '../protocol/banner.dart';
@@ -130,9 +131,17 @@ final class AdbDebug {
   }
 
   Future<Uint8List> _screencapToFile(String command) async {
-    final path = '/data/local/tmp/adb_direct_${DateTime.now().microsecondsSinceEpoch}.png';
+    final path = '/data/local/tmp/adb_direct_${randomHex()}.png';
     try {
-      await _connection.shell.run('$command ${shellQuote(path)}');
+      final result = await _connection.shell.run('$command ${shellQuote(path)}');
+      if ((result.exitCode ?? 0) != 0) {
+        throw AdbCommandException(
+          'screencap failed: ${'${result.stdoutText}${result.stderrText}'.trim()}',
+          command: command,
+          output: '${result.stdoutText}${result.stderrText}',
+          exitCode: result.exitCode,
+        );
+      }
       return await _connection.sync.readAll(path);
     } finally {
       await _connection.shell.removeQuietly(path);
@@ -195,6 +204,7 @@ final class AdbDebug {
           want = null;
         }
       }
+      if (want != null || !buffer.isEmpty) throw AdbProtocolException('"$service" ended inside a frame');
     } finally {
       await stream.close();
     }
