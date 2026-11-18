@@ -210,6 +210,8 @@ final class _Collector {
           if (_keep(_stderr, packet.data)) return true;
         case ShellPacketId.exit:
           if (packet.data.isNotEmpty) _exitCode = packet.data.first;
+        case ShellPacketId.stdin || ShellPacketId.closeStdin || ShellPacketId.windowSizeChange || null:
+          break; // Host-to-device ids, or unknown ones: nothing for us.
       }
     }
     return false;
@@ -360,6 +362,8 @@ final class AdbShellSession {
           _stderr.add(packet.data);
         case ShellPacketId.exit:
           if (packet.data.isNotEmpty) _exit = packet.data.first;
+        case ShellPacketId.stdin || ShellPacketId.closeStdin || ShellPacketId.windowSizeChange || null:
+          break; // Host-to-device ids, or unknown ones: nothing for us.
       }
     }
   }

@@ -50,8 +50,7 @@ final class AdbPacketTrace extends AdbTraceEvent {
 
   @override
   String toString() =>
-      '${outgoing ? '>' : '<'} $command(0x${arg0.toRadixString(16)}, '
-      '0x${arg1.toRadixString(16)}, ${payload.length} bytes)';
+      "${outgoing ? '>' : '<'} $command(0x${arg0.toRadixString(16)}, 0x${arg1.toRadixString(16)}, ${payload.length} bytes)";
 }
 
 /// A change of connection state, or anything else worth a log line.

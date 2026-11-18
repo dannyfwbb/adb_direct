@@ -8,24 +8,30 @@ import 'byte_queue.dart';
 import 'constants.dart';
 
 /// Packet ids of shell protocol v2 (adbd's `shell_protocol.h`).
-abstract final class ShellPacketId {
+enum ShellPacketId {
   /// Host → device: bytes for the command's stdin.
-  static const int stdin = 0;
+  stdin,
 
   /// Device → host: the command's stdout (or the PTY's output).
-  static const int stdout = 1;
+  stdout,
 
   /// Device → host: the command's stderr.
-  static const int stderr = 2;
+  stderr,
 
   /// Device → host: one byte, the exit status.
-  static const int exit = 3;
+  exit,
 
   /// Host → device: no more stdin (EOF for a raw command; ignored by a PTY).
-  static const int closeStdin = 4;
+  closeStdin,
 
   /// Host → device: ASCII `"<rows>x<cols>,<xpixels>x<ypixels>"`.
-  static const int windowSizeChange = 5;
+  windowSizeChange;
+
+  /// The id on the wire.
+  int get value => index;
+
+  /// The id for a wire [value], or null for one this library does not know.
+  static ShellPacketId? fromValue(int value) => value < values.length ? values[value] : null;
 }
 
 /// One packet of shell protocol v2.
@@ -33,8 +39,8 @@ final class ShellPacket {
   /// Creates a packet.
   const ShellPacket(this.id, this.data);
 
-  /// One of [ShellPacketId].
-  final int id;
+  /// The packet's id; null for one this library does not know (skipped by readers).
+  final ShellPacketId? id;
 
   /// The packet's data.
   final Uint8List data;
@@ -48,8 +54,8 @@ abstract final class ShellProtocol {
   static const int headerLength = 5;
 
   /// A packet with [id] and [data].
-  static Uint8List encode(int id, List<int> data) {
-    final out = Uint8List(headerLength + data.length)..[0] = id;
+  static Uint8List encode(ShellPacketId id, List<int> data) {
+    final out = Uint8List(headerLength + data.length)..[0] = id.value;
     ByteData.sublistView(out).setUint32(1, data.length, Endian.little);
     out.setRange(headerLength, out.length, data);
     return out;
@@ -77,7 +83,7 @@ final class ShellPacketReader {
         throw AdbProtocolException('Shell protocol packet of $length bytes exceeds $maxPacketLength');
       }
       if (_buffer.length < ShellProtocol.headerLength + length) return;
-      final id = _buffer.byteAt(0);
+      final id = ShellPacketId.fromValue(_buffer.byteAt(0));
       _buffer.skip(ShellProtocol.headerLength);
       yield ShellPacket(id, _buffer.take(length));
     }
