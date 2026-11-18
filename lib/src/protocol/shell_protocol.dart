@@ -75,9 +75,7 @@ final class ShellPacketReader {
     while (_buffer.length >= ShellProtocol.headerLength) {
       final length = _buffer.peekUint32Le(1);
       if (length > maxPacketLength) {
-        throw AdbProtocolException(
-          'Shell protocol packet of $length bytes exceeds $maxPacketLength',
-        );
+        throw AdbProtocolException('Shell protocol packet of $length bytes exceeds $maxPacketLength');
       }
       if (_buffer.length < ShellProtocol.headerLength + length) return;
       final id = _buffer.byteAt(0);

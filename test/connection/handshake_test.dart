@@ -16,8 +16,7 @@ import '../support/adbd_scripts.dart';
 import '../support/fake_adbd.dart';
 import '../support/fake_clock.dart';
 
-int checksumField(Uint8List raw) =>
-    ByteData.sublistView(raw).getUint32(16, Endian.little);
+int checksumField(Uint8List raw) => ByteData.sublistView(raw).getUint32(16, Endian.little);
 
 void main() {
   test('a trusted key: token, signature, CNXN; banner and features', () async {
@@ -26,11 +25,7 @@ void main() {
       cnxn = await acceptHandshake(session);
       await session.expectClientClose();
     });
-    final adb = await AdbConnection.connect(
-      adbd.address,
-      adbd.port,
-      key: testKey,
-    );
+    final adb = await AdbConnection.connect(adbd.address, adbd.port, key: testKey);
     expect(adb.device.model, 'AOSP TV on x86');
     expect(adb.delayedAck, isTrue);
     expect(adb.protocolVersion, AdbProtocol.version);
@@ -47,51 +42,30 @@ void main() {
     expect(hostBanner(cnxn).features, AdbConnectOptions.defaultHostFeatures);
   });
 
-  test(
-    'messages before the device CNXN carry checksums, later ones none',
-    () async {
-      late List<Uint8List> raw;
-      final adbd = await FakeAdbd.start((session) async {
-        await acceptHandshake(session);
-        await session.expect(
-          AdbMessage.open(
-            localId: 1,
-            service: 'x:',
-            window: AdbConnectOptions().receiveWindow,
-          ),
-        );
-        session.send(AdbMessage.close(localId: 0, remoteId: 1));
-        raw = session.receivedRaw;
-        await session.expectClientClose();
-      });
-      final adb = await AdbConnection.connect(
-        adbd.address,
-        adbd.port,
-        key: testKey,
-      );
-      await expectLater(
-        adb.open('x:'),
-        throwsA(isA<AdbServiceUnavailableException>()),
-      );
-      await adb.close();
-      await adbd.done();
-      expect(checksumField(raw[0]), isNonZero, reason: 'CNXN');
-      expect(checksumField(raw[1]), isNonZero, reason: 'AUTH signature');
-      expect(checksumField(raw[2]), 0, reason: 'OPEN after negotiation');
-    },
-  );
+  test('messages before the device CNXN carry checksums, later ones none', () async {
+    late List<Uint8List> raw;
+    final adbd = await FakeAdbd.start((session) async {
+      await acceptHandshake(session);
+      await session.expect(AdbMessage.open(localId: 1, service: 'x:', window: AdbConnectOptions().receiveWindow));
+      session.send(AdbMessage.close(localId: 0, remoteId: 1));
+      raw = session.receivedRaw;
+      await session.expectClientClose();
+    });
+    final adb = await AdbConnection.connect(adbd.address, adbd.port, key: testKey);
+    await expectLater(adb.open('x:'), throwsA(isA<AdbServiceUnavailableException>()));
+    await adb.close();
+    await adbd.done();
+    expect(checksumField(raw[0]), isNonZero, reason: 'CNXN');
+    expect(checksumField(raw[1]), isNonZero, reason: 'AUTH signature');
+    expect(checksumField(raw[2]), 0, reason: 'OPEN after negotiation');
+  });
 
   test('tries keys in order and reports the one accepted', () async {
     final adbd = await FakeAdbd.start((session) async {
       await acceptHandshake(session, trusted: [testKey.publicKey]);
       await session.expectClientClose();
     });
-    final adb = await AdbConnection.connect(
-      adbd.address,
-      adbd.port,
-      key: otherKey,
-      extraKeys: [testKey],
-    );
+    final adb = await AdbConnection.connect(adbd.address, adbd.port, key: otherKey, extraKeys: [testKey]);
     expect(adb.acceptedKey, testKey);
     await adb.close();
     await adbd.done();
@@ -117,46 +91,34 @@ void main() {
     await adbd.done();
   });
 
-  test(
-    'an untrusted key is offered with a NUL, and the user accepts',
-    () async {
-      var waiting = 0;
-      final adbd = await FakeAdbd.start((session) async {
-        await session.receive();
-        session.send(AdbMessage.auth(AdbAuthType.token, randomToken()));
-        await session.receive();
-        session.send(AdbMessage.auth(AdbAuthType.token, randomToken()));
-        final offer = await session.receive();
-        if (offer.arg0 != AdbAuthType.rsaPublicKey.value) {
-          throw FakeAdbdFailure('expected the public key, got $offer');
-        }
-        if (offer.payload.last != 0 ||
-            AdbPublicKey.parse(utf8.decode(offer.payload)) !=
-                testKey.publicKey) {
-          throw FakeAdbdFailure('bad public key payload');
-        }
-        session.send(
-          AdbMessage(
-            AdbCommand.connect,
-            AdbProtocol.version,
-            0x100000,
-            tvBanner,
-          ),
-        );
-        await session.expectClientClose();
-      });
-      final adb = await AdbConnection.connect(
-        adbd.address,
-        adbd.port,
-        key: testKey,
-        onWaitingForApproval: () => waiting++,
-      );
-      expect(waiting, 1);
-      expect(adb.acceptedKey, testKey);
-      await adb.close();
-      await adbd.done();
-    },
-  );
+  test('an untrusted key is offered with a NUL, and the user accepts', () async {
+    var waiting = 0;
+    final adbd = await FakeAdbd.start((session) async {
+      await session.receive();
+      session.send(AdbMessage.auth(AdbAuthType.token, randomToken()));
+      await session.receive();
+      session.send(AdbMessage.auth(AdbAuthType.token, randomToken()));
+      final offer = await session.receive();
+      if (offer.arg0 != AdbAuthType.rsaPublicKey.value) {
+        throw FakeAdbdFailure('expected the public key, got $offer');
+      }
+      if (offer.payload.last != 0 || AdbPublicKey.parse(utf8.decode(offer.payload)) != testKey.publicKey) {
+        throw FakeAdbdFailure('bad public key payload');
+      }
+      session.send(AdbMessage(AdbCommand.connect, AdbProtocol.version, 0x100000, tvBanner));
+      await session.expectClientClose();
+    });
+    final adb = await AdbConnection.connect(
+      adbd.address,
+      adbd.port,
+      key: testKey,
+      onWaitingForApproval: () => waiting++,
+    );
+    expect(waiting, 1);
+    expect(adb.acceptedKey, testKey);
+    await adb.close();
+    await adbd.done();
+  });
 
   test('an offered key the user does not accept in time', () async {
     final clock = FakeClock();
@@ -203,21 +165,10 @@ void main() {
   test('a device without authentication answers CNXN with CNXN', () async {
     final adbd = await FakeAdbd.start((session) async {
       await session.receive();
-      session.send(
-        AdbMessage(
-          AdbCommand.connect,
-          AdbProtocol.version,
-          0x100000,
-          classicBanner,
-        ),
-      );
+      session.send(AdbMessage(AdbCommand.connect, AdbProtocol.version, 0x100000, classicBanner));
       await session.expectClientClose();
     });
-    final adb = await AdbConnection.connect(
-      adbd.address,
-      adbd.port,
-      key: testKey,
-    );
+    final adb = await AdbConnection.connect(adbd.address, adbd.port, key: testKey);
     expect(adb.acceptedKey, isNull);
     expect(adb.delayedAck, isFalse);
     await adb.close();
@@ -232,12 +183,7 @@ void main() {
       await session.expectClientClose();
     });
     await expectLater(
-      AdbConnection.connect(
-        adbd.address,
-        adbd.port,
-        key: testKey,
-        clock: clock,
-      ),
+      AdbConnection.connect(adbd.address, adbd.port, key: testKey, clock: clock),
       throwsA(isA<AdbTimeoutException>()),
     );
     await adbd.done();
@@ -248,21 +194,10 @@ void main() {
       await session.receive();
       session
         ..send(AdbMessage.okay(localId: 3, remoteId: 4))
-        ..send(
-          AdbMessage(
-            AdbCommand.connect,
-            AdbProtocol.version,
-            0x100000,
-            classicBanner,
-          ),
-        );
+        ..send(AdbMessage(AdbCommand.connect, AdbProtocol.version, 0x100000, classicBanner));
       await session.expectClientClose();
     });
-    final adb = await AdbConnection.connect(
-      adbd.address,
-      adbd.port,
-      key: testKey,
-    );
+    final adb = await AdbConnection.connect(adbd.address, adbd.port, key: testKey);
     await adb.close();
     await adbd.done();
   });
@@ -280,46 +215,39 @@ void main() {
     await adbd.done();
   });
 
-  test(
-    'an old device (version 1.0, 4 KiB) keeps checksums and small writes',
-    () async {
-      late List<AdbMessage> writes;
-      late List<Uint8List> raw;
-      final adbd = await FakeAdbd.start((session) async {
-        await acceptHandshake(
-          session,
-          banner: oldBanner,
-          version: AdbProtocol.versionMin,
-          maxPayload: AdbProtocol.maxPayloadV1,
-        );
-        final open = await session.receive();
-        session.send(AdbMessage.okay(localId: 9, remoteId: open.arg0));
-        writes = [];
-        for (var i = 0; i < 3; i++) {
-          final write = await session.receive();
-          writes.add(write);
-          session.send(AdbMessage.okay(localId: 9, remoteId: open.arg0));
-        }
-        raw = session.receivedRaw;
-        session.send(AdbMessage.close(localId: 9, remoteId: open.arg0));
-        await session.expectClientClose();
-      });
-      final adb = await AdbConnection.connect(
-        adbd.address,
-        adbd.port,
-        key: testKey,
+  test('an old device (version 1.0, 4 KiB) keeps checksums and small writes', () async {
+    late List<AdbMessage> writes;
+    late List<Uint8List> raw;
+    final adbd = await FakeAdbd.start((session) async {
+      await acceptHandshake(
+        session,
+        banner: oldBanner,
+        version: AdbProtocol.versionMin,
+        maxPayload: AdbProtocol.maxPayloadV1,
       );
-      expect(adb.maxPayload, 4096);
-      expect(adb.delayedAck, isFalse);
-      final stream = await adb.open('exec:cat');
-      await stream.write(Uint8List(10000)..fillRange(0, 10000, 7));
-      await stream.done;
-      await adb.close();
-      await adbd.done();
-      expect(writes.map((w) => w.payload.length), [4096, 4096, 1808]);
-      expect(checksumField(raw.last), isNonZero);
-    },
-  );
+      final open = await session.receive();
+      session.send(AdbMessage.okay(localId: 9, remoteId: open.arg0));
+      writes = [];
+      for (var i = 0; i < 3; i++) {
+        final write = await session.receive();
+        writes.add(write);
+        session.send(AdbMessage.okay(localId: 9, remoteId: open.arg0));
+      }
+      raw = session.receivedRaw;
+      session.send(AdbMessage.close(localId: 9, remoteId: open.arg0));
+      await session.expectClientClose();
+    });
+    final adb = await AdbConnection.connect(adbd.address, adbd.port, key: testKey);
+    expect(adb.maxPayload, 4096);
+    expect(adb.delayedAck, isFalse);
+    final stream = await adb.open('exec:cat');
+    await stream.write(Uint8List(10000)..fillRange(0, 10000, 7));
+    await stream.done;
+    await adb.close();
+    await adbd.done();
+    expect(writes.map((w) => w.payload.length), [4096, 4096, 1808]);
+    expect(checksumField(raw.last), isNonZero);
+  });
 
   test('a failing approval callback still closes the socket', () async {
     final adbd = await FakeAdbd.start((session) async {
@@ -354,12 +282,7 @@ void main() {
       await session.expectClientClose();
     });
     await expectLater(
-      AdbConnection.connect(
-        adbd.address,
-        adbd.port,
-        key: testKey,
-        clock: clock,
-      ),
+      AdbConnection.connect(adbd.address, adbd.port, key: testKey, clock: clock),
       throwsA(isA<AdbTimeoutException>()),
     );
     await adbd.done();
@@ -397,12 +320,7 @@ void main() {
         socket.destroy();
       });
       await expectLater(
-        AdbConnection.connect(
-          InternetAddress.loopbackIPv4,
-          server.port,
-          key: testKey,
-          cancelOn: Future<void>.value(),
-        ),
+        AdbConnection.connect(InternetAddress.loopbackIPv4, server.port, key: testKey, cancelOn: Future<void>.value()),
         throwsA(isA<AdbCancelledException>()),
       );
       await Future<void>.delayed(const Duration(milliseconds: 50));
@@ -419,12 +337,7 @@ void main() {
       final cancel = Completer<void>();
       Timer(const Duration(milliseconds: 100), cancel.complete);
       await expectLater(
-        AdbConnection.connect(
-          InternetAddress.loopbackIPv4,
-          server.port,
-          key: testKey,
-          cancelOn: cancel.future,
-        ),
+        AdbConnection.connect(InternetAddress.loopbackIPv4, server.port, key: testKey, cancelOn: cancel.future),
         throwsA(isA<AdbCancelledException>()),
       );
       await server.close();
@@ -436,12 +349,7 @@ void main() {
         await session.expectQuiet(const Duration(milliseconds: 100));
       });
       final cancel = Completer<void>();
-      final adb = await AdbConnection.connect(
-        adbd.address,
-        adbd.port,
-        key: testKey,
-        cancelOn: cancel.future,
-      );
+      final adb = await AdbConnection.connect(adbd.address, adbd.port, key: testKey, cancelOn: cancel.future);
       cancel.complete();
       await Future<void>.delayed(const Duration(milliseconds: 20));
       expect(adb.isClosed, isFalse);
@@ -458,11 +366,7 @@ void main() {
     var made = 0;
     final adb = await AdbConnection.connectTransport(() {
       made++;
-      return TcpTransport.connect(
-        adbd.address,
-        adbd.port,
-        timeout: const Duration(seconds: 2),
-      );
+      return TcpTransport.connect(adbd.address, adbd.port, timeout: const Duration(seconds: 2));
     }, key: testKey);
     expect(made, 1);
     expect(adb.isClosed, isFalse);

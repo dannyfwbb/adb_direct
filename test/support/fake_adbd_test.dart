@@ -49,12 +49,7 @@ void main() {
       await session.expect(AdbMessage.open(localId: 1, service: 'shell:id'));
     });
     final socket = await Socket.connect(adbd.address, adbd.port);
-    socket.add(
-      AdbMessageCodec.encode(
-        AdbMessage.open(localId: 1, service: 'shell:ls'),
-        withChecksum: false,
-      ),
-    );
+    socket.add(AdbMessageCodec.encode(AdbMessage.open(localId: 1, service: 'shell:ls'), withChecksum: false));
     await expectLater(adbd.done(), throwsA(isA<FakeAdbdFailure>()));
     socket.destroy();
   });
@@ -71,10 +66,7 @@ void main() {
     final fixture = Fixture.load('streams/unknown_service');
     final adbd = await FakeAdbd.start(replay(fixture));
     final socket = await Socket.connect(adbd.address, adbd.port);
-    for (final message in [
-      ...fixture.toDevice,
-      AdbMessage.open(localId: 3, service: 'shell:'),
-    ]) {
+    for (final message in [...fixture.toDevice, AdbMessage.open(localId: 3, service: 'shell:')]) {
       socket.add(AdbMessageCodec.encode(message, withChecksum: false));
     }
     await expectLater(adbd.done(), throwsA(isA<FakeAdbdFailure>()));
@@ -86,13 +78,7 @@ void main() {
     final socket = await Socket.connect(adbd.address, adbd.port);
     await expectLater(
       adbd.done(timeout: const Duration(milliseconds: 300)),
-      throwsA(
-        isA<FakeAdbdFailure>().having(
-          (f) => f.message,
-          'message',
-          contains('expected 2 connection(s), got 1'),
-        ),
-      ),
+      throwsA(isA<FakeAdbdFailure>().having((f) => f.message, 'message', contains('expected 2 connection(s), got 1'))),
     );
     socket.destroy();
     await adbd.close();
@@ -116,13 +102,7 @@ void main() {
 
   test('signatures are matched by shape, not bytes', () {
     final recorded = AdbMessage(AdbCommand.auth, 2, 0, [1, 2, 3]);
-    expect(
-      recordedPacketMatcher(recorded, AdbMessage(AdbCommand.auth, 2, 0, [9])),
-      isTrue,
-    );
-    expect(
-      recordedPacketMatcher(recorded, AdbMessage(AdbCommand.auth, 3, 0, [9])),
-      isFalse,
-    );
+    expect(recordedPacketMatcher(recorded, AdbMessage(AdbCommand.auth, 2, 0, [9])), isTrue);
+    expect(recordedPacketMatcher(recorded, AdbMessage(AdbCommand.auth, 3, 0, [9])), isFalse);
   });
 }

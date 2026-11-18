@@ -17,9 +17,7 @@ import 'pipe.dart';
 /// There is no adb server here, so the forward lives in this process and
 /// ends with [close] or with the connection.
 final class AdbForward {
-  AdbForward._(this._server, this.remote, this._connection)
-    : port = _server.port,
-      address = _server.address {
+  AdbForward._(this._server, this.remote, this._connection) : port = _server.port, address = _server.address {
     _server.listen(_accept, onError: (Object _) {});
     _connection.done.then((_) => close()).ignore();
   }

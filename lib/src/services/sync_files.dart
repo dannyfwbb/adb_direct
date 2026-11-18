@@ -19,11 +19,7 @@ extension AdbSyncFiles on AdbSync {
   ///
   /// The local file gets the device file's modification time. A failed
   /// transfer leaves no partial file behind.
-  Future<void> pullFile(
-    String remote,
-    File local, {
-    AdbProgress? onProgress,
-  }) async {
+  Future<void> pullFile(String remote, File local, {AdbProgress? onProgress}) async {
     final info = await _target(remote);
     final partial = File(
       '${local.path}.${Random.secure().nextInt(1 << 32).toRadixString(16)}'
@@ -31,12 +27,7 @@ extension AdbSyncFiles on AdbSync {
     );
     final sink = partial.openWrite();
     try {
-      await sink.addStream(
-        read(
-          remote,
-          onProgress: (done, _) => onProgress?.call(done, info?.size),
-        ),
-      );
+      await sink.addStream(read(remote, onProgress: (done, _) => onProgress?.call(done, info?.size)));
       await sink.close();
       await partial.rename(local.path);
     } on Object {
@@ -50,11 +41,7 @@ extension AdbSyncFiles on AdbSync {
   /// Copies [local] to the device path [remote], keeping its modification
   /// time and owner permission bits. On Android 7 to 9 the parent
   /// directory must exist ([pushDirectory] makes the tree).
-  Future<void> pushFile(
-    File local,
-    String remote, {
-    AdbProgress? onProgress,
-  }) async {
+  Future<void> pushFile(File local, String remote, {AdbProgress? onProgress}) async {
     final localStat = await local.stat();
     await write(
       remote,
@@ -93,21 +80,11 @@ extension AdbSyncFiles on AdbSync {
   /// With [onlyChanged], a file whose device copy has the same size and
   /// modification time (to the second) is skipped, like `adb sync`.
   /// Returns the number of files and links copied.
-  Future<int> pushDirectory(
-    Directory local,
-    String remote, {
-    bool onlyChanged = false,
-  }) async {
+  Future<int> pushDirectory(Directory local, String remote, {bool onlyChanged = false}) async {
     var count = 0;
     await _makeDirectories(local, remote);
-    await for (final entity in local.list(
-      recursive: true,
-      followLinks: false,
-    )) {
-      final relative = p
-          .relative(entity.path, from: local.path)
-          .split(p.separator)
-          .join('/');
+    await for (final entity in local.list(recursive: true, followLinks: false)) {
+      final relative = p.relative(entity.path, from: local.path).split(p.separator).join('/');
       final target = _join(remote, relative);
       if (entity is Link) {
         await writeLink(target, await entity.target());
@@ -127,25 +104,13 @@ extension AdbSyncFiles on AdbSync {
   /// are ignored (a directory that exists already).
   Future<void> _makeDirectories(Directory local, String remote) async {
     final c = connection;
-    if (c.supports(AdbFeature.fixedPushMkdir) ||
-        !c.supports(AdbFeature.shellV2)) {
+    if (c.supports(AdbFeature.fixedPushMkdir) || !c.supports(AdbFeature.shellV2)) {
       return;
     }
     final dirs = <String>[remote];
-    await for (final entity in local.list(
-      recursive: true,
-      followLinks: false,
-    )) {
+    await for (final entity in local.list(recursive: true, followLinks: false)) {
       if (entity is Directory) {
-        dirs.add(
-          _join(
-            remote,
-            p
-                .relative(entity.path, from: local.path)
-                .split(p.separator)
-                .join('/'),
-          ),
-        );
+        dirs.add(_join(remote, p.relative(entity.path, from: local.path).split(p.separator).join('/')));
       }
     }
     dirs.sort((a, b) => a.length.compareTo(b.length));
@@ -154,9 +119,7 @@ extension AdbSyncFiles on AdbSync {
     var length = 0;
     Future<void> flush() async {
       if (batch.isEmpty) return;
-      await c.shell
-          .run('mkdir -p ${batch.map(shellQuote).join(' ')}')
-          .then<void>((_) {}, onError: (Object _) {});
+      await c.shell.run('mkdir -p ${batch.map(shellQuote).join(' ')}').then<void>((_) {}, onError: (Object _) {});
       batch = [];
       length = 0;
     }
@@ -172,8 +135,7 @@ extension AdbSyncFiles on AdbSync {
 
   /// The stat of what [remote] names, following a link where the device
   /// can.
-  Future<AdbFileStat?> _target(String remote) =>
-      stat(remote, followLinks: canFollowLinks);
+  Future<AdbFileStat?> _target(String remote) => stat(remote, followLinks: canFollowLinks);
 
   Future<bool> _sameAs(File local, String remote) async {
     final AdbFileStat? device;
@@ -185,8 +147,7 @@ extension AdbSyncFiles on AdbSync {
     if (device == null || !device.isFile) return false;
     final mine = await local.stat();
     return device.size == mine.size &&
-        device.modified.millisecondsSinceEpoch ~/ 1000 ==
-            mine.modified.millisecondsSinceEpoch ~/ 1000;
+        device.modified.millisecondsSinceEpoch ~/ 1000 == mine.modified.millisecondsSinceEpoch ~/ 1000;
   }
 
   static String _join(String directory, String name) =>

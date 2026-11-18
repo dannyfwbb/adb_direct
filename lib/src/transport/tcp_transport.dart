@@ -61,9 +61,7 @@ final class TcpTransport implements AdbTransport {
     }
   }
 
-  static const _cancelled = AdbCancelledException(
-    'The connection attempt was cancelled',
-  );
+  static const _cancelled = AdbCancelledException('The connection attempt was cancelled');
 
   /// The [AdbException] for a failed connect to [target].
   static AdbException mapConnectError(SocketException e, String target) {
@@ -128,10 +126,7 @@ final class TcpTransport implements AdbTransport {
   }
 
   @override
-  Future<X509Certificate?> startTls({
-    required SecurityContext context,
-    void Function(String line)? keyLog,
-  }) async {
+  Future<X509Certificate?> startTls({required SecurityContext context, void Function(String line)? keyLog}) async {
     if (_ended) throw const AdbClosedException('The connection is closed');
     if (_pendingBytes > 0) {
       // STLS must leave before the ClientHello.
@@ -160,20 +155,14 @@ final class TcpTransport implements AdbTransport {
             }
             _upgrade = null;
             _socket = secure;
-            _subscription = secure.listen(
-              _onEvent,
-              onError: _fail,
-              onDone: _onDone,
-            );
+            _subscription = secure.listen(_onEvent, onError: _fail, onDone: _onDone);
             upgrade.complete(secure.peerCertificate);
           },
           onError: (Object e) {
             if (upgrade.isCompleted) return;
             _upgrade = null;
             destroy();
-            upgrade.completeError(
-              AdbProtocolException('The TLS handshake failed: $e', cause: e),
-            );
+            upgrade.completeError(AdbProtocolException('The TLS handshake failed: $e', cause: e));
           },
         )
         .ignore();
@@ -238,9 +227,7 @@ final class TcpTransport implements AdbTransport {
     final listener = _listener;
     _end();
     unawaited(_socket.close());
-    listener?.onError(
-      AdbClosedException('The connection failed: $error', cause: error),
-    );
+    listener?.onError(AdbClosedException('The connection failed: $error', cause: error));
   }
 
   void _end() {
@@ -248,11 +235,7 @@ final class TcpTransport implements AdbTransport {
     final upgrade = _upgrade;
     _upgrade = null;
     if (upgrade != null && !upgrade.isCompleted) {
-      upgrade.completeError(
-        const AdbClosedException(
-          'The connection closed during the TLS handshake',
-        ),
-      );
+      upgrade.completeError(const AdbClosedException('The connection closed during the TLS handshake'));
     }
     _pending.clear();
     _pendingBytes = 0;

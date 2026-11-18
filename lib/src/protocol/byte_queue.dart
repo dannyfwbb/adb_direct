@@ -42,10 +42,7 @@ final class ByteQueue {
 
   /// The little-endian unsigned 32-bit integer at [offset], not consumed.
   int peekUint32Le(int offset) =>
-      byteAt(offset) |
-      (byteAt(offset + 1) << 8) |
-      (byteAt(offset + 2) << 16) |
-      (byteAt(offset + 3) << 24);
+      byteAt(offset) | (byteAt(offset + 1) << 8) | (byteAt(offset + 2) << 16) | (byteAt(offset + 3) << 24);
 
   /// Removes and returns the first [count] bytes.
   ///
@@ -56,11 +53,7 @@ final class ByteQueue {
     final head = _chunks.first;
     final available = head.length - _headOffset;
     if (count <= available) {
-      final view = Uint8List.sublistView(
-        head,
-        _headOffset,
-        _headOffset + count,
-      );
+      final view = Uint8List.sublistView(head, _headOffset, _headOffset + count);
       _consume(count);
       return view;
     }

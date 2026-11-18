@@ -29,9 +29,7 @@ Future<void> main(List<String> args) async {
     args[0],
     int.parse(args[1]),
     key: key,
-    onWaitingForApproval: () => print(
-      'Allow debugging on the device (key ${key.publicKey.md5Fingerprint})',
-    ),
+    onWaitingForApproval: () => print('Allow debugging on the device (key ${key.publicKey.md5Fingerprint})'),
   );
   print('Connected to ${adb.device.model}');
 

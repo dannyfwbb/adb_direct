@@ -49,9 +49,7 @@ void main() {
       ('127.0.0.1', adbd.port),
       ('127.0.0.1', closedPort),
     ]).toList();
-    expect(results.map((r) => (r.port, r.endpoint.kind)), [
-      (adbd.port, AdbEndpointKind.adbAuthentication),
-    ]);
+    expect(results.map((r) => (r.port, r.endpoint.kind)), [(adbd.port, AdbEndpointKind.adbAuthentication)]);
     await adbd.done();
     await web.close();
   });
@@ -84,10 +82,7 @@ void main() {
       port: 37099,
       addresses: [InternetAddress('192.168.0.20')],
     );
-    final browser = ListBrowser([
-      AdbServiceFound(service),
-      AdbServiceLost(service),
-    ]);
+    final browser = ListBrowser([AdbServiceFound(service), AdbServiceLost(service)]);
     final found = await browser.pairingServices().toList();
     expect(browser.asked, [AdbServiceType.tlsPairing]);
     expect(found.map((s) => (s.name, s.port)), [('studio-AbCdEf1234', 37099)]);

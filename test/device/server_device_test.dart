@@ -13,9 +13,7 @@ import 'package:test/test.dart';
 /// Through a running adb server (port 5037) to the device it knows as
 /// ADB_DIRECT_TEST_SERVER_SERIAL.
 final String? serial = Platform.environment['ADB_DIRECT_TEST_SERVER_SERIAL'];
-final String? skip = serial == null
-    ? 'ADB_DIRECT_TEST_SERVER_SERIAL is not set (see test/device/README.md)'
-    : null;
+final String? skip = serial == null ? 'ADB_DIRECT_TEST_SERVER_SERIAL is not set (see test/device/README.md)' : null;
 
 void main() {
   final server = AdbServer();
@@ -36,10 +34,7 @@ void main() {
     expect(adb.device.features, isNotEmpty);
 
     final r = await adb.shell.run('echo out; echo err >&2; exit 3');
-    expect((
-      r.stdoutText,
-      r.exitCode,
-    ), adb.shell.supportsShellProtocol ? ('out\n', 3) : (isA<String>(), 3));
+    expect((r.stdoutText, r.exitCode), adb.shell.supportsShellProtocol ? ('out\n', 3) : (isA<String>(), 3));
 
     const path = '/data/local/tmp/adb_direct_server.bin';
     final data = Uint8List.fromList(List.generate(2 << 20, (i) => i * 7));
@@ -53,9 +48,7 @@ void main() {
     expect(back, data);
     await adb.shell.run('rm -f $path');
 
-    await adb.packages.install(
-      AdbApk.file(File('test/fixtures/apks/app-v1.apk')),
-    );
+    await adb.packages.install(AdbApk.file(File('test/fixtures/apks/app-v1.apk')));
     await adb.packages.uninstall('app.adbdirect.testapp');
 
     final logs = await adb.debug.logcat(arguments: ['-d', '-t', '5']).toList();
@@ -72,22 +65,14 @@ void main() {
     final echo = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
     echo.listen((s) => s.listen(s.add, onDone: () => s.close()));
     final forward = await adb.reverse.toLocalPort('tcp:0', echo.port);
-    final result = await adb.shell.run(
-      '(echo via server; sleep 2) | toybox nc 127.0.0.1 ${forward.devicePort}',
-    );
+    final result = await adb.shell.run('(echo via server; sleep 2) | toybox nc 127.0.0.1 ${forward.devicePort}');
     expect(result.stdoutText, 'via server\n');
     await forward.remove();
-    await expectLater(
-      adb.reverse.add('tcp:0', (_) {}),
-      throwsA(isA<AdbNotSupportedException>()),
-    );
+    await expectLater(adb.reverse.add('tcp:0', (_) {}), throwsA(isA<AdbNotSupportedException>()));
     await echo.close();
   }, skip: skip);
 
   test('an unknown serial', () async {
-    await expectLater(
-      server.device('no-such-device'),
-      throwsA(isA<AdbException>()),
-    );
+    await expectLater(server.device('no-such-device'), throwsA(isA<AdbException>()));
   }, skip: skip);
 }

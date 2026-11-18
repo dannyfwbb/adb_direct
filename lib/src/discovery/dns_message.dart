@@ -75,12 +75,7 @@ final class DnsRecord {
 @internal
 @immutable
 final class DnsSrv {
-  const DnsSrv({
-    required this.priority,
-    required this.weight,
-    required this.port,
-    required this.target,
-  });
+  const DnsSrv({required this.priority, required this.weight, required this.port, required this.target});
 
   final int priority;
   final int weight;
@@ -96,12 +91,7 @@ final class DnsSrv {
 /// A decoded message.
 @internal
 final class DnsMessage {
-  DnsMessage({
-    required this.id,
-    required this.isResponse,
-    this.questions = const [],
-    this.answers = const [],
-  });
+  DnsMessage({required this.id, required this.isResponse, this.questions = const [], this.answers = const []});
 
   /// Reads a message. Throws [FormatException] when it is malformed.
   factory DnsMessage.decode(Uint8List bytes) => _Reader(bytes).message();
@@ -173,21 +163,14 @@ final class _Reader {
       final type = _view.getUint16(_offset);
       final klass = _view.getUint16(_offset + 2);
       _offset += 4;
-      questions.add(
-        DnsQuestion(name, type, unicastResponse: klass & 0x8000 != 0),
-      );
+      questions.add(DnsQuestion(name, type, unicastResponse: klass & 0x8000 != 0));
     }
     final records = <DnsRecord>[];
     for (var i = 0; i < counts[1] + counts[2] + counts[3]; i++) {
       final record = _record();
       if (record != null) records.add(record);
     }
-    return DnsMessage(
-      id: id,
-      isResponse: flags & 0x8000 != 0,
-      questions: questions,
-      answers: records,
-    );
+    return DnsMessage(id: id, isResponse: flags & 0x8000 != 0, questions: questions, answers: records);
   }
 
   /// A record, or null for classes other than IN.
@@ -211,38 +194,22 @@ final class _Reader {
         final weight = _view.getUint16(_offset + 2);
         final port = _view.getUint16(_offset + 4);
         _offset += 6;
-        data = DnsSrv(
-          priority: priority,
-          weight: weight,
-          port: port,
-          target: _name(),
-        );
+        data = DnsSrv(priority: priority, weight: weight, port: port, target: _name());
       case DnsType.txt:
         final strings = <String>[];
         while (_offset < end) {
           final n = _bytes[_offset++];
           if (_offset + n > end) throw const FormatException('A bad TXT');
           if (n > 0) {
-            strings.add(
-              utf8.decode(
-                _bytes.sublist(_offset, _offset + n),
-                allowMalformed: true,
-              ),
-            );
+            strings.add(utf8.decode(_bytes.sublist(_offset, _offset + n), allowMalformed: true));
           }
           _offset += n;
         }
         data = strings;
       case DnsType.a when length == 4:
-        data = InternetAddress.fromRawAddress(
-          _bytes.sublist(_offset, end),
-          type: InternetAddressType.IPv4,
-        );
+        data = InternetAddress.fromRawAddress(_bytes.sublist(_offset, end), type: InternetAddressType.IPv4);
       case DnsType.aaaa when length == 16:
-        data = InternetAddress.fromRawAddress(
-          _bytes.sublist(_offset, end),
-          type: InternetAddressType.IPv6,
-        );
+        data = InternetAddress.fromRawAddress(_bytes.sublist(_offset, end), type: InternetAddressType.IPv6);
       case DnsType.a || DnsType.aaaa:
         // An address of the wrong size: skipped, never stored as one.
         _offset = end;
@@ -253,13 +220,7 @@ final class _Reader {
     if (_offset > end) throw const FormatException('A record overruns');
     _offset = end;
     if (klass & 0x7fff != 1) return null;
-    return DnsRecord(
-      name: name,
-      type: type,
-      ttl: ttl,
-      cacheFlush: klass & 0x8000 != 0,
-      data: data,
-    );
+    return DnsRecord(name: name, type: type, ttl: ttl, cacheFlush: klass & 0x8000 != 0, data: data);
   }
 
   /// A name, following compression pointers (at most 64 of them).
@@ -288,12 +249,7 @@ final class _Reader {
       if (offset + 1 + length > _bytes.length) {
         throw const FormatException('A cut label');
       }
-      labels.add(
-        utf8.decode(
-          _bytes.sublist(offset + 1, offset + 1 + length),
-          allowMalformed: true,
-        ),
-      );
+      labels.add(utf8.decode(_bytes.sublist(offset + 1, offset + 1 + length), allowMalformed: true));
       offset += 1 + length;
     }
     _offset = resume ?? offset;

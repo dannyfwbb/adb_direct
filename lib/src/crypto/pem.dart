@@ -18,17 +18,12 @@ final class PemBlock {
 
 /// Reads and writes PEM (RFC 7468).
 abstract final class Pem {
-  static final RegExp _block = RegExp(
-    r'-----BEGIN ([A-Z0-9 ]+)-----([\s\S]*?)-----END \1-----',
-  );
+  static final RegExp _block = RegExp(r'-----BEGIN ([A-Z0-9 ]+)-----([\s\S]*?)-----END \1-----');
 
   /// Every block in [text], in order. Text outside blocks is ignored.
   static List<PemBlock> decode(String text) => [
     for (final match in _block.allMatches(text))
-      PemBlock(
-        match.group(1)!,
-        base64.decode(match.group(2)!.replaceAll(RegExp(r'\s'), '')),
-      ),
+      PemBlock(match.group(1)!, base64.decode(match.group(2)!.replaceAll(RegExp(r'\s'), ''))),
   ];
 
   /// [der] as a PEM block with [label], lines of 64 characters, ending with
@@ -36,8 +31,7 @@ abstract final class Pem {
   static String encode(String label, List<int> der) {
     final body = base64.encode(der);
     final lines = [
-      for (var i = 0; i < body.length; i += 64)
-        body.substring(i, i + 64 > body.length ? body.length : i + 64),
+      for (var i = 0; i < body.length; i += 64) body.substring(i, i + 64 > body.length ? body.length : i + 64),
     ];
     return '-----BEGIN $label-----\n${lines.join('\n')}\n'
         '-----END $label-----\n';

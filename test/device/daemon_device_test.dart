@@ -15,9 +15,7 @@ import 'package:test/test.dart';
 /// ADB_DIRECT_TEST_ROOTABLE=1 (the phone emulator, never a real TV).
 /// Reboot is not a test: see test/device/README.md.
 final String? host = Platform.environment['ADB_DIRECT_TEST_HOST'];
-final int port = int.parse(
-  Platform.environment['ADB_DIRECT_TEST_PORT'] ?? '5555',
-);
+final int port = int.parse(Platform.environment['ADB_DIRECT_TEST_PORT'] ?? '5555');
 final String? keyPath = Platform.environment['ADB_DIRECT_TEST_KEY'];
 final bool rootable = Platform.environment['ADB_DIRECT_TEST_ROOTABLE'] == '1';
 final String? devicePort = Platform.environment['ADB_DIRECT_TEST_DEVICE_PORT'];
@@ -36,12 +34,7 @@ void main() {
 
   Future<AdbConnection> back() async {
     final watch = Stopwatch()..start();
-    final adb = await AdbConnection.waitFor(
-      host!,
-      port,
-      key: key,
-      timeout: const Duration(seconds: 60),
-    );
+    final adb = await AdbConnection.waitFor(host!, port, key: key, timeout: const Duration(seconds: 60));
     print('back after ${watch.elapsedMilliseconds} ms');
     return adb;
   }
@@ -62,10 +55,7 @@ void main() {
     final answer = await adb.daemon.root();
     print('root: $answer');
     if (rootable) {
-      expect(
-        answer.outcome,
-        anyOf(AdbDaemonOutcome.restarting, AdbDaemonOutcome.unchanged),
-      );
+      expect(answer.outcome, anyOf(AdbDaemonOutcome.restarting, AdbDaemonOutcome.unchanged));
       final root = answer.restarting ? await back() : adb;
       expect((await root.shell.run('id -u')).stdoutText.trim(), '0');
       final remount = await root.daemon.remount();

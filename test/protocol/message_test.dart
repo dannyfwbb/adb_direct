@@ -15,8 +15,7 @@ void main() {
   group('AdbCommand', () {
     test('wire values spell their names in little-endian ASCII', () {
       for (final command in AdbCommand.values) {
-        final bytes = Uint8List(4)
-          ..buffer.asByteData().setUint32(0, command.value, Endian.little);
+        final bytes = Uint8List(4)..buffer.asByteData().setUint32(0, command.value, Endian.little);
         expect(String.fromCharCodes(bytes), command.wireName);
       }
       expect(AdbCommand.connect.wireName, 'CNXN');
@@ -37,43 +36,25 @@ void main() {
     });
 
     test('OPEN carries the window when given', () {
-      final message = AdbMessage.open(
-        localId: 3,
-        service: 'sync:',
-        window: AdbProtocol.delayedAckWindow,
-      );
+      final message = AdbMessage.open(localId: 3, service: 'sync:', window: AdbProtocol.delayedAckWindow);
       expect(message.arg1, 0x2000000);
     });
 
     test('OKAY with an acknowledgement carries it as little-endian int32', () {
-      final message = AdbMessage.okay(
-        localId: 1,
-        remoteId: 12,
-        acknowledged: 3,
-      );
+      final message = AdbMessage.okay(localId: 1, remoteId: 12, acknowledged: 3);
       expect(message.payload, [3, 0, 0, 0]);
       expect(message.acknowledgedBytes, 3);
-      expect(
-        AdbMessage.okay(localId: 1, remoteId: 2).acknowledgedBytes,
-        isNull,
-      );
+      expect(AdbMessage.okay(localId: 1, remoteId: 2).acknowledgedBytes, isNull);
     });
 
     test('a negative acknowledgement survives the round trip', () {
-      final message = AdbMessage.okay(
-        localId: 1,
-        remoteId: 2,
-        acknowledged: -5,
-      );
+      final message = AdbMessage.okay(localId: 1, remoteId: 2, acknowledged: -5);
       expect(message.acknowledgedBytes, -5);
     });
 
     test('an OKAY payload of another size is a protocol error', () {
       final message = AdbMessage(AdbCommand.okay, 1, 2, [1, 2]);
-      expect(
-        () => message.acknowledgedBytes,
-        throwsA(isA<AdbProtocolException>()),
-      );
+      expect(() => message.acknowledgedBytes, throwsA(isA<AdbProtocolException>()));
     });
 
     test('CLSE may refuse an OPEN with local id 0', () {
@@ -83,15 +64,9 @@ void main() {
 
     test('stream ids must be non-zero 32-bit values', () {
       expect(() => AdbMessage.open(localId: 0, service: 'x'), throwsRangeError);
-      expect(
-        () => AdbMessage.write(localId: 1, remoteId: 0, data: const []),
-        throwsRangeError,
-      );
+      expect(() => AdbMessage.write(localId: 1, remoteId: 0, data: const []), throwsRangeError);
       expect(() => AdbMessage(AdbCommand.okay, -1, 1), throwsRangeError);
-      expect(
-        () => AdbMessage(AdbCommand.okay, 0x100000000, 1),
-        throwsRangeError,
-      );
+      expect(() => AdbMessage(AdbCommand.okay, 0x100000000, 1), throwsRangeError);
     });
 
     test('payload is read-only and copied from plain lists', () {
@@ -107,10 +82,7 @@ void main() {
         AdbMessage(AdbCommand.write, 1, 2, [1, 2]),
         AdbMessage(AdbCommand.write, 1, 2, Uint8List.fromList([1, 2])),
       );
-      expect(
-        AdbMessage(AdbCommand.write, 1, 2, [1, 2]),
-        isNot(AdbMessage(AdbCommand.write, 1, 2, [1, 3])),
-      );
+      expect(AdbMessage(AdbCommand.write, 1, 2, [1, 2]), isNot(AdbMessage(AdbCommand.write, 1, 2, [1, 3])));
     });
   });
 
@@ -127,18 +99,12 @@ void main() {
       expect(header.getUint32(8, Endian.little), 0x0a0b0c0d);
       expect(header.getUint32(12, Endian.little), 3);
       expect(header.getUint32(16, Endian.little), 253);
-      expect(
-        header.getUint32(20, Endian.little),
-        AdbCommand.write.value ^ 0xffffffff,
-      );
+      expect(header.getUint32(20, Endian.little), AdbCommand.write.value ^ 0xffffffff);
       expect(bytes.sublist(24), [1, 2, 250]);
     });
 
     test('checksum is zero unless asked for', () {
-      final bytes = AdbMessageCodec.encode(
-        AdbMessage(AdbCommand.write, 1, 2, [9]),
-        withChecksum: false,
-      );
+      final bytes = AdbMessageCodec.encode(AdbMessage(AdbCommand.write, 1, 2, [9]), withChecksum: false);
       expect(ByteData.sublistView(bytes).getUint32(16, Endian.little), 0);
     });
 
@@ -149,8 +115,7 @@ void main() {
   });
 
   group('AdbMessageReader', () {
-    Uint8List encode(AdbMessage message) =>
-        AdbMessageCodec.encode(message, withChecksum: false);
+    Uint8List encode(AdbMessage message) => AdbMessageCodec.encode(message, withChecksum: false);
 
     test('returns null until a message is complete', () {
       final bytes = encode(AdbMessage(AdbCommand.write, 1, 2, [1, 2, 3]));
@@ -175,10 +140,7 @@ void main() {
     test('drain yields every complete message and keeps the rest', () {
       final second = encode(AdbMessage(AdbCommand.write, 5, 1, [1, 2]));
       final reader = AdbMessageReader()
-        ..add([
-          ...encode(AdbMessage.okay(localId: 5, remoteId: 1)),
-          ...second.sublist(0, 25),
-        ]);
+        ..add([...encode(AdbMessage.okay(localId: 5, remoteId: 1)), ...second.sublist(0, 25)]);
       expect(reader.drain().map((m) => m.command), [AdbCommand.okay]);
       reader.add(second.sublist(25));
       expect(reader.drain(), [
@@ -195,10 +157,7 @@ void main() {
     test('rejects a bad magic', () {
       final bytes = encode(AdbMessage(AdbCommand.write, 1, 2));
       bytes[20] ^= 1;
-      expect(
-        () => (AdbMessageReader()..add(bytes)).next(),
-        throwsA(isA<AdbProtocolException>()),
-      );
+      expect(() => (AdbMessageReader()..add(bytes)).next(), throwsA(isA<AdbProtocolException>()));
     });
 
     test('rejects a payload above the limit before it arrives', () {
@@ -236,9 +195,7 @@ void main() {
     test('skips unknown and obsolete commands and reports them', () {
       final unknown = [0x12345678, AdbCommand.sync.value];
       final skipped = <(int, int)>[];
-      final reader = AdbMessageReader(
-        onUnknownCommand: (command, length) => skipped.add((command, length)),
-      );
+      final reader = AdbMessageReader(onUnknownCommand: (command, length) => skipped.add((command, length)));
       for (final value in unknown) {
         final bytes = Uint8List(27);
         ByteData.sublistView(bytes)

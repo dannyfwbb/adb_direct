@@ -67,9 +67,7 @@ final class AdbSync {
   /// not a directory in the path, …).
   Future<AdbFileStat?> stat(String path, {bool followLinks = false}) async {
     if (followLinks && !_v2Stat) {
-      throw const AdbNotSupportedException(
-        'Following links in stat needs stat_v2 (Android 8 and later)',
-      );
+      throw const AdbNotSupportedException('Following links in stat needs stat_v2 (Android 8 and later)');
     }
     _checkPath(path);
     return _run((session) => session.stat(path, followLinks: followLinks));
@@ -145,31 +143,14 @@ final class AdbSync {
     _checkPath(_v2Transfer ? path : '$path,$mode');
     final mtime = _mtime(modified ?? DateTime.now());
     return _run(
-      (session) => session.write(
-        path,
-        data,
-        mode: mode,
-        mtime: mtime,
-        v2: _v2Transfer,
-        size: size,
-        onProgress: onProgress,
-      ),
+      (session) =>
+          session.write(path, data, mode: mode, mtime: mtime, v2: _v2Transfer, size: size, onProgress: onProgress),
     );
   }
 
   /// Writes [bytes] to the file [path] on the device.
-  Future<void> writeAll(
-    String path,
-    List<int> bytes, {
-    int permissions = 0x1a4,
-    DateTime? modified,
-  }) => write(
-    path,
-    Stream.value(bytes),
-    permissions: permissions,
-    modified: modified,
-    size: bytes.length,
-  );
+  Future<void> writeAll(String path, List<int> bytes, {int permissions = 0x1a4, DateTime? modified}) =>
+      write(path, Stream.value(bytes), permissions: permissions, modified: modified, size: bytes.length);
 
   /// Creates the symbolic link [path] pointing at [target], as `adb push`
   /// does for links.
@@ -200,22 +181,14 @@ final class AdbSync {
 
   static void _checkPath(String path) {
     if (utf8.encode(path).length > SyncLimits.maxPath) {
-      throw ArgumentError.value(
-        path,
-        'path',
-        'longer than ${SyncLimits.maxPath} bytes',
-      );
+      throw ArgumentError.value(path, 'path', 'longer than ${SyncLimits.maxPath} bytes');
     }
   }
 
   static int _mtime(DateTime time) {
     final seconds = time.millisecondsSinceEpoch ~/ 1000;
     if (seconds < 0 || seconds > 0xffffffff) {
-      throw ArgumentError.value(
-        time,
-        'modified',
-        'must be between 1970 and 2106 (the protocol stores 32-bit seconds)',
-      );
+      throw ArgumentError.value(time, 'modified', 'must be between 1970 and 2106 (the protocol stores 32-bit seconds)');
     }
     return seconds;
   }
@@ -239,11 +212,7 @@ final class AdbSync {
     final stream = await _connection.open('sync:');
     return _SyncSession(
       stream,
-      StreamReader(
-        stream,
-        clock: _connection.clock,
-        stallTimeout: stallTimeout,
-      ),
+      StreamReader(stream, clock: _connection.clock, stallTimeout: stallTimeout),
       clock: _connection.clock,
       stallTimeout: stallTimeout,
       v2Stat: _v2Stat,
@@ -312,18 +281,12 @@ final class _SyncSession {
   }
 
   Future<AdbFileStat?> stat(String path, {required bool followLinks}) async {
-    final request = SyncRequest.withPath(
-      v2Stat ? (followLinks ? SyncId.stat2 : SyncId.lstat2) : SyncId.stat,
-      path,
-    );
+    final request = SyncRequest.withPath(v2Stat ? (followLinks ? SyncId.stat2 : SyncId.lstat2) : SyncId.stat, path);
     // The answer is read completely before an errno turns into an
     // exception, so the session stays reusable.
     final (stat, error) = await _exchange(() => _stat(request, followLinks));
     if (error == 0 || error == 2) return stat;
-    throw AdbSyncException(
-      'Cannot stat $path: ${errnoName(error)}',
-      path: path,
-    );
+    throw AdbSyncException('Cannot stat $path: ${errnoName(error)}', path: path);
   }
 
   Future<(AdbFileStat?, int)> _stat(Uint8List request, bool followLinks) async {
@@ -343,10 +306,7 @@ final class _SyncSession {
   }
 
   Future<List<AdbDirectoryEntry>> list(String path) {
-    final request = SyncRequest.withPath(
-      v2List ? SyncId.list2 : SyncId.list,
-      path,
-    );
+    final request = SyncRequest.withPath(v2List ? SyncId.list2 : SyncId.list, path);
     return _exchange(() => _list(request, path));
   }
 
@@ -374,29 +334,18 @@ final class _SyncSession {
       if (nameLength > _maxName) {
         throw AdbProtocolException('Directory entry name of $nameLength B');
       }
-      final name = utf8.decode(
-        await _reader.readExactly(nameLength),
-        allowMalformed: true,
-      );
+      final name = utf8.decode(await _reader.readExactly(nameLength), allowMalformed: true);
       // An entry the device could not lstat carries an errno: left out.
       if (v2 && data.getUint32(4, Endian.little) != 0) continue;
       if (name == '.' || name == '..') continue;
-      entries.add(
-        AdbDirectoryEntry(
-          name,
-          v2 ? AdbFileStat.fromV2(data, 8) : AdbFileStat.fromV1(data, 4),
-        ),
-      );
+      entries.add(AdbDirectoryEntry(name, v2 ? AdbFileStat.fromV2(data, 8) : AdbFileStat.fromV1(data, 4)));
     }
   }
 
   void startRead(String path, {required bool v2}) {
     _dirty = true;
     final request = v2
-        ? [
-            ...SyncRequest.withPath(SyncId.recv2, path),
-            ...SyncRequest.header(SyncId.recv2, 0),
-          ]
+        ? [...SyncRequest.withPath(SyncId.recv2, path), ...SyncRequest.header(SyncId.recv2, 0)]
         : SyncRequest.withPath(SyncId.recv, path);
     // A failure of this write surfaces through the reader.
     unawaited(_stream.write(request).catchError((Object _) {}));
@@ -440,10 +389,7 @@ final class _SyncSession {
       return await _write(path, data, mode, mtime, v2, size, onProgress);
     } on AdbException catch (e) {
       if (watchdog.stalled) {
-        throw AdbTimeoutException(
-          'The push to $path made no progress for $stallTimeout',
-          cause: e,
-        );
+        throw AdbTimeoutException('The push to $path made no progress for $stallTimeout', cause: e);
       }
       rethrow;
     } finally {
@@ -477,10 +423,7 @@ final class _SyncSession {
 
     try {
       final request = v2
-          ? [
-              ...SyncRequest.withPath(SyncId.send2, path),
-              ...SyncRequest.triple(SyncId.send2, mode, 0),
-            ]
+          ? [...SyncRequest.withPath(SyncId.send2, path), ...SyncRequest.triple(SyncId.send2, mode, 0)]
           : SyncRequest.withPath(SyncId.send, '$path,$mode');
       wire += request.length;
       await _stream.write(request);
@@ -489,9 +432,7 @@ final class _SyncSession {
           // adbd answers a write error with FAIL at once and then drains
           // until DONE: stop sending as soon as anything comes back.
           if (_reader.buffered > 0) return await _finishEarly(path, mtime);
-          final end = offset + SyncLimits.maxData < chunk.length
-              ? offset + SyncLimits.maxData
-              : chunk.length;
+          final end = offset + SyncLimits.maxData < chunk.length ? offset + SyncLimits.maxData : chunk.length;
           final frame = Uint8List(8 + end - offset);
           ByteData.sublistView(frame)
             ..setUint32(0, SyncId.data, Endian.little)
@@ -509,8 +450,7 @@ final class _SyncSession {
     } on AdbClosedException {
       // The device may have refused and closed: its FAIL explains why.
       if (_reader.buffered >= 8) {
-        throw await _pushError(path) ??
-            AdbProtocolException('The device ended a push to $path early');
+        throw await _pushError(path) ?? AdbProtocolException('The device ended a push to $path early');
       }
       rethrow;
     }
@@ -523,8 +463,7 @@ final class _SyncSession {
   /// until it) and report its answer.
   Future<void> _finishEarly(String path, int mtime) async {
     await _stream.write(SyncRequest.header(SyncId.done, mtime));
-    throw await _pushError(path) ??
-        AdbProtocolException('The device accepted an unfinished push');
+    throw await _pushError(path) ?? AdbProtocolException('The device accepted an unfinished push');
   }
 
   /// Reads the answer to a push: null for `OKAY`, the failure otherwise.
@@ -536,9 +475,7 @@ final class _SyncSession {
     if (id == SyncId.fail) {
       return _failure(data.getUint32(4, Endian.little), path);
     }
-    return AdbProtocolException(
-      'Unexpected sync answer ${SyncId.name(id)} to a push',
-    );
+    return AdbProtocolException('Unexpected sync answer ${SyncId.name(id)} to a push');
   }
 
   Future<AdbSyncException> _failure(int length, String path) async {
@@ -546,19 +483,14 @@ final class _SyncSession {
     if (length > _maxFailMessage) {
       throw AdbProtocolException('Sync FAIL message of $length bytes');
     }
-    final message = utf8.decode(
-      await _reader.readExactly(length),
-      allowMalformed: true,
-    );
+    final message = utf8.decode(await _reader.readExactly(length), allowMalformed: true);
     return AdbSyncException(message, path: path);
   }
 
   void _expectId(ByteData data, int expected) {
     final id = data.getUint32(0, Endian.little);
     if (id != expected) {
-      throw AdbProtocolException(
-        'Expected sync ${SyncId.name(expected)}, got ${SyncId.name(id)}',
-      );
+      throw AdbProtocolException('Expected sync ${SyncId.name(expected)}, got ${SyncId.name(id)}');
     }
   }
 

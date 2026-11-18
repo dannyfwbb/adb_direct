@@ -21,12 +21,7 @@ void main() {
 
     final opened = <String>[];
     final adbd = await FakeAdbd.start((session) async {
-      await acceptHandshake(
-        session,
-        banner: utf8.encode(
-          'device::ro.product.model=N;features=shell_v2,cmd,stat_v2',
-        ),
-      );
+      await acceptHandshake(session, banner: utf8.encode('device::ro.product.model=N;features=shell_v2,cmd,stat_v2'));
       // Only the first OPEN matters here; the sync session that follows
       // is refused, which ends the push with an error.
       final open = await session.receive();
@@ -37,15 +32,8 @@ void main() {
       session.send(AdbMessage.close(localId: 0, remoteId: next.arg0));
       await session.expectClientClose().catchError((Object _) {});
     });
-    final adb = await AdbConnection.connect(
-      adbd.address,
-      adbd.port,
-      key: testKey,
-    );
-    await expectLater(
-      adb.sync.pushDirectory(dir, '/data/local/tmp/t'),
-      throwsA(isA<AdbException>()),
-    );
+    final adb = await AdbConnection.connect(adbd.address, adbd.port, key: testKey);
+    await expectLater(adb.sync.pushDirectory(dir, '/data/local/tmp/t'), throwsA(isA<AdbException>()));
     expect(
       opened.first,
       'shell,v2,raw:mkdir -p /data/local/tmp/t /data/local/tmp/t/a '

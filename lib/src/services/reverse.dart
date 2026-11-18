@@ -31,9 +31,7 @@ final class AdbReverseForward {
   final String hostLabel;
 
   /// The device port, for a `tcp:` spec.
-  int? get devicePort => deviceSpec.startsWith('tcp:')
-      ? int.tryParse(deviceSpec.substring(4))
-      : null;
+  int? get devicePort => deviceSpec.startsWith('tcp:') ? int.tryParse(deviceSpec.substring(4)) : null;
 
   /// Removes this forward on the device.
   Future<void> remove() => _reverse.remove(deviceSpec);
@@ -57,9 +55,7 @@ final class AdbReverseEntry {
 
   @override
   bool operator ==(Object other) =>
-      other is AdbReverseEntry &&
-      other.deviceSpec == deviceSpec &&
-      other.hostLabel == hostLabel;
+      other is AdbReverseEntry && other.deviceSpec == deviceSpec && other.hostLabel == hostLabel;
 
   @override
   int get hashCode => Object.hash(deviceSpec, hostLabel);
@@ -90,26 +86,13 @@ final class AdbReverse {
   ///
   /// Throws [AdbServiceUnavailableException] when the device refuses (a
   /// bad spec, a port in use, an existing forward without [rebind]).
-  Future<AdbReverseForward> add(
-    String deviceSpec,
-    AdbReverseHandler onConnection, {
-    bool rebind = true,
-  }) => _add(
-    deviceSpec,
-    'localabstract:adb_direct_reverse_${_nextLabel++}',
-    onConnection,
-    rebind: rebind,
-  );
+  Future<AdbReverseForward> add(String deviceSpec, AdbReverseHandler onConnection, {bool rebind = true}) =>
+      _add(deviceSpec, 'localabstract:adb_direct_reverse_${_nextLabel++}', onConnection, rebind: rebind);
 
   /// Like [add], with each connection copied to a new TCP connection to
   /// [host]:[port] here, as `adb reverse <device> tcp:<port>` does. A local
   /// connection that fails closes the device's connection.
-  Future<AdbReverseForward> toLocalPort(
-    String deviceSpec,
-    int port, {
-    Object host = '127.0.0.1',
-    bool rebind = true,
-  }) {
+  Future<AdbReverseForward> toLocalPort(String deviceSpec, int port, {Object host = '127.0.0.1', bool rebind = true}) {
     if (port < 1 || port > 65535) {
       throw ArgumentError.value(port, 'port', 'not a TCP port');
     }
@@ -134,8 +117,7 @@ final class AdbReverse {
     final text = SmartAnswer.hexPrefixed(String.fromCharCodes(raw));
     return [
       for (final line in text.split('\n'))
-        if (line.trim().split(' ') case [_, final device, final host])
-          AdbReverseEntry(device, host),
+        if (line.trim().split(' ') case [_, final device, final host]) AdbReverseEntry(device, host),
     ];
   }
 
@@ -177,17 +159,13 @@ final class AdbReverse {
     _connection.registerReverseTarget(label, onConnection);
     final SmartAnswer answer;
     try {
-      answer = await _command(
-        'reverse:forward:${rebind ? '' : 'norebind:'}$deviceSpec;$label',
-      );
+      answer = await _command('reverse:forward:${rebind ? '' : 'norebind:'}$deviceSpec;$label');
     } on Object {
       _release(label);
       rethrow;
     }
     // tcp:0: the device answers with the port it chose.
-    final actual = deviceSpec == 'tcp:0' && answer.text.isNotEmpty
-        ? 'tcp:${answer.text}'
-        : deviceSpec;
+    final actual = deviceSpec == 'tcp:0' && answer.text.isNotEmpty ? 'tcp:${answer.text}' : deviceSpec;
     // A rebind replaces what was there: its target is no longer accepted.
     final previous = _labels[actual];
     _labels[actual] = label;
@@ -198,10 +176,7 @@ final class AdbReverse {
   Future<SmartAnswer> _command(String service) async {
     final answer = SmartAnswer.parse(await readAll(_connection, service));
     if (!answer.ok) {
-      throw AdbServiceUnavailableException(
-        'The device refused "$service": ${answer.text}',
-        service: service,
-      );
+      throw AdbServiceUnavailableException('The device refused "$service": ${answer.text}', service: service);
     }
     return answer;
   }

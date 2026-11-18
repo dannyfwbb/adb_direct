@@ -56,8 +56,5 @@ abstract interface class AdbTransport {
   /// go out in plain text first. [keyLog] receives the NSS key-log lines
   /// (the exporter secret among them). Throws [AdbException] on failure;
   /// the transport is destroyed then.
-  Future<X509Certificate?> startTls({
-    required SecurityContext context,
-    void Function(String line)? keyLog,
-  });
+  Future<X509Certificate?> startTls({required SecurityContext context, void Function(String line)? keyLog});
 }

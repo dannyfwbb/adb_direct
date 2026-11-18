@@ -124,10 +124,7 @@ final class UsbTransport implements AdbTransport {
 
 /// How it would be used, given a pipe from a USB package.
 Future<void> connectOverUsb(UsbBulkPipe pipe, AdbKeyPair key) async {
-  final adb = await AdbConnection.connectTransport(
-    () async => UsbTransport(pipe),
-    key: key,
-  );
+  final adb = await AdbConnection.connectTransport(() async => UsbTransport(pipe), key: key);
   print((await adb.shell.run('getprop ro.product.model')).stdoutText);
   await adb.close();
 }

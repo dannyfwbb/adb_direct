@@ -27,8 +27,7 @@ final class PlatformServiceBrowser implements AdbServiceBrowser {
   final Stream<Map<Object?, Object?>> Function(List<String> types) _events;
 
   @override
-  Stream<AdbServiceEvent> browse(List<String> types) =>
-      _events(types).map(_toEvent).where((e) => e != null).cast();
+  Stream<AdbServiceEvent> browse(List<String> types) => _events(types).map(_toEvent).where((e) => e != null).cast();
 
   static AdbServiceEvent? _toEvent(Map<Object?, Object?> m) {
     final host = m['host'];
@@ -36,15 +35,8 @@ final class PlatformServiceBrowser implements AdbServiceBrowser {
       type: m['type']! as String,
       instance: m['name']! as String,
       port: m['port']! as int,
-      addresses: [
-        if (host is String && InternetAddress.tryParse(host) != null)
-          InternetAddress(host),
-      ],
-      txt: {
-        for (final MapEntry(:key, :value)
-            in ((m['txt'] as Map?) ?? const {}).entries)
-          '$key': '$value',
-      },
+      addresses: [if (host is String && InternetAddress.tryParse(host) != null) InternetAddress(host)],
+      txt: {for (final MapEntry(:key, :value) in ((m['txt'] as Map?) ?? const {}).entries) '$key': '$value'},
     );
     return switch (m['event']) {
       'found' => AdbServiceFound(service),

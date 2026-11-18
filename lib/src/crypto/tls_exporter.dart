@@ -48,47 +48,23 @@ final class TlsExporter {
   ///
   /// [label] is bytes because adb's includes its terminating NUL. An absent
   /// context and an empty one give the same result in TLS 1.3.
-  Uint8List export(
-    List<int> label,
-    int length, {
-    List<int> context = const [],
-  }) {
+  Uint8List export(List<int> label, int length, {List<int> context = const []}) {
     final emptyHash = _hash.convert(const []).bytes;
     final derived = _expandLabel(_secret, label, emptyHash, emptyHash.length);
-    return _expandLabel(
-      derived,
-      utf8.encode('exporter'),
-      _hash.convert(context).bytes,
-      length,
-    );
+    return _expandLabel(derived, utf8.encode('exporter'), _hash.convert(context).bytes, length);
   }
 
-  Uint8List _expandLabel(
-    List<int> secret,
-    List<int> label,
-    List<int> context,
-    int length,
-  ) {
+  Uint8List _expandLabel(List<int> secret, List<int> label, List<int> context, int length) {
     final fullLabel = [...utf8.encode('tls13 '), ...label];
     if (fullLabel.length > 255 || context.length > 255) {
       throw ArgumentError('Label or context too long');
     }
-    final info = [
-      length >> 8,
-      length & 0xff,
-      fullLabel.length,
-      ...fullLabel,
-      context.length,
-      ...context,
-    ];
+    final info = [length >> 8, length & 0xff, fullLabel.length, ...fullLabel, context.length, ...context];
     return Hkdf.expand(_hash, secret, info, length);
   }
 
   static Uint8List _hex(String hex) {
     if (hex.length.isOdd) throw const FormatException('Odd-length hex');
-    return Uint8List.fromList([
-      for (var i = 0; i < hex.length; i += 2)
-        int.parse(hex.substring(i, i + 2), radix: 16),
-    ]);
+    return Uint8List.fromList([for (var i = 0; i < hex.length; i += 2) int.parse(hex.substring(i, i + 2), radix: 16)]);
   }
 }

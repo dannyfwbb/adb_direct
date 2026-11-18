@@ -60,32 +60,20 @@ void main() {
     });
 
     test('a trailing NUL, a trailing semicolon and empty entries', () {
-      final banner = AdbBanner.parse(
-        utf8.encode(
-          'device::ro.product.model=X;;features=cmd,,shell_v2;\u0000',
-        ),
-      );
+      final banner = AdbBanner.parse(utf8.encode('device::ro.product.model=X;;features=cmd,,shell_v2;\u0000'));
       expect(banner.model, 'X');
       expect(banner.features, {AdbFeature.cmd, AdbFeature.shellV2});
     });
 
     test('values may contain = and :', () {
-      final banner = AdbBanner.parse(
-        utf8.encode('device:abc:ro.product.model=A=B:C;features=cmd'),
-      );
+      final banner = AdbBanner.parse(utf8.encode('device:abc:ro.product.model=A=B:C;features=cmd'));
       expect(banner.serial, 'abc');
       expect(banner.model, 'A=B:C');
     });
 
     test('minimal and unusual banners', () {
-      expect(
-        AdbBanner.parse(utf8.encode('device')).state,
-        AdbDeviceState.device,
-      );
-      expect(
-        AdbBanner.parse(utf8.encode('recovery::')).state,
-        AdbDeviceState.recovery,
-      );
+      expect(AdbBanner.parse(utf8.encode('device')).state, AdbDeviceState.device);
+      expect(AdbBanner.parse(utf8.encode('recovery::')).state, AdbDeviceState.recovery);
       final odd = AdbBanner.parse(utf8.encode('fastbootd::'));
       expect(odd.state, AdbDeviceState.unknown);
       expect(odd.systemType, 'fastbootd');
@@ -100,10 +88,7 @@ void main() {
 
   group('AdbBanner.host', () {
     test('encodes as adb does, without a trailing NUL', () {
-      final banner = AdbBanner.host([
-        AdbFeature.shellV2,
-        AdbFeature.delayedAck,
-      ]);
+      final banner = AdbBanner.host([AdbFeature.shellV2, AdbFeature.delayedAck]);
       expect(banner.encode(), 'host::features=shell_v2,delayed_ack');
       expect(banner.encode(), isNot(contains('\u0000')));
     });
@@ -118,16 +103,13 @@ void main() {
     });
   });
 
-  test(
-    'the recorded host banners decode to the features the recorder sent',
-    () {
-      final cnxn = Fixture.load('handshake/trusted_key').toDevice.first;
-      expect(AdbBanner.parse(cnxn.payload).features, {
-        AdbFeature.shellV2,
-        AdbFeature.cmd,
-        AdbFeature.statV2,
-        AdbFeature.lsV2,
-      });
-    },
-  );
+  test('the recorded host banners decode to the features the recorder sent', () {
+    final cnxn = Fixture.load('handshake/trusted_key').toDevice.first;
+    expect(AdbBanner.parse(cnxn.payload).features, {
+      AdbFeature.shellV2,
+      AdbFeature.cmd,
+      AdbFeature.statV2,
+      AdbFeature.lsV2,
+    });
+  });
 }

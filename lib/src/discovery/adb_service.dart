@@ -73,8 +73,7 @@ final class AdbService {
     if (!instance.startsWith('adb-') || instance.length == 4) return null;
     final rest = instance.substring(4);
     final dash = rest.lastIndexOf('-');
-    if (dash > 0 &&
-        RegExp(r'^[A-Za-z0-9]{6}$').hasMatch(rest.substring(dash + 1))) {
+    if (dash > 0 && RegExp(r'^[A-Za-z0-9]{6}$').hasMatch(rest.substring(dash + 1))) {
       return (rest.substring(0, dash), rest.substring(dash + 1));
     }
     return (rest, null);
@@ -90,15 +89,13 @@ final class AdbService {
       _sameMap(other.txt, txt);
 
   static bool _sameList(List<InternetAddress> a, List<InternetAddress> b) =>
-      a.length == b.length &&
-      List.generate(a.length, (i) => a[i] == b[i]).every((x) => x);
+      a.length == b.length && List.generate(a.length, (i) => a[i] == b[i]).every((x) => x);
 
   static bool _sameMap(Map<String, String> a, Map<String, String> b) =>
       a.length == b.length && a.entries.every((e) => b[e.key] == e.value);
 
   @override
-  String toString() =>
-      'AdbService($instance.$type ${address?.address ?? host}:$port)';
+  String toString() => 'AdbService($instance.$type ${address?.address ?? host}:$port)';
 }
 
 /// What a browser reports.
@@ -153,14 +150,7 @@ String fullType(String type) => type.endsWith('.local') ? type : '$type.local';
 extension AdbServiceBrowserPairing on AdbServiceBrowser {
   /// The `_adb-tls-pairing._tcp` services as they are found (and when they
   /// change), as `AdbPairingQr.pair` takes them.
-  Stream<AdbPairingService> pairingServices() =>
-      browse(const [AdbServiceType.tlsPairing])
-          .where((e) => e is! AdbServiceLost && e.service.address != null)
-          .map(
-            (e) => AdbPairingService(
-              name: e.service.instance,
-              host: e.service.address!,
-              port: e.service.port,
-            ),
-          );
+  Stream<AdbPairingService> pairingServices() => browse(const [AdbServiceType.tlsPairing])
+      .where((e) => e is! AdbServiceLost && e.service.address != null)
+      .map((e) => AdbPairingService(name: e.service.instance, host: e.service.address!, port: e.service.port));
 }

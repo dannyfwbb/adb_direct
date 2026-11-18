@@ -46,15 +46,11 @@ BigInt _toBigInt(_Fe a) {
 }
 
 /// d = -121665/121666.
-final _Fe _d = _fromBigInt(
-  -BigInt.from(121665) * BigInt.from(121666).modInverse(_p),
-);
+final _Fe _d = _fromBigInt(-BigInt.from(121665) * BigInt.from(121666).modInverse(_p));
 final _Fe _d2 = _add(_d, _d);
 
 /// sqrt(-1) = 2^((p-1)/4).
-final _Fe _sqrtM1 = _fromBigInt(
-  BigInt.two.modPow((_p - BigInt.one) ~/ BigInt.from(4), _p),
-);
+final _Fe _sqrtM1 = _fromBigInt(BigInt.two.modPow((_p - BigInt.one) ~/ BigInt.from(4), _p));
 
 /// Propagates carries so every limb is back in 16 bits (the top limb's
 /// overflow folds into limb 0 times 38, as 2^256 = 38 mod p).
@@ -186,13 +182,10 @@ final class EdPoint {
   EdPoint._(this._x, this._y, this._z, this._t);
 
   /// The neutral element (0, 1).
-  factory EdPoint.identity() =>
-      EdPoint._(_fe(), _fromBigInt(BigInt.one), _fromBigInt(BigInt.one), _fe());
+  factory EdPoint.identity() => EdPoint._(_fe(), _fromBigInt(BigInt.one), _fromBigInt(BigInt.one), _fe());
 
   /// The base point B of RFC 8032 (y = 4/5, x even).
-  static final EdPoint base = decode(
-    _pack(_fromBigInt(BigInt.from(4) * BigInt.from(5).modInverse(_p))),
-  )!;
+  static final EdPoint base = decode(_pack(_fromBigInt(BigInt.from(4) * BigInt.from(5).modInverse(_p))))!;
 
   final _Fe _x;
   final _Fe _y;
@@ -340,8 +333,7 @@ BigInt fieldRoundTrip(BigInt n) => _toBigInt(_fromBigInt(n));
 
 /// Exposed for tests: a × b mod p through the limb arithmetic.
 @visibleForTesting
-BigInt fieldMultiply(BigInt a, BigInt b) =>
-    _toBigInt(_mul(_fromBigInt(a), _fromBigInt(b)));
+BigInt fieldMultiply(BigInt a, BigInt b) => _toBigInt(_mul(_fromBigInt(a), _fromBigInt(b)));
 
 /// Exposed for tests: 1/a mod p through the limb arithmetic.
 @visibleForTesting
@@ -349,5 +341,4 @@ BigInt fieldInvert(BigInt a) => _toBigInt(_invert(_fromBigInt(a)));
 
 /// Exposed for tests: a - b mod p through the limb arithmetic.
 @visibleForTesting
-BigInt fieldSubtract(BigInt a, BigInt b) =>
-    _toBigInt(_sub(_fromBigInt(a), _fromBigInt(b)));
+BigInt fieldSubtract(BigInt a, BigInt b) => _toBigInt(_sub(_fromBigInt(a), _fromBigInt(b)));

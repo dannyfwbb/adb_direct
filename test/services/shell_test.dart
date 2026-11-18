@@ -32,17 +32,11 @@ void main() {
   group('run with shell protocol v2', () {
     test('separates stdout and stderr and reports the exit status '
         '(recorded bytes)', () async {
-      final recorded = Fixture.load(
-        'shell/v2',
-      ).fromDevice.firstWhere((m) => m.command == AdbCommand.write).payload;
+      final recorded = Fixture.load('shell/v2').fromDevice.firstWhere((m) => m.command == AdbCommand.write).payload;
       final (adb, adbd) = await connectTo((session) async {
         await acceptOpen(session, 'shell,v2,raw:$command');
         await session.expect(
-          AdbMessage.write(
-            localId: 1,
-            remoteId: 9,
-            data: ShellProtocol.encode(ShellPacketId.closeStdin, const []),
-          ),
+          AdbMessage.write(localId: 1, remoteId: 9, data: ShellProtocol.encode(ShellPacketId.closeStdin, const [])),
         );
         session
           ..send(AdbMessage.okay(localId: 9, remoteId: 1))
@@ -94,10 +88,7 @@ void main() {
             AdbMessage.write(
               localId: 9,
               remoteId: 1,
-              data: ShellProtocol.encode(
-                ShellPacketId.stdout,
-                utf8.encode('hello world'),
-              ),
+              data: ShellProtocol.encode(ShellPacketId.stdout, utf8.encode('hello world')),
             ),
           );
         // The listener closes the stream as soon as the limit is reached,
@@ -112,65 +103,42 @@ void main() {
       await adb.close();
     });
 
-    test(
-      'a command past its timeout is stopped; the connection lives on',
-      () async {
-        final clock = FakeClock();
-        final (adb, adbd) = await connectTo(clock: clock, options: noLiveness, (
-          session,
-        ) async {
-          await acceptOpen(session, 'shell,v2,raw:sleep');
-          await session.receive();
-          session.send(AdbMessage.okay(localId: 9, remoteId: 1));
-          clock.advance(const Duration(seconds: 11));
-          await session.expect(AdbMessage.close(localId: 1, remoteId: 9));
-          // The OKAY for close-stdin may arrive after the stream closed;
-          // the client then answers it with a second CLSE, as adb does.
-        });
-        await expectLater(
-          adb.shell.run('sleep 100', timeout: const Duration(seconds: 10)),
-          throwsA(isA<AdbTimeoutException>()),
-        );
-        await adbd.done();
-        expect(adb.isClosed, isFalse);
-        await adb.close();
-      },
-    );
+    test('a command past its timeout is stopped; the connection lives on', () async {
+      final clock = FakeClock();
+      final (adb, adbd) = await connectTo(clock: clock, options: noLiveness, (session) async {
+        await acceptOpen(session, 'shell,v2,raw:sleep');
+        await session.receive();
+        session.send(AdbMessage.okay(localId: 9, remoteId: 1));
+        clock.advance(const Duration(seconds: 11));
+        await session.expect(AdbMessage.close(localId: 1, remoteId: 9));
+        // The OKAY for close-stdin may arrive after the stream closed;
+        // the client then answers it with a second CLSE, as adb does.
+      });
+      await expectLater(
+        adb.shell.run('sleep 100', timeout: const Duration(seconds: 10)),
+        throwsA(isA<AdbTimeoutException>()),
+      );
+      await adbd.done();
+      expect(adb.isClosed, isFalse);
+      await adb.close();
+    });
   });
 
   group('run on devices without shell protocol v2', () {
     /// With [exec] the device has `exec:` (Android 5+); without, it refuses
     /// it and the command goes through `shell:` and its PTY.
-    Future<AdbShellResult> runOld(
-      String cmd,
-      List<String> Function(String marker) chunks, {
-      bool exec = true,
-    }) async {
+    Future<AdbShellResult> runOld(String cmd, List<String> Function(String marker) chunks, {bool exec = true}) async {
       final (adb, adbd) = await connectTo(banner: oldBanner, (session) async {
         if (!exec) {
           final refused = await session.receive();
-          expect(
-            utf8.decode(refused.payload),
-            startsWith('exec:exec </dev/null\n(\n$cmd\n)\necho '),
-          );
+          expect(utf8.decode(refused.payload), startsWith('exec:exec </dev/null\n(\n$cmd\n)\necho '));
           session.send(AdbMessage.close(localId: 0, remoteId: refused.arg0));
         }
-        final service = await acceptOpen(
-          session,
-          '${exec ? 'exec' : 'shell'}:exec </dev/null\n(\n$cmd\n)\necho ',
-        );
-        final marker = RegExp(
-          r'echo (ADB_DIRECT_EXIT_[0-9a-f]+_)\$\?$',
-        ).firstMatch(service)!.group(1)!;
+        final service = await acceptOpen(session, '${exec ? 'exec' : 'shell'}:exec </dev/null\n(\n$cmd\n)\necho ');
+        final marker = RegExp(r'echo (ADB_DIRECT_EXIT_[0-9a-f]+_)\$\?$').firstMatch(service)!.group(1)!;
         final id = exec ? 1 : 2;
         for (final chunk in chunks(marker)) {
-          session.send(
-            AdbMessage.write(
-              localId: 9,
-              remoteId: id,
-              data: utf8.encode(chunk),
-            ),
-          );
+          session.send(AdbMessage.write(localId: 9, remoteId: id, data: utf8.encode(chunk)));
           await session.expect(AdbMessage.okay(localId: id, remoteId: 9));
         }
         session.send(AdbMessage.close(localId: 9, remoteId: id));
@@ -184,10 +152,7 @@ void main() {
     test('learns the exit status from the marker', () async {
       final result = await runOld(
         'ls',
-        (marker) => [
-          'hi\nerr\n${marker.substring(0, 5)}',
-          '${marker.substring(5)}3\n',
-        ],
+        (marker) => ['hi\nerr\n${marker.substring(0, 5)}', '${marker.substring(5)}3\n'],
       );
       expect(result.stdoutText, 'hi\nerr\n');
       expect(result.exitCode, 3);
@@ -195,20 +160,13 @@ void main() {
     });
 
     test('output without a final newline keeps its last line', () async {
-      final result = await runOld(
-        'printf x',
-        (marker) => ['partial${marker}7\r\n'],
-      );
+      final result = await runOld('printf x', (marker) => ['partial${marker}7\r\n']);
       expect(result.stdoutText, 'partial');
       expect(result.exitCode, 7);
     });
 
     test('without exec: the PTY\'s CR LF line ends become LF', () async {
-      final result = await runOld(
-        'ls',
-        (marker) => ['a\r\nb\r\n${marker}0\r\n'],
-        exec: false,
-      );
+      final result = await runOld('ls', (marker) => ['a\r\nb\r\n${marker}0\r\n'], exec: false);
       expect(result.stdoutText, 'a\nb\n');
       expect(result.exitCode, 0);
     });
@@ -220,60 +178,44 @@ void main() {
     });
   });
 
-  test(
-    'an interactive session: stdin, window size, output, exit status',
-    () async {
-      final (adb, adbd) = await connectTo((session) async {
-        await acceptOpen(session, 'shell,v2,TERM=xterm-256color,pty:');
-        await session.expect(
+  test('an interactive session: stdin, window size, output, exit status', () async {
+    final (adb, adbd) = await connectTo((session) async {
+      await acceptOpen(session, 'shell,v2,TERM=xterm-256color,pty:');
+      await session.expect(
+        AdbMessage.write(localId: 1, remoteId: 9, data: ShellProtocol.encode(ShellPacketId.stdin, utf8.encode('ls\n'))),
+      );
+      session.send(AdbMessage.okay(localId: 9, remoteId: 1));
+      await session.expect(
+        AdbMessage.write(
+          localId: 1,
+          remoteId: 9,
+          data: ShellProtocol.encode(ShellPacketId.windowSizeChange, utf8.encode('24x80,0x0')),
+        ),
+      );
+      session
+        ..send(AdbMessage.okay(localId: 9, remoteId: 1))
+        ..send(
           AdbMessage.write(
-            localId: 1,
-            remoteId: 9,
-            data: ShellProtocol.encode(
-              ShellPacketId.stdin,
-              utf8.encode('ls\n'),
-            ),
+            localId: 9,
+            remoteId: 1,
+            data: [
+              ...ShellProtocol.encode(ShellPacketId.stdout, utf8.encode('a b\n')),
+              ...ShellProtocol.encode(ShellPacketId.exit, [3]),
+            ],
           ),
         );
-        session.send(AdbMessage.okay(localId: 9, remoteId: 1));
-        await session.expect(
-          AdbMessage.write(
-            localId: 1,
-            remoteId: 9,
-            data: ShellProtocol.encode(
-              ShellPacketId.windowSizeChange,
-              utf8.encode('24x80,0x0'),
-            ),
-          ),
-        );
-        session
-          ..send(AdbMessage.okay(localId: 9, remoteId: 1))
-          ..send(
-            AdbMessage.write(
-              localId: 9,
-              remoteId: 1,
-              data: [
-                ...ShellProtocol.encode(
-                  ShellPacketId.stdout,
-                  utf8.encode('a b\n'),
-                ),
-                ...ShellProtocol.encode(ShellPacketId.exit, [3]),
-              ],
-            ),
-          );
-        await session.expect(AdbMessage.okay(localId: 1, remoteId: 9));
-        session.send(AdbMessage.close(localId: 9, remoteId: 1));
-      });
-      final shell = await adb.shell.start();
-      final output = shell.stdout.toList();
-      await shell.write(utf8.encode('ls\n'));
-      await shell.resize(rows: 24, columns: 80);
-      expect(await shell.exitCode, 3);
-      expect(utf8.decode((await output).expand((b) => b).toList()), 'a b\n');
-      await adbd.done();
-      await adb.close();
-    },
-  );
+      await session.expect(AdbMessage.okay(localId: 1, remoteId: 9));
+      session.send(AdbMessage.close(localId: 9, remoteId: 1));
+    });
+    final shell = await adb.shell.start();
+    final output = shell.stdout.toList();
+    await shell.write(utf8.encode('ls\n'));
+    await shell.resize(rows: 24, columns: 80);
+    expect(await shell.exitCode, 3);
+    expect(utf8.decode((await output).expand((b) => b).toList()), 'a b\n');
+    await adbd.done();
+    await adb.close();
+  });
 
   test('exec opens a raw stream', () async {
     final (adb, adbd) = await connectTo((session) async {
@@ -310,37 +252,25 @@ void main() {
       expect(shell.shellProtocol, isFalse);
       expect((await shell.stdout.toList()).expand((b) => b), [0x24, 0x20]);
       expect(await shell.exitCode, isNull);
-      await expectLater(
-        adb.shell.start(command: 'wc -c', pty: false),
-        throwsA(isA<AdbNotSupportedException>()),
-      );
+      await expectLater(adb.shell.start(command: 'wc -c', pty: false), throwsA(isA<AdbNotSupportedException>()));
       await adbd.done();
       await adb.close();
     });
 
-    test(
-      'nothing is read from the device until stdout has a listener',
-      () async {
-        final (adb, adbd) = await connectTo((session) async {
-          await acceptOpen(session, 'shell,v2,');
-          session.send(
-            AdbMessage.write(
-              localId: 9,
-              remoteId: 1,
-              data: ShellProtocol.encode(ShellPacketId.stdout, [1]),
-            ),
-          );
-          await session.expectQuiet(const Duration(milliseconds: 200));
-          await session.expect(AdbMessage.okay(localId: 1, remoteId: 9));
-          session.send(AdbMessage.close(localId: 9, remoteId: 1));
-        });
-        final shell = await adb.shell.start();
-        await Future<void>.delayed(const Duration(milliseconds: 250));
-        expect((await shell.stdout.toList()).expand((b) => b), [1]);
-        await adbd.done();
-        await adb.close();
-      },
-    );
+    test('nothing is read from the device until stdout has a listener', () async {
+      final (adb, adbd) = await connectTo((session) async {
+        await acceptOpen(session, 'shell,v2,');
+        session.send(AdbMessage.write(localId: 9, remoteId: 1, data: ShellProtocol.encode(ShellPacketId.stdout, [1])));
+        await session.expectQuiet(const Duration(milliseconds: 200));
+        await session.expect(AdbMessage.okay(localId: 1, remoteId: 9));
+        session.send(AdbMessage.close(localId: 9, remoteId: 1));
+      });
+      final shell = await adb.shell.start();
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      expect((await shell.stdout.toList()).expand((b) => b), [1]);
+      await adbd.done();
+      await adb.close();
+    });
 
     test('a shell packet longer than adbd could send ends the run', () async {
       final (adb, adbd) = await connectTo((session) async {
@@ -348,41 +278,29 @@ void main() {
         await session.receive();
         session
           ..send(AdbMessage.okay(localId: 9, remoteId: 1))
-          ..send(
-            AdbMessage.write(
-              localId: 9,
-              remoteId: 1,
-              data: [1, 0xff, 0xff, 0xff, 0x7f],
-            ),
-          );
+          ..send(AdbMessage.write(localId: 9, remoteId: 1, data: [1, 0xff, 0xff, 0xff, 0x7f]));
         await session.expect(AdbMessage.close(localId: 1, remoteId: 9));
       });
-      await expectLater(
-        adb.shell.run('x'),
-        throwsA(isA<AdbProtocolException>()),
-      );
+      await expectLater(adb.shell.run('x'), throwsA(isA<AdbProtocolException>()));
       await adbd.done();
       await adb.close();
     });
   });
 
-  test(
-    'without shell v2: a deadline during the open stops the command',
-    () async {
-      final (adb, adbd) = await connectTo(banner: oldBanner, (session) async {
-        final open = await session.receive();
-        // Answers after the deadline.
-        await Future<void>.delayed(const Duration(milliseconds: 400));
-        session.send(AdbMessage.okay(localId: 9, remoteId: open.arg0));
-        final close = await session.receive();
-        expect(close.command, AdbCommand.close);
-      });
-      await expectLater(
-        adb.shell.run('sleep 100', timeout: const Duration(milliseconds: 100)),
-        throwsA(isA<AdbTimeoutException>()),
-      );
-      await adbd.done();
-      await adb.close();
-    },
-  );
+  test('without shell v2: a deadline during the open stops the command', () async {
+    final (adb, adbd) = await connectTo(banner: oldBanner, (session) async {
+      final open = await session.receive();
+      // Answers after the deadline.
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      session.send(AdbMessage.okay(localId: 9, remoteId: open.arg0));
+      final close = await session.receive();
+      expect(close.command, AdbCommand.close);
+    });
+    await expectLater(
+      adb.shell.run('sleep 100', timeout: const Duration(milliseconds: 100)),
+      throwsA(isA<AdbTimeoutException>()),
+    );
+    await adbd.done();
+    await adb.close();
+  });
 }

@@ -33,9 +33,7 @@ extension type const AdbFeature(String name) implements Object {
   static const abb = AdbFeature('abb');
 
   /// Push keeps symlink timestamps.
-  static const fixedPushSymlinkTimestamp = AdbFeature(
-    'fixed_push_symlink_timestamp',
-  );
+  static const fixedPushSymlinkTimestamp = AdbFeature('fixed_push_symlink_timestamp');
 
   /// The `abb_exec:` Binder bridge service without shell protocol.
   static const abbExec = AdbFeature('abb_exec');
@@ -81,9 +79,7 @@ extension type const AdbFeature(String name) implements Object {
   static const openscreenMdns = AdbFeature('openscreen_mdns');
 
   /// The adb server's device tracker speaks protobuf.
-  static const deviceTrackerProtoFormat = AdbFeature(
-    'devicetracker_proto_format',
-  );
+  static const deviceTrackerProtoFormat = AdbFeature('devicetracker_proto_format');
 
   /// `track-app` includes package names.
   static const appInfo = AdbFeature('app_info');
@@ -153,9 +149,7 @@ final class AdbBanner {
     if (firstColon < 0) return AdbBanner(systemType: text);
     final secondColon = text.indexOf(':', firstColon + 1);
     final systemType = text.substring(0, firstColon);
-    final serial = secondColon < 0
-        ? text.substring(firstColon + 1)
-        : text.substring(firstColon + 1, secondColon);
+    final serial = secondColon < 0 ? text.substring(firstColon + 1) : text.substring(firstColon + 1, secondColon);
     final rest = secondColon < 0 ? '' : text.substring(secondColon + 1);
 
     final properties = <String, String>{};
@@ -169,18 +163,12 @@ final class AdbBanner {
       for (final name in featureList.split(','))
         if (name.isNotEmpty) AdbFeature(name),
     };
-    return AdbBanner(
-      systemType: systemType,
-      serial: serial,
-      properties: properties,
-      features: features,
-    );
+    return AdbBanner(systemType: systemType, serial: serial, properties: properties, features: features);
   }
 
   /// The banner a host sends: `host::features=<a>,<b>,…`, with no trailing
   /// NUL (adbd would keep a NUL as part of the last feature's name).
-  factory AdbBanner.host(Iterable<AdbFeature> features) =>
-      AdbBanner(systemType: 'host', features: features.toSet());
+  factory AdbBanner.host(Iterable<AdbFeature> features) => AdbBanner(systemType: 'host', features: features.toSet());
 
   static const String _featuresKey = 'features';
 
@@ -215,8 +203,7 @@ final class AdbBanner {
   String encode() {
     final entries = [
       for (final MapEntry(:key, :value) in properties.entries) '$key=$value',
-      if (features.isNotEmpty)
-        '$_featuresKey=${features.map((f) => f.name).join(',')}',
+      if (features.isNotEmpty) '$_featuresKey=${features.map((f) => f.name).join(',')}',
     ];
     return '$systemType:$serial:${entries.join(';')}';
   }

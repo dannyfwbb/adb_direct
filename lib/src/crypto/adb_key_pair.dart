@@ -66,11 +66,7 @@ final class AdbKeyPair {
   final String comment;
 
   /// The public half, in adb's format, with [comment].
-  AdbPublicKey get publicKey => AdbPublicKey(
-    modulus: _key.modulus,
-    exponent: _key.publicExponent,
-    comment: comment,
-  );
+  AdbPublicKey get publicKey => AdbPublicKey(modulus: _key.modulus, exponent: _key.publicExponent, comment: comment);
 
   /// The same key with another [comment].
   AdbKeyPair withComment(String comment) => AdbKeyPair._(_key, comment);
@@ -93,19 +89,14 @@ final class AdbKeyPair {
   @internal
   Uint8List signAuthToken(List<int> token) {
     if (token.length != AdbProtocol.authTokenLength) {
-      throw ArgumentError.value(
-        token.length,
-        'token',
-        'an AUTH token has ${AdbProtocol.authTokenLength} bytes',
-      );
+      throw ArgumentError.value(token.length, 'token', 'an AUTH token has ${AdbProtocol.authTokenLength} bytes');
     }
     return _key.signDigest(sha1DigestInfoPrefix, token);
   }
 
   /// The certificate and key to present in TLS, valid from [now].
   @internal
-  TlsIdentity tlsIdentity({required DateTime now}) =>
-      buildTlsIdentity(_key, now: now);
+  TlsIdentity tlsIdentity({required DateTime now}) => buildTlsIdentity(_key, now: now);
 
   static final Expando<TlsIdentity> _tls = Expando('adb_direct TLS identity');
 
@@ -115,8 +106,7 @@ final class AdbKeyPair {
   /// object for the same key, or a new process, makes a new one; devices
   /// check only the public key.
   @internal
-  TlsIdentity get tls =>
-      _tls[this] ??= buildTlsIdentity(_key, now: DateTime.now().toUtc());
+  TlsIdentity get tls => _tls[this] ??= buildTlsIdentity(_key, now: DateTime.now().toUtc());
 
   /// Equal when the keys and the comments are equal. Compares public
   /// values only: the modulus determines the private key.

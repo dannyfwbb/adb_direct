@@ -27,9 +27,7 @@ final class StreamReader {
     _subscription = stream.input.listen(
       _onData,
       onError: (Object error) {
-        _error ??= error is AdbException
-            ? error
-            : AdbClosedException('Stream failed', cause: error);
+        _error ??= error is AdbException ? error : AdbClosedException('Stream failed', cause: error);
         _wake();
       },
       onDone: () {
@@ -130,9 +128,7 @@ final class StreamReader {
     // Stalled means no byte at all during the whole period, even when part
     // of a frame is already buffered.
     if (stalled && _received == before && !_ended && _error == null) {
-      throw AdbTimeoutException(
-        'No data on "${stream.service}" for $stallTimeout',
-      );
+      throw AdbTimeoutException('No data on "${stream.service}" for $stallTimeout');
     }
   }
 

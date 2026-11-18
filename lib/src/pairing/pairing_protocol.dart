@@ -143,9 +143,7 @@ final class PairingReader {
   Future<Uint8List> _take(int count) async {
     while (_buffer.length < count) {
       if (_error case final error?) {
-        throw error is AdbException
-            ? error
-            : AdbClosedException('The pairing connection failed', cause: error);
+        throw error is AdbException ? error : AdbClosedException('The pairing connection failed', cause: error);
       }
       if (_closed) {
         throw const AdbClosedException('The device closed the pairing session');
@@ -180,12 +178,7 @@ Uint8List pairingPacket(int type, List<int> payload) {
 final class PairingCipher {
   /// A cipher from the 64-byte SPAKE2 key.
   PairingCipher(List<int> spake2Key)
-    : _key = Hkdf.derive(
-        sha256,
-        spake2Key,
-        info: utf8.encode('adb pairing_auth aes-128-gcm key'),
-        length: 16,
-      );
+    : _key = Hkdf.derive(sha256, spake2Key, info: utf8.encode('adb pairing_auth aes-128-gcm key'), length: 16);
 
   final Uint8List _key;
   int _sent = 0;
@@ -210,10 +203,7 @@ final class PairingCipher {
     final nonce = Uint8List(12);
     ByteData.sublistView(nonce).setUint64(0, counter, Endian.little);
     final gcm = pc.GCMBlockCipher(pc.AESEngine())
-      ..init(
-        encrypt,
-        pc.AEADParameters(pc.KeyParameter(_key), 128, nonce, Uint8List(0)),
-      );
+      ..init(encrypt, pc.AEADParameters(pc.KeyParameter(_key), 128, nonce, Uint8List(0)));
     return gcm.process(Uint8List.fromList(input));
   }
 }
@@ -242,9 +232,7 @@ Future<Uint8List> runPairingExchange({
     theirName: alice ? pairingServerName : pairingClientName,
     random: random,
   );
-  write(
-    pairingPacket(PairingPacket.spake2Message, spake.generateMessage(password)),
-  );
+  write(pairingPacket(PairingPacket.spake2Message, spake.generateMessage(password)));
   final (type, theirMessage) = await reader.next();
   if (type != PairingPacket.spake2Message) {
     throw AdbPairingException('Expected a SPAKE2 message, got type $type');

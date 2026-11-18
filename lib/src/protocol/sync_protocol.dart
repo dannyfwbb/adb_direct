@@ -10,10 +10,7 @@ import 'package:meta/meta.dart';
 /// a little-endian integer.
 abstract final class SyncId {
   static int _id(String s) =>
-      s.codeUnitAt(0) |
-      (s.codeUnitAt(1) << 8) |
-      (s.codeUnitAt(2) << 16) |
-      (s.codeUnitAt(3) << 24);
+      s.codeUnitAt(0) | (s.codeUnitAt(1) << 8) | (s.codeUnitAt(2) << 16) | (s.codeUnitAt(3) << 24);
 
   /// `STAT`: lstat, 32-bit fields.
   static final int stat = _id('STAT');
@@ -64,12 +61,8 @@ abstract final class SyncId {
   static final int quit = _id('QUIT');
 
   /// The four letters of [id].
-  static String name(int id) => String.fromCharCodes([
-    id & 0xff,
-    (id >> 8) & 0xff,
-    (id >> 16) & 0xff,
-    (id >> 24) & 0xff,
-  ]);
+  static String name(int id) =>
+      String.fromCharCodes([id & 0xff, (id >> 8) & 0xff, (id >> 16) & 0xff, (id >> 24) & 0xff]);
 }
 
 /// Limits of the sync protocol.
@@ -99,11 +92,7 @@ abstract final class SyncRequest {
   static Uint8List withPath(int id, String path) {
     final bytes = utf8.encode(path);
     if (bytes.length > SyncLimits.maxPath) {
-      throw ArgumentError.value(
-        path,
-        'path',
-        'longer than ${SyncLimits.maxPath} bytes',
-      );
+      throw ArgumentError.value(path, 'path', 'longer than ${SyncLimits.maxPath} bytes');
     }
     return header(id, bytes.length, bytes);
   }
@@ -214,8 +203,7 @@ final class AdbFileStat {
 
   static const int _typeMask = 0xf000;
 
-  static DateTime _time(int seconds) =>
-      DateTime.fromMillisecondsSinceEpoch(seconds * 1000, isUtc: true);
+  static DateTime _time(int seconds) => DateTime.fromMillisecondsSinceEpoch(seconds * 1000, isUtc: true);
 
   @override
   bool operator ==(Object other) =>
@@ -232,22 +220,10 @@ final class AdbFileStat {
       other.inode == inode;
 
   @override
-  int get hashCode => Object.hash(
-    mode,
-    size,
-    modified,
-    accessed,
-    changed,
-    uid,
-    gid,
-    links,
-    device,
-    inode,
-  );
+  int get hashCode => Object.hash(mode, size, modified, accessed, changed, uid, gid, links, device, inode);
 
   @override
-  String toString() =>
-      'AdbFileStat(mode ${mode.toRadixString(8)}, $size B, $modified)';
+  String toString() => 'AdbFileStat(mode ${mode.toRadixString(8)}, $size B, $modified)';
 }
 
 /// One entry of a directory listing.

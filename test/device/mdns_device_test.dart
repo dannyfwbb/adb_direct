@@ -25,13 +25,7 @@ void main() {
     final instance = 'adb-MDNSTEST${pid % 1000}-Xy12Ab';
     final events = StreamController<AdbServiceEvent>.broadcast();
     final sub = AdbMdnsBrowser().browse([type]).listen(events.add);
-    final publisher = await Process.start('python3', [
-      'tool/mdns_publish.py',
-      instance,
-      type,
-      '40123',
-      'v=1',
-    ]);
+    final publisher = await Process.start('python3', ['tool/mdns_publish.py', instance, type, '40123', 'v=1']);
     final watch = Stopwatch()..start();
     final found = await events.stream
         .where((e) => e is AdbServiceFound && e.service.instance == instance)

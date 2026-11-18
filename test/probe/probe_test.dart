@@ -13,20 +13,17 @@ import '../support/fake_adbd.dart';
 import '../support/fake_clock.dart';
 
 /// A fake that expects one CNXN and answers with [answer] (or nothing).
-Future<FakeAdbd> answering(void Function(FakeAdbdSession session) answer) =>
-    FakeAdbd.start((session) async {
-      final cnxn = await session.receive();
-      expect(cnxn.command, AdbCommand.connect);
-      answer(session);
-      await session.expectClientClose();
-    });
+Future<FakeAdbd> answering(void Function(FakeAdbdSession session) answer) => FakeAdbd.start((session) async {
+  final cnxn = await session.receive();
+  expect(cnxn.command, AdbCommand.connect);
+  answer(session);
+  await session.expectClientClose();
+});
 
 void main() {
   group('identify', () {
     test('AUTH: classic network debugging', () async {
-      final adbd = await answering(
-        (s) => s.send(AdbMessage.auth(AdbAuthType.token, randomToken())),
-      );
+      final adbd = await answering((s) => s.send(AdbMessage.auth(AdbAuthType.token, randomToken())));
       final endpoint = await AdbProbe.identify(adbd.address, adbd.port);
       expect(endpoint.kind, AdbEndpointKind.adbAuthentication);
       expect(endpoint.isAdb, isTrue);
@@ -34,11 +31,7 @@ void main() {
     });
 
     test('CNXN: no authentication, with the banner', () async {
-      final adbd = await answering(
-        (s) => s.send(
-          AdbMessage(AdbCommand.connect, AdbProtocol.version, 4096, tvBanner),
-        ),
-      );
+      final adbd = await answering((s) => s.send(AdbMessage(AdbCommand.connect, AdbProtocol.version, 4096, tvBanner)));
       final endpoint = await AdbProbe.identify(adbd.address, adbd.port);
       expect(endpoint.kind, AdbEndpointKind.adbOpen);
       expect(endpoint.banner!.model, 'AOSP TV on x86');
@@ -47,33 +40,20 @@ void main() {
 
     test('STLS: a wireless debugging port', () async {
       final adbd = await answering((s) => s.send(AdbMessage.stls()));
-      expect(
-        (await AdbProbe.identify(adbd.address, adbd.port)).kind,
-        AdbEndpointKind.adbTls,
-      );
+      expect((await AdbProbe.identify(adbd.address, adbd.port)).kind, AdbEndpointKind.adbTls);
       await adbd.done();
     });
 
     test('something else (an HTTP server) is not adbd', () async {
-      final adbd = await answering(
-        (s) => s.sendRaw('HTTP/1.1 400 Bad Request\r\n\r\n'.codeUnits),
-      );
-      expect(
-        (await AdbProbe.identify(adbd.address, adbd.port)).kind,
-        AdbEndpointKind.notAdb,
-      );
+      final adbd = await answering((s) => s.sendRaw('HTTP/1.1 400 Bad Request\r\n\r\n'.codeUnits));
+      expect((await AdbProbe.identify(adbd.address, adbd.port)).kind, AdbEndpointKind.notAdb);
       await adbd.done();
     });
 
     test('silence is not adbd', () async {
       final clock = FakeClock();
-      final adbd = await answering(
-        (s) => clock.advance(const Duration(seconds: 4)),
-      );
-      expect(
-        (await AdbProbe.identify(adbd.address, adbd.port, clock: clock)).kind,
-        AdbEndpointKind.notAdb,
-      );
+      final adbd = await answering((s) => clock.advance(const Duration(seconds: 4)));
+      expect((await AdbProbe.identify(adbd.address, adbd.port, clock: clock)).kind, AdbEndpointKind.notAdb);
       await adbd.done();
     });
 
@@ -81,10 +61,7 @@ void main() {
       final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
       final port = server.port;
       await server.close();
-      await expectLater(
-        AdbProbe.identify(InternetAddress.loopbackIPv4, port),
-        throwsA(isA<AdbRefusedException>()),
-      );
+      await expectLater(AdbProbe.identify(InternetAddress.loopbackIPv4, port), throwsA(isA<AdbRefusedException>()));
     });
   });
 
@@ -108,10 +85,7 @@ void main() {
         // The fake fails on any message here, the public key included.
         await session.expectClientClose();
       });
-      expect(
-        await AdbProbe.knowsKey(adbd.address, adbd.port, otherKey),
-        isFalse,
-      );
+      expect(await AdbProbe.knowsKey(adbd.address, adbd.port, otherKey), isFalse);
       await adbd.done();
     });
   });

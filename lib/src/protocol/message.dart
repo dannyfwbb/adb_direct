@@ -43,12 +43,8 @@ enum AdbCommand {
   final int value;
 
   /// The four letters, such as `CNXN`.
-  String get wireName => String.fromCharCodes([
-    value & 0xff,
-    (value >> 8) & 0xff,
-    (value >> 16) & 0xff,
-    (value >> 24) & 0xff,
-  ]);
+  String get wireName =>
+      String.fromCharCodes([value & 0xff, (value >> 8) & 0xff, (value >> 16) & 0xff, (value >> 24) & 0xff]);
 
   /// The command for a wire [value], or null for an unknown one.
   static AdbCommand? fromValue(int value) {
@@ -95,8 +91,7 @@ final class AdbMessage {
   /// A [Uint8List] payload is taken over, not copied (messages carry up to
   /// 1 MiB): the caller must not modify it afterwards. Any other list is
   /// copied.
-  AdbMessage(this.command, this.arg0, this.arg1, [List<int>? payload])
-    : payload = _readOnly(payload) {
+  AdbMessage(this.command, this.arg0, this.arg1, [List<int>? payload]) : payload = _readOnly(payload) {
     _checkUint32(arg0, 'arg0');
     _checkUint32(arg1, 'arg1');
   }
@@ -106,66 +101,40 @@ final class AdbMessage {
     required String banner,
     int version = AdbProtocol.version,
     int maxPayload = AdbProtocol.maxPayload,
-  }) =>
-      AdbMessage(AdbCommand.connect, version, maxPayload, utf8.encode(banner));
+  }) => AdbMessage(AdbCommand.connect, version, maxPayload, utf8.encode(banner));
 
   /// `AUTH(type, 0, data)`.
-  factory AdbMessage.auth(AdbAuthType type, List<int> data) =>
-      AdbMessage(AdbCommand.auth, type.value, 0, data);
+  factory AdbMessage.auth(AdbAuthType type, List<int> data) => AdbMessage(AdbCommand.auth, type.value, 0, data);
 
   /// `STLS(version, 0)`.
-  factory AdbMessage.stls({int version = AdbProtocol.stlsVersion}) =>
-      AdbMessage(AdbCommand.stls, version, 0);
+  factory AdbMessage.stls({int version = AdbProtocol.stlsVersion}) => AdbMessage(AdbCommand.stls, version, 0);
 
   /// `OPEN(localId, window, "service\0")`.
   ///
   /// [window] is our receive window when delayed acknowledgements are in
   /// use, and must be 0 otherwise. The service name is sent with a trailing
   /// NUL, as adb does; adbd strips it.
-  factory AdbMessage.open({
-    required int localId,
-    required String service,
-    int window = 0,
-  }) {
+  factory AdbMessage.open({required int localId, required String service, int window = 0}) {
     _checkStreamId(localId, 'localId');
-    return AdbMessage(AdbCommand.open, localId, window, [
-      ...utf8.encode(service),
-      0,
-    ]);
+    return AdbMessage(AdbCommand.open, localId, window, [...utf8.encode(service), 0]);
   }
 
   /// `OKAY(localId, remoteId)`, with the number of bytes consumed as a
   /// little-endian `int32` payload when delayed acknowledgements are in use.
-  factory AdbMessage.okay({
-    required int localId,
-    required int remoteId,
-    int? acknowledged,
-  }) {
+  factory AdbMessage.okay({required int localId, required int remoteId, int? acknowledged}) {
     _checkStreamId(localId, 'localId');
     _checkStreamId(remoteId, 'remoteId');
-    if (acknowledged != null &&
-        (acknowledged < -0x80000000 || acknowledged > 0x7fffffff)) {
-      throw RangeError.range(
-        acknowledged,
-        -0x80000000,
-        0x7fffffff,
-        'acknowledged',
-      );
+    if (acknowledged != null && (acknowledged < -0x80000000 || acknowledged > 0x7fffffff)) {
+      throw RangeError.range(acknowledged, -0x80000000, 0x7fffffff, 'acknowledged');
     }
     final payload = acknowledged == null
         ? null
-        : (ByteData(
-            4,
-          )..setInt32(0, acknowledged, Endian.little)).buffer.asUint8List();
+        : (ByteData(4)..setInt32(0, acknowledged, Endian.little)).buffer.asUint8List();
     return AdbMessage(AdbCommand.okay, localId, remoteId, payload);
   }
 
   /// `WRTE(localId, remoteId, data)`.
-  factory AdbMessage.write({
-    required int localId,
-    required int remoteId,
-    required List<int> data,
-  }) {
+  factory AdbMessage.write({required int localId, required int remoteId, required List<int> data}) {
     _checkStreamId(localId, 'localId');
     _checkStreamId(remoteId, 'remoteId');
     return AdbMessage(AdbCommand.write, localId, remoteId, data);
@@ -198,9 +167,7 @@ final class AdbMessage {
   int? get acknowledgedBytes {
     if (payload.isEmpty) return null;
     if (payload.length != 4) {
-      throw AdbProtocolException(
-        'OKAY payload of ${payload.length} bytes; expected 0 or 4',
-      );
+      throw AdbProtocolException('OKAY payload of ${payload.length} bytes; expected 0 or 4');
     }
     return ByteData.sublistView(payload).getInt32(0, Endian.little);
   }
@@ -280,11 +247,7 @@ typedef AdbUnknownCommandCallback = void Function(int command, int length);
 /// command does not lose the connection.
 final class AdbMessageReader {
   /// Creates a reader that accepts payloads up to [maxPayload] bytes.
-  AdbMessageReader({
-    this.maxPayload = AdbProtocol.maxPayload,
-    this.onUnknownCommand,
-    this.onRawMessage,
-  });
+  AdbMessageReader({this.maxPayload = AdbProtocol.maxPayload, this.onUnknownCommand, this.onRawMessage});
 
   /// The largest payload accepted. A larger `data_length` is a protocol
   /// error.
@@ -358,11 +321,7 @@ final class AdbMessageReader {
         return AdbMessage(command, arg0, arg1, _buffer.take(length));
       }
       final raw = Uint8List(AdbProtocol.headerLength + length)
-        ..setRange(
-          0,
-          AdbProtocol.headerLength,
-          _buffer.take(AdbProtocol.headerLength),
-        );
+        ..setRange(0, AdbProtocol.headerLength, _buffer.take(AdbProtocol.headerLength));
       final payload = _buffer.take(length);
       raw.setRange(AdbProtocol.headerLength, raw.length, payload);
       onRaw(raw);

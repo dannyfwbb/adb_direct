@@ -15,11 +15,7 @@ import 'pairing.dart';
 @immutable
 final class AdbPairingService {
   /// Creates one.
-  const AdbPairingService({
-    required this.name,
-    required this.host,
-    required this.port,
-  });
+  const AdbPairingService({required this.name, required this.host, required this.port});
 
   /// The mDNS instance name (`studio-…` for a QR code).
   final String name;
@@ -40,12 +36,8 @@ final class AdbPairingQr {
   /// A code with a fresh random service name and password.
   factory AdbPairingQr.random() {
     final random = Random.secure();
-    String pick(int n) => String.fromCharCodes(
-      List.generate(
-        n,
-        (_) => _alphabet.codeUnitAt(random.nextInt(_alphabet.length)),
-      ),
-    );
+    String pick(int n) =>
+        String.fromCharCodes(List.generate(n, (_) => _alphabet.codeUnitAt(random.nextInt(_alphabet.length))));
     return AdbPairingQr(serviceName: 'studio-${pick(10)}', password: pick(12));
   }
 
@@ -53,18 +45,14 @@ final class AdbPairingQr {
   /// format's `;`, `,`, `:`, `\` and `"` would need escaping that devices
   /// do not all undo).
   AdbPairingQr({required this.serviceName, required this.password}) {
-    for (final (name, value) in [
-      ('serviceName', serviceName),
-      ('password', password),
-    ]) {
+    for (final (name, value) in [('serviceName', serviceName), ('password', password)]) {
       if (value.isEmpty || !RegExp(r'^[A-Za-z0-9-]+$').hasMatch(value)) {
         throw ArgumentError.value(value, name, 'letters, digits and - only');
       }
     }
   }
 
-  static const String _alphabet =
-      'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+  static const String _alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
 
   /// The mDNS instance name the device will announce.
   final String serviceName;
@@ -99,26 +87,18 @@ final class AdbPairingQr {
       },
       onError: (Object e) {
         if (!found.isCompleted) {
-          found.completeError(
-            AdbUnreachableException('The service browser failed', cause: e),
-          );
+          found.completeError(AdbUnreachableException('The service browser failed', cause: e));
         }
       },
     );
     final timer = clock.timer(waitTimeout, () {
       if (!found.isCompleted) {
-        found.completeError(
-          AdbTimeoutException(
-            'No device announced $serviceName within $waitTimeout',
-          ),
-        );
+        found.completeError(AdbTimeoutException('No device announced $serviceName within $waitTimeout'));
       }
     });
     void cancel() {
       if (!found.isCompleted) {
-        found.completeError(
-          const AdbCancelledException('QR pairing was cancelled'),
-        );
+        found.completeError(const AdbCancelledException('QR pairing was cancelled'));
       }
     }
 

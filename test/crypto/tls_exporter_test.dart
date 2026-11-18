@@ -21,29 +21,19 @@ void main() {
       ]);
       expect(exporter.export(utf8.encode('x'), 16), hasLength(16));
       expect(
-        TlsExporter.fromKeyLog([
-          'EXPORTER_SECRET ${'00' * 32} ${'22' * 48}',
-        ]).export(utf8.encode('x'), 16),
+        TlsExporter.fromKeyLog(['EXPORTER_SECRET ${'00' * 32} ${'22' * 48}']).export(utf8.encode('x'), 16),
         isNot(exporter.export(utf8.encode('x'), 16)),
       );
     });
 
     test('refuses logs without a usable secret', () {
       expect(() => TlsExporter.fromKeyLog(const []), throwsFormatException);
-      expect(
-        () => TlsExporter.fromKeyLog(['CLIENT_RANDOM aa bb']),
-        throwsFormatException,
-      );
-      expect(
-        () => TlsExporter.fromKeyLog(['EXPORTER_SECRET aa ${'22' * 20}']),
-        throwsFormatException,
-      );
+      expect(() => TlsExporter.fromKeyLog(['CLIENT_RANDOM aa bb']), throwsFormatException);
+      expect(() => TlsExporter.fromKeyLog(['EXPORTER_SECRET aa ${'22' * 20}']), throwsFormatException);
     });
 
     test('an absent and an empty context are the same in TLS 1.3', () {
-      final exporter = TlsExporter.fromKeyLog([
-        'EXPORTER_SECRET ${'00' * 32} ${'33' * 32}',
-      ]);
+      final exporter = TlsExporter.fromKeyLog(['EXPORTER_SECRET ${'00' * 32} ${'33' * 32}']);
       expect(
         exporter.export(utf8.encode('adb-label'), 64),
         exporter.export(utf8.encode('adb-label'), 64, context: const []),
@@ -51,10 +41,7 @@ void main() {
     });
   });
 
-  for (final (suite, hash) in [
-    ('TLS_AES_128_GCM_SHA256', 'SHA-256'),
-    ('TLS_AES_256_GCM_SHA384', 'SHA-384'),
-  ]) {
+  for (final (suite, hash) in [('TLS_AES_128_GCM_SHA256', 'SHA-256'), ('TLS_AES_256_GCM_SHA384', 'SHA-384')]) {
     test('matches OpenSSL’s exporter on a live TLS 1.3 connection from dart:io '
         '($hash, $suite)', () async {
       final expected = await _exportWithOpenSsl(suite);
@@ -66,9 +53,7 @@ void main() {
 /// Connects with `dart:io` to `openssl s_server` restricted to [suite],
 /// and returns OpenSSL's exported keying material for `adb-label` (64
 /// bytes) and ours, computed from the key log.
-Future<({String openssl, List<int> ours})> _exportWithOpenSsl(
-  String suite,
-) async {
+Future<({String openssl, List<int> ours})> _exportWithOpenSsl(String suite) async {
   final temp = await Directory.systemTemp.createTemp('exporter');
   addTearDown(() => temp.delete(recursive: true));
   final identity = AdbKeyPair.fromPem(
@@ -128,8 +113,5 @@ Future<({String openssl, List<int> ours})> _exportWithOpenSsl(
   );
   final openssl = await material.future.timeout(const Duration(seconds: 10));
   socket.destroy();
-  return (
-    openssl: openssl,
-    ours: TlsExporter.fromKeyLog(keyLog).export(utf8.encode('adb-label'), 64),
-  );
+  return (openssl: openssl, ours: TlsExporter.fromKeyLog(keyLog).export(utf8.encode('adb-label'), 64));
 }

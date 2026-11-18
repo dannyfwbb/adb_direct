@@ -113,11 +113,7 @@ final class AdbConnectOptions {
       positive(interval, 'livenessInterval');
     }
     if (receiveWindow < 1 || receiveWindow > 0x7fffffff) {
-      throw ArgumentError.value(
-        receiveWindow,
-        'receiveWindow',
-        'must be between 1 and 2147483647',
-      );
+      throw ArgumentError.value(receiveWindow, 'receiveWindow', 'must be between 1 and 2147483647');
     }
   }
 }

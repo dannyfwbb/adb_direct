@@ -27,6 +27,5 @@ final class _SystemClock implements AdbClock {
   Duration get elapsed => _stopwatch.elapsed;
 
   @override
-  Timer timer(Duration duration, void Function() callback) =>
-      Timer(duration, callback);
+  Timer timer(Duration duration, void Function() callback) => Timer(duration, callback);
 }

@@ -72,27 +72,15 @@ Spake2 fixed(Spake2Role role) => Spake2(
 
 Spake2 adb(Spake2Role role) => Spake2(
   role,
-  myName: utf8.encode(
-    role == Spake2Role.alice
-        ? 'adb pair client\u0000'
-        : 'adb pair server\u0000',
-  ),
-  theirName: utf8.encode(
-    role == Spake2Role.alice
-        ? 'adb pair server\u0000'
-        : 'adb pair client\u0000',
-  ),
+  myName: utf8.encode(role == Spake2Role.alice ? 'adb pair client\u0000' : 'adb pair server\u0000'),
+  theirName: utf8.encode(role == Spake2Role.alice ? 'adb pair server\u0000' : 'adb pair client\u0000'),
 );
 
 void main() {
   test('Alice matches BoringSSL byte for byte', () {
     for (final (password, alice, bob, key) in vectors) {
       final ctx = fixed(Spake2Role.alice);
-      expect(
-        hex(ctx.generateMessage(utf8.encode(password))),
-        alice,
-        reason: password,
-      );
+      expect(hex(ctx.generateMessage(utf8.encode(password))), alice, reason: password);
       expect(hex(ctx.processMessage(unhex(bob))), key, reason: password);
     }
   });
@@ -100,11 +88,7 @@ void main() {
   test('Bob matches BoringSSL byte for byte', () {
     for (final (password, alice, bob, key) in vectors) {
       final ctx = fixed(Spake2Role.bob);
-      expect(
-        hex(ctx.generateMessage(utf8.encode(password))),
-        bob,
-        reason: password,
-      );
+      expect(hex(ctx.generateMessage(utf8.encode(password))), bob, reason: password);
       expect(hex(ctx.processMessage(unhex(alice))), key, reason: password);
     }
   });
@@ -126,10 +110,7 @@ void main() {
 
   test('a message that is not a point, or of the wrong size', () {
     final ctx = adb(Spake2Role.alice)..generateMessage([1]);
-    expect(
-      () => ctx.processMessage(Uint8List(32)..[0] = 2),
-      throwsFormatException,
-    );
+    expect(() => ctx.processMessage(Uint8List(32)..[0] = 2), throwsFormatException);
     expect(() => ctx.processMessage(Uint8List(31)), throwsFormatException);
   });
 

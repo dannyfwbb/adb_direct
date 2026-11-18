@@ -23,11 +23,7 @@ import '../transport/tcp_transport.dart';
 @immutable
 final class AdbServerDevice {
   /// Creates one.
-  const AdbServerDevice({
-    required this.serial,
-    required this.state,
-    this.properties = const {},
-  });
+  const AdbServerDevice({required this.serial, required this.state, this.properties = const {}});
 
   /// Parses one line of `host:devices-l`:
   /// `<serial> <state> product:… model:… device:… transport_id:…`.
@@ -48,8 +44,7 @@ final class AdbServerDevice {
       state: state,
       properties: {
         for (final p in rest)
-          if (p.indexOf(':') case final i when i > 0)
-            p.substring(0, i): p.substring(i + 1),
+          if (p.indexOf(':') case final i when i > 0) p.substring(0, i): p.substring(i + 1),
       },
     );
   }
@@ -84,11 +79,7 @@ final class AdbServerDevice {
 /// apps, forwarding.
 final class AdbServer {
   /// A client of the server at [host]:[port].
-  AdbServer({
-    this.host = '127.0.0.1',
-    this.port = 5037,
-    this.timeout = const Duration(seconds: 10),
-  });
+  AdbServer({this.host = '127.0.0.1', this.port = 5037, this.timeout = const Duration(seconds: 10)});
 
   /// The server's address.
   final Object host;
@@ -115,8 +106,7 @@ final class AdbServer {
   }
 
   /// The devices the server knows.
-  Future<List<AdbServerDevice>> devices() async =>
-      _parseDevices(await _ask('host:devices-l'));
+  Future<List<AdbServerDevice>> devices() async => _parseDevices(await _ask('host:devices-l'));
 
   /// The device list each time it changes, starting with the current one.
   /// It stays quiet while nothing changes; cancel the subscription to stop.
@@ -140,17 +130,12 @@ final class AdbServer {
   /// server's key, [AdbUnreachableException] for other failures, with the
   /// server's message.
   Future<String> connect(String deviceHost, [int devicePort = 5555]) async {
-    final message = await _ask(
-      'host:connect:${_target(deviceHost, devicePort)}',
-      timeout: _deviceTimeout,
-    );
+    final message = await _ask('host:connect:${_target(deviceHost, devicePort)}', timeout: _deviceTimeout);
     final lower = message.toLowerCase();
     if (lower.contains('authenticate')) {
       throw AdbUnauthorizedException(message);
     }
-    if (lower.startsWith('failed') ||
-        lower.startsWith('unable') ||
-        lower.startsWith('cannot')) {
+    if (lower.startsWith('failed') || lower.startsWith('unable') || lower.startsWith('cannot')) {
       throw AdbUnreachableException(message);
     }
     return message;
@@ -163,10 +148,7 @@ final class AdbServer {
   /// Asks the server to pair with a device (`adb pair`), with its own key.
   /// Throws [AdbPairingException] with the server's message when it failed.
   Future<String> pair(String deviceHost, int pairingPort, String code) async {
-    final message = await _ask(
-      'host:pair:$code:${_target(deviceHost, pairingPort)}',
-      timeout: _deviceTimeout,
-    );
+    final message = await _ask('host:pair:$code:${_target(deviceHost, pairingPort)}', timeout: _deviceTimeout);
     if (message.toLowerCase().contains('failed')) {
       throw AdbPairingException(message);
     }
@@ -183,10 +165,7 @@ final class AdbServer {
   /// handlers in code; the server keeps such forwards until they are
   /// removed or the device goes. [options] sets the stall and package
   /// manager timeouts as for a direct connection.
-  Future<AdbConnection> device(
-    String serial, {
-    AdbConnectOptions options = const AdbConnectOptions(),
-  }) async {
+  Future<AdbConnection> device(String serial, {AdbConnectOptions options = const AdbConnectOptions()}) async {
     options.validate();
     final listed = (await devices()).where((d) => d.serial == serial);
     if (listed.isEmpty) {
@@ -194,9 +173,7 @@ final class AdbServer {
     }
     final info = listed.first;
     if (info.state == 'unauthorized' || info.state == 'authorizing') {
-      throw AdbUnauthorizedException(
-        '"$serial" has not accepted the adb server\'s key (${info.state})',
-      );
+      throw AdbUnauthorizedException('"$serial" has not accepted the adb server\'s key (${info.state})');
     }
     if (!info.isOnline) {
       throw AdbUnreachableException('"$serial" is ${info.state}');
@@ -235,9 +212,7 @@ final class AdbServer {
   }
 
   static String _target(String host, int port) =>
-      host.contains(':') && !host.startsWith('[')
-      ? '[$host]:$port'
-      : '$host:$port';
+      host.contains(':') && !host.startsWith('[') ? '[$host]:$port' : '$host:$port';
 
   static List<AdbServerDevice> _parseDevices(String text) => [
     for (final line in const LineSplitter().convert(text))
@@ -264,11 +239,7 @@ final class _SmartSocket {
     );
   }
 
-  static Future<_SmartSocket> open(
-    Object host,
-    int port,
-    Duration timeout,
-  ) async {
+  static Future<_SmartSocket> open(Object host, int port, Duration timeout) async {
     try {
       // Owned by the _SmartSocket, which destroys it.
       // ignore: close_sinks
@@ -291,25 +262,16 @@ final class _SmartSocket {
   /// Sends [request] and reads `OKAY`; a `FAIL` throws with the server's
   /// message, mapped by what it says. [transport] marks the request that
   /// picks the device: its refusals are about the device, not a service.
-  Future<void> request(
-    String request, {
-    bool transport = false,
-    Duration? timeout,
-  }) async {
+  Future<void> request(String request, {bool transport = false, Duration? timeout}) async {
     final bytes = utf8.encode(request);
     if (bytes.length > 0xffff) {
-      throw AdbProtocolException(
-        'A request of ${bytes.length} bytes is too long for the adb server',
-      );
+      throw AdbProtocolException('A request of ${bytes.length} bytes is too long for the adb server');
     }
     _socket
       ..add(ascii.encode(bytes.length.toRadixString(16).padLeft(4, '0')))
       ..add(bytes);
     final wait = timeout ?? _timeout;
-    final status = ascii.decode(
-      await _take(4, timeout: wait),
-      allowInvalid: true,
-    );
+    final status = ascii.decode(await _take(4, timeout: wait), allowInvalid: true);
     if (status == 'OKAY') return;
     if (status != 'FAIL') {
       throw AdbProtocolException('The adb server answered "$status"');
@@ -319,31 +281,20 @@ final class _SmartSocket {
     if (lower.contains('unauthorized') || lower.contains('authorizing')) {
       throw AdbUnauthorizedException('The adb server: $message');
     }
-    if (transport ||
-        lower.contains('not found') ||
-        lower.contains('offline') ||
-        lower.contains('no devices')) {
+    if (transport || lower.contains('not found') || lower.contains('offline') || lower.contains('no devices')) {
       throw AdbUnreachableException('The adb server: $message');
     }
-    throw AdbServiceUnavailableException(
-      'The adb server refused "$request": $message',
-      service: request,
-    );
+    throw AdbServiceUnavailableException('The adb server refused "$request": $message', service: request);
   }
 
   /// A `<hex4><text>` frame; [timeout] null waits as long as it takes
   /// (tracking, where the server is quiet until something changes).
   Future<String> readFrame({required Duration? timeout}) async {
-    final length = parseHex4(
-      ascii.decode(await _take(4, timeout: timeout), allowInvalid: true),
-    );
+    final length = parseHex4(ascii.decode(await _take(4, timeout: timeout), allowInvalid: true));
     if (length == null) {
       throw const AdbProtocolException('A bad length from the adb server');
     }
-    return utf8.decode(
-      await _take(length, timeout: timeout),
-      allowMalformed: true,
-    );
+    return utf8.decode(await _take(length, timeout: timeout), allowMalformed: true);
   }
 
   Future<Uint8List> _take(int count, {required Duration? timeout}) async {
@@ -355,9 +306,7 @@ final class _SmartSocket {
       } else {
         await waiting.future.timeout(
           timeout,
-          onTimeout: () => throw AdbTimeoutException(
-            'The adb server did not answer within $timeout',
-          ),
+          onTimeout: () => throw AdbTimeoutException('The adb server did not answer within $timeout'),
         );
       }
     }
@@ -381,12 +330,8 @@ final class _SmartSocket {
 
   /// Hands the socket over as a raw stream: what is buffered, whether it
   /// ended already, and the subscription for the rest.
-  (Socket, Uint8List, bool, StreamSubscription<Uint8List>) detach() => (
-    _socket,
-    _buffer.take(_buffer.length),
-    _closed || _error != null,
-    _subscription,
-  );
+  (Socket, Uint8List, bool, StreamSubscription<Uint8List>) detach() =>
+      (_socket, _buffer.take(_buffer.length), _closed || _error != null, _subscription);
 
   void destroy() {
     unawaited(_subscription.cancel());
@@ -400,8 +345,7 @@ final class _SmartSocket {
 @internal
 final class ServerConnection extends AdbConnection {
   /// Creates it.
-  ServerConnection(this._server, this.serial, this._banner, this._options)
-    : super.base();
+  ServerConnection(this._server, this.serial, this._banner, this._options) : super.base();
 
   final AdbServer _server;
   final AdbBanner _banner;
@@ -422,17 +366,10 @@ final class ServerConnection extends AdbConnection {
       (devices) {
         final now = devices.where((d) => d.serial == serial);
         if (now.isEmpty || !now.first.isOnline) {
-          _fail(
-            AdbClosedException(
-              now.isEmpty
-                  ? '"$serial" left the adb server'
-                  : '"$serial" is ${now.first.state}',
-            ),
-          );
+          _fail(AdbClosedException(now.isEmpty ? '"$serial" left the adb server' : '"$serial" is ${now.first.state}'));
         }
       },
-      onError: (Object e) =>
-          _fail(AdbClosedException('Lost the adb server', cause: e)),
+      onError: (Object e) => _fail(AdbClosedException('Lost the adb server', cause: e)),
       onDone: () => _fail(const AdbClosedException('Lost the adb server')),
     );
   }
@@ -498,9 +435,7 @@ final class ServerConnection extends AdbConnection {
   Future<void> close({bool drain = true}) async {
     if (_closeReason != null) return;
     final streams = _streams.toList();
-    _fail(
-      const AdbCancelledException('The connection was closed by the caller'),
-    );
+    _fail(const AdbCancelledException('The connection was closed by the caller'));
     for (final s in streams) {
       await s.done;
     }
@@ -510,10 +445,7 @@ final class ServerConnection extends AdbConnection {
   /// (`tcp:<port>` targets on this machine); handlers in code need the ADB
   /// protocol here.
   @override
-  void registerReverseTarget(
-    String label,
-    FutureOr<void> Function(AdbStream) handler,
-  ) {
+  void registerReverseTarget(String label, FutureOr<void> Function(AdbStream) handler) {
     if (!RegExp(r'^tcp:\d+$').hasMatch(label)) {
       throw const AdbNotSupportedException(
         'Through an adb server, reverse forwarding reaches local ports on '
@@ -572,11 +504,7 @@ final class _SocketStreamCore implements StreamCore {
         ..onData((data) {
           if (!_input.isClosed) _input.add(data);
         })
-        ..onError(
-          (Object e) => _finish(
-            AdbClosedException('The relayed stream failed', cause: e),
-          ),
-        )
+        ..onError((Object e) => _finish(AdbClosedException('The relayed stream failed', cause: e)))
         ..onDone(() => _finish(null));
       _input
         ..onPause = subscription.pause
@@ -584,12 +512,7 @@ final class _SocketStreamCore implements StreamCore {
       _opened.complete();
     } on AdbServiceUnavailableException catch (e) {
       smart?.destroy();
-      _finish(
-        AdbServiceUnavailableException(
-          'The device refused to open "$service": ${e.message}',
-          service: service,
-        ),
-      );
+      _finish(AdbServiceUnavailableException('The device refused to open "$service": ${e.message}', service: service));
     } on AdbException catch (e) {
       smart?.destroy();
       _finish(e);
@@ -628,10 +551,7 @@ final class _SocketStreamCore implements StreamCore {
   @override
   Future<void> write(List<int> data) {
     if (_closed) {
-      return Future.error(
-        _closeReason ??
-            AdbCancelledException('The stream to "$service" is closed'),
-      );
+      return Future.error(_closeReason ?? AdbCancelledException('The stream to "$service" is closed'));
     }
     if (data.isEmpty) return Future.value();
     final copy = Uint8List.fromList(data);
@@ -641,8 +561,7 @@ final class _SocketStreamCore implements StreamCore {
       await opened;
       final socket = _socket;
       if (socket == null || _closed) {
-        throw _closeReason ??
-            AdbCancelledException('The stream to "$service" is closed');
+        throw _closeReason ?? AdbCancelledException('The stream to "$service" is closed');
       }
       socket.add(copy);
       await socket.flush();
@@ -662,9 +581,7 @@ final class _SocketStreamCore implements StreamCore {
     _closed = true;
     _closeReason = reason;
     if (!_opened.isCompleted) {
-      _opened.completeError(
-        reason ?? AdbCancelledException('"$service" was closed while opening'),
-      );
+      _opened.completeError(reason ?? AdbCancelledException('"$service" was closed while opening'));
     }
     unawaited(_subscription?.cancel());
     if (reason != null && reason is! AdbServiceUnavailableException) {

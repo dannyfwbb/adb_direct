@@ -17,9 +17,7 @@ import '../support/tools.dart';
 /// A test-only key pair made with `adb keygen` (never trusted by any
 /// device), with adb's own public key file for it.
 final String keyPem = File('test/fixtures/keys/adbkey').readAsStringSync();
-final String keyPkcs1Pem = File(
-  'test/fixtures/keys/adbkey_pkcs1.pem',
-).readAsStringSync();
+final String keyPkcs1Pem = File('test/fixtures/keys/adbkey_pkcs1.pem').readAsStringSync();
 final String adbPub = File('test/fixtures/keys/adbkey.pub').readAsStringSync();
 
 void main() {
@@ -34,10 +32,7 @@ void main() {
     });
 
     test('PKCS#1 (older adb) gives the same key', () {
-      expect(
-        AdbKeyPair.fromPem(keyPkcs1Pem).publicKey,
-        AdbKeyPair.fromPem(keyPem).publicKey,
-      );
+      expect(AdbKeyPair.fromPem(keyPkcs1Pem).publicKey, AdbKeyPair.fromPem(keyPem).publicKey);
     });
 
     test('PEM round trip is byte-identical', () {
@@ -48,9 +43,7 @@ void main() {
     test('non-RSA or malformed PEM is refused', () {
       expect(() => AdbKeyPair.fromPem('nothing here'), throwsFormatException);
       expect(
-        () => AdbKeyPair.fromPem(
-          '-----BEGIN PRIVATE KEY-----\nAAAA\n-----END PRIVATE KEY-----',
-        ),
+        () => AdbKeyPair.fromPem('-----BEGIN PRIVATE KEY-----\nAAAA\n-----END PRIVATE KEY-----'),
         throwsFormatException,
       );
     });
@@ -87,40 +80,29 @@ void main() {
       expect(() => pair.signAuthToken(List.filled(19, 0)), throwsArgumentError);
     });
 
-    test(
-      'matches openssl pkeyutl -pkeyopt digest:sha1 for random tokens',
-      () async {
-        final keyFile = File('${temp.path}/sign.pem')
-          ..writeAsStringSync(keyPem);
-        final random = Random(7);
-        for (var i = 0; i < 5; i++) {
-          final token = Uint8List.fromList(
-            List.generate(20, (_) => random.nextInt(256)),
-          );
-          final expected = await Tools.runBytes(Tools.openssl!, [
-            'pkeyutl',
-            '-sign',
-            '-inkey',
-            keyFile.path,
-            '-pkeyopt',
-            'digest:sha1',
-          ], stdin: token);
-          expect(pair.signAuthToken(token), expected);
-        }
-      },
-      skip: Tools.skipUnless(Tools.openssl, 'openssl'),
-    );
+    test('matches openssl pkeyutl -pkeyopt digest:sha1 for random tokens', () async {
+      final keyFile = File('${temp.path}/sign.pem')..writeAsStringSync(keyPem);
+      final random = Random(7);
+      for (var i = 0; i < 5; i++) {
+        final token = Uint8List.fromList(List.generate(20, (_) => random.nextInt(256)));
+        final expected = await Tools.runBytes(Tools.openssl!, [
+          'pkeyutl',
+          '-sign',
+          '-inkey',
+          keyFile.path,
+          '-pkeyopt',
+          'digest:sha1',
+        ], stdin: token);
+        expect(pair.signAuthToken(token), expected);
+      }
+    }, skip: Tools.skipUnless(Tools.openssl, 'openssl'));
   });
 
   group('interoperability with adb', () {
     test('adb pubkey derives our public key from our PEM', () async {
-      final keyFile = File('${temp.path}/ours.pem')
-        ..writeAsStringSync(AdbKeyPair.fromPem(keyPem).toPem());
+      final keyFile = File('${temp.path}/ours.pem')..writeAsStringSync(AdbKeyPair.fromPem(keyPem).toPem());
       final printed = await Tools.run(Tools.adb!, ['pubkey', keyFile.path]);
-      expect(
-        printed.trim().split(' ').first,
-        AdbKeyPair.fromPem(keyPem).publicKey.encode(),
-      );
+      expect(printed.trim().split(' ').first, AdbKeyPair.fromPem(keyPem).publicKey.encode());
     }, skip: Tools.skipUnless(Tools.adb, 'adb'));
 
     test(
@@ -131,31 +113,15 @@ void main() {
         final elapsed = stopwatch.elapsed;
         printOnFailure('key generation took $elapsed');
 
-        final keyFile = File('${temp.path}/generated.pem')
-          ..writeAsStringSync(pair.toPem());
-        final check = await Tools.run(Tools.openssl!, [
-          'pkey',
-          '-in',
-          keyFile.path,
-          '-check',
-          '-noout',
-        ]);
+        final keyFile = File('${temp.path}/generated.pem')..writeAsStringSync(pair.toPem());
+        final check = await Tools.run(Tools.openssl!, ['pkey', '-in', keyFile.path, '-check', '-noout']);
         expect(check, contains('Key is valid'));
-        final bits = await Tools.run(Tools.openssl!, [
-          'pkey',
-          '-in',
-          keyFile.path,
-          '-text',
-          '-noout',
-        ]);
+        final bits = await Tools.run(Tools.openssl!, ['pkey', '-in', keyFile.path, '-text', '-noout']);
         expect(bits, contains('2048 bit'));
         expect(bits, contains('publicExponent: 65537'));
         if (Tools.adb case final adb?) {
           final printed = await Tools.run(adb, ['pubkey', keyFile.path]);
-          expect(
-            printed.trim().split(' ').first,
-            pair.publicKey.encode().split(' ').first,
-          );
+          expect(printed.trim().split(' ').first, pair.publicKey.encode().split(' ').first);
         }
       },
       timeout: const Timeout(Duration(minutes: 2)),
@@ -166,13 +132,8 @@ void main() {
   group('keys that do not fit together are refused on import', () {
     final good = RsaPrivateKey.fromPkcs8(Pem.decode(keyPem).single.der);
 
-    String pkcs1(List<BigInt> fields) => Pem.encode(
-      'RSA PRIVATE KEY',
-      Der.sequence([
-        Der.smallInteger(0),
-        for (final f in fields) Der.integer(f),
-      ]),
-    );
+    String pkcs1(List<BigInt> fields) =>
+        Pem.encode('RSA PRIVATE KEY', Der.sequence([Der.smallInteger(0), for (final f in fields) Der.integer(f)]));
 
     List<BigInt> fieldsOf(RsaPrivateKey k) => [
       k.modulus,
@@ -192,61 +153,17 @@ void main() {
     }
 
     final f = fieldsOf(good);
-    refused('a wrong public exponent (3 with the d of 65537)', [
-      f[0],
-      BigInt.from(3),
-      ...f.sublist(2),
-    ]);
-    refused('a wrong private exponent', [
-      f[0],
-      f[1],
-      f[2] + BigInt.two,
-      ...f.sublist(3),
-    ]);
-    refused('an even public exponent', [
-      f[0],
-      BigInt.from(65538),
-      ...f.sublist(2),
-    ]);
-    refused('a wrong CRT value', [
-      ...f.sublist(0, 5),
-      f[5] + BigInt.one,
-      f[6],
-      f[7],
-    ]);
-    refused('factors that do not multiply to the modulus', [
-      f[0],
-      f[1],
-      f[2],
-      f[3] + BigInt.two,
-      ...f.sublist(4),
-    ]);
-    refused('p equal to q', [
-      f[3] * f[3],
-      f[1],
-      f[2],
-      f[3],
-      f[3],
-      ...f.sublist(5),
-    ]);
-    refused('p = 1, q = n', [
-      f[0],
-      f[1],
-      f[2],
-      BigInt.one,
-      f[0],
-      ...f.sublist(5),
-    ]);
+    refused('a wrong public exponent (3 with the d of 65537)', [f[0], BigInt.from(3), ...f.sublist(2)]);
+    refused('a wrong private exponent', [f[0], f[1], f[2] + BigInt.two, ...f.sublist(3)]);
+    refused('an even public exponent', [f[0], BigInt.from(65538), ...f.sublist(2)]);
+    refused('a wrong CRT value', [...f.sublist(0, 5), f[5] + BigInt.one, f[6], f[7]]);
+    refused('factors that do not multiply to the modulus', [f[0], f[1], f[2], f[3] + BigInt.two, ...f.sublist(4)]);
+    refused('p equal to q', [f[3] * f[3], f[1], f[2], f[3], f[3], ...f.sublist(5)]);
+    refused('p = 1, q = n', [f[0], f[1], f[2], BigInt.one, f[0], ...f.sublist(5)]);
     refused('extra fields (multi-prime)', [...f, BigInt.one]);
 
     test('a 1024-bit key', () async {
-      final pem = await Tools.run(Tools.openssl!, [
-        'genpkey',
-        '-algorithm',
-        'RSA',
-        '-pkeyopt',
-        'rsa_keygen_bits:1024',
-      ]);
+      final pem = await Tools.run(Tools.openssl!, ['genpkey', '-algorithm', 'RSA', '-pkeyopt', 'rsa_keygen_bits:1024']);
       expect(() => AdbKeyPair.fromPem(pem), throwsFormatException);
     }, skip: Tools.skipUnless(Tools.openssl, 'openssl'));
 
@@ -254,18 +171,11 @@ void main() {
       for (final algorithm in [
         Der.sequence(const []),
         Der.sequence([Der.objectIdentifier('1.2.840.10045.2.1')]),
-        Der.sequence([
-          Der.objectIdentifier(rsaEncryptionOid),
-          Der.smallInteger(1),
-        ]),
+        Der.sequence([Der.objectIdentifier(rsaEncryptionOid), Der.smallInteger(1)]),
       ]) {
         final pem = Pem.encode(
           'PRIVATE KEY',
-          Der.sequence([
-            Der.smallInteger(0),
-            algorithm,
-            Der.octetString(good.toPkcs1()),
-          ]),
+          Der.sequence([Der.smallInteger(0), algorithm, Der.octetString(good.toPkcs1())]),
         );
         expect(() => AdbKeyPair.fromPem(pem), throwsFormatException);
       }
@@ -273,9 +183,7 @@ void main() {
 
     test('garbage inside a PEM block', () {
       expect(
-        () => AdbKeyPair.fromPem(
-          '-----BEGIN PRIVATE KEY-----\n!!!!\n-----END PRIVATE KEY-----',
-        ),
+        () => AdbKeyPair.fromPem('-----BEGIN PRIVATE KEY-----\n!!!!\n-----END PRIVATE KEY-----'),
         throwsFormatException,
       );
     });
@@ -285,21 +193,12 @@ void main() {
     final key = AdbPublicKey.parse(adbPub);
 
     test('an even modulus', () {
-      expect(
-        () => AdbPublicKey(
-          modulus: key.modulus + BigInt.one,
-          exponent: key.exponent,
-        ),
-        throwsArgumentError,
-      );
+      expect(() => AdbPublicKey(modulus: key.modulus + BigInt.one, exponent: key.exponent), throwsArgumentError);
     });
 
     test('an even or tiny exponent', () {
       for (final e in [2, 1, 65538]) {
-        expect(
-          () => AdbPublicKey(modulus: key.modulus, exponent: BigInt.from(e)),
-          throwsArgumentError,
-        );
+        expect(() => AdbPublicKey(modulus: key.modulus, exponent: BigInt.from(e)), throwsArgumentError);
       }
     });
 
@@ -318,23 +217,14 @@ void main() {
     });
   });
 
-  test(
-    'the user’s own ~/.android/adbkey yields its adbkey.pub '
-    '(set ADB_DIRECT_TEST_ADBKEY_DIR to run)',
-    () {
-      final dir = Platform.environment['ADB_DIRECT_TEST_ADBKEY_DIR']!;
-      final pub = File('$dir/adbkey.pub').readAsStringSync().trim();
-      final comment = pub.substring(pub.indexOf(' ') + 1);
-      final pair = AdbKeyPair.fromPem(
-        File('$dir/adbkey').readAsStringSync(),
-        comment: comment,
-      );
-      expect(pair.publicKey.encode(), pub);
-    },
-    skip: Platform.environment['ADB_DIRECT_TEST_ADBKEY_DIR'] == null
-        ? 'ADB_DIRECT_TEST_ADBKEY_DIR is not set'
-        : null,
-  );
+  test('the user’s own ~/.android/adbkey yields its adbkey.pub '
+      '(set ADB_DIRECT_TEST_ADBKEY_DIR to run)', () {
+    final dir = Platform.environment['ADB_DIRECT_TEST_ADBKEY_DIR']!;
+    final pub = File('$dir/adbkey.pub').readAsStringSync().trim();
+    final comment = pub.substring(pub.indexOf(' ') + 1);
+    final pair = AdbKeyPair.fromPem(File('$dir/adbkey').readAsStringSync(), comment: comment);
+    expect(pair.publicKey.encode(), pub);
+  }, skip: Platform.environment['ADB_DIRECT_TEST_ADBKEY_DIR'] == null ? 'ADB_DIRECT_TEST_ADBKEY_DIR is not set' : null);
 
   test('withComment keeps the key', () {
     final pair = AdbKeyPair.fromPem(keyPem);

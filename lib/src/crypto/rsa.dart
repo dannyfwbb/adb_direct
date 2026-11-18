@@ -65,27 +65,21 @@ final class RsaPrivateKey {
     check(p * q == modulus, 'p * q does not equal the modulus');
     check(p.gcd(q) == one, 'factors share a divisor');
     check(
-      publicExponent.isOdd &&
-          publicExponent >= BigInt.from(3) &&
-          publicExponent.bitLength <= 32,
+      publicExponent.isOdd && publicExponent >= BigInt.from(3) && publicExponent.bitLength <= 32,
       'public exponent must be odd, at least 3 and fit in 32 bits',
     );
     final pMinus1 = p - one;
     final qMinus1 = q - one;
     final lambda = pMinus1 * qMinus1 ~/ pMinus1.gcd(qMinus1);
     check(
-      privateExponent > one &&
-          privateExponent < modulus &&
-          (publicExponent * privateExponent) % lambda == one,
+      privateExponent > one && privateExponent < modulus && (publicExponent * privateExponent) % lambda == one,
       'private exponent does not invert the public exponent',
     );
     final derivedDP = privateExponent % pMinus1;
     final derivedDQ = privateExponent % qMinus1;
     final derivedQInv = q.modInverse(p);
     check(
-      (dP ?? derivedDP) == derivedDP &&
-          (dQ ?? derivedDQ) == derivedDQ &&
-          (qInv ?? derivedQInv) == derivedQInv,
+      (dP ?? derivedDP) == derivedDP && (dQ ?? derivedDQ) == derivedDQ && (qInv ?? derivedQInv) == derivedQInv,
       'CRT parameters do not match',
     );
     return RsaPrivateKey._(
@@ -107,18 +101,9 @@ final class RsaPrivateKey {
   factory RsaPrivateKey.generate() {
     final seed = Random.secure();
     final random = pc.FortunaRandom()
-      ..seed(
-        pc.KeyParameter(
-          Uint8List.fromList(List.generate(32, (_) => seed.nextInt(256))),
-        ),
-      );
+      ..seed(pc.KeyParameter(Uint8List.fromList(List.generate(32, (_) => seed.nextInt(256)))));
     final generator = pc.RSAKeyGenerator()
-      ..init(
-        pc.ParametersWithRandom(
-          pc.RSAKeyGeneratorParameters(BigInt.from(65537), adbRsaBits, 64),
-          random,
-        ),
-      );
+      ..init(pc.ParametersWithRandom(pc.RSAKeyGeneratorParameters(BigInt.from(65537), adbRsaBits, 64), random));
     final pair = generator.generateKeyPair();
     final private = pair.privateKey;
     return RsaPrivateKey(
@@ -209,19 +194,13 @@ final class RsaPrivateKey {
   ]);
 
   /// DER `PrivateKeyInfo` (PKCS#8), what current adb writes to `adbkey`.
-  Uint8List toPkcs8() => Der.sequence([
-    Der.smallInteger(0),
-    _rsaAlgorithm(),
-    Der.octetString(toPkcs1()),
-  ]);
+  Uint8List toPkcs8() => Der.sequence([Der.smallInteger(0), _rsaAlgorithm(), Der.octetString(toPkcs1())]);
 
   /// DER `SubjectPublicKeyInfo` of the public half.
-  Uint8List subjectPublicKeyInfo() =>
-      Der.sequence([_rsaAlgorithm(), Der.bitString(publicKeyPkcs1())]);
+  Uint8List subjectPublicKeyInfo() => Der.sequence([_rsaAlgorithm(), Der.bitString(publicKeyPkcs1())]);
 
   /// DER `RSAPublicKey` (PKCS#1): modulus and exponent.
-  Uint8List publicKeyPkcs1() =>
-      Der.sequence([Der.integer(modulus), Der.integer(publicExponent)]);
+  Uint8List publicKeyPkcs1() => Der.sequence([Der.integer(modulus), Der.integer(publicExponent)]);
 
   /// The private-key operation m^d mod n.
   ///
@@ -261,8 +240,7 @@ final class RsaPrivateKey {
   }
 
   /// RSASSA-PKCS1-v1_5 with SHA-256 over [message].
-  Uint8List signSha256(List<int> message) =>
-      signDigest(sha256DigestInfoPrefix, hashes.sha256.convert(message).bytes);
+  Uint8List signSha256(List<int> message) => signDigest(sha256DigestInfoPrefix, hashes.sha256.convert(message).bytes);
 
   /// A random r in [2, n − 1] coprime with n.
   BigInt _blindingFactor() {
@@ -274,8 +252,7 @@ final class RsaPrivateKey {
     }
   }
 
-  static Uint8List _rsaAlgorithm() =>
-      Der.sequence([Der.objectIdentifier(rsaEncryptionOid), Der.nullValue()]);
+  static Uint8List _rsaAlgorithm() => Der.sequence([Der.objectIdentifier(rsaEncryptionOid), Der.nullValue()]);
 }
 
 /// DER prefix of `DigestInfo` for SHA-1 (RFC 8017 9.2, note 1).

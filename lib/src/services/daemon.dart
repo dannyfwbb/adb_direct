@@ -77,17 +77,13 @@ final class AdbDaemon {
     if (port < 1 || port > 65535) {
       throw ArgumentError.value(port, 'port', 'not a TCP port');
     }
-    return _run('tcpip:$port', const {
-      'restarting in TCP mode': AdbDaemonOutcome.restarting,
-    });
+    return _run('tcpip:$port', const {'restarting in TCP mode': AdbDaemonOutcome.restarting});
   }
 
   /// Restarts adbd on USB only. Over the network that ends the device's
   /// network debugging until someone turns it on again on the device or
   /// over USB.
-  Future<AdbDaemonAnswer> usb() => _run('usb:', const {
-    'restarting in USB mode': AdbDaemonOutcome.restarting,
-  });
+  Future<AdbDaemonAnswer> usb() => _run('usb:', const {'restarting in USB mode': AdbDaemonOutcome.restarting});
 
   /// Remounts the system partitions read-write (root; may need
   /// [disableVerity] and a reboot first, which its output says).
@@ -124,10 +120,7 @@ final class AdbDaemon {
     if (_connection.closeReason case final reason?) throw reason;
     try {
       // A device that loses power sends nothing more; do not wait forever.
-      await readAll(
-        _connection,
-        'reboot:${target ?? ''}',
-      ).timeout(const Duration(seconds: 10));
+      await readAll(_connection, 'reboot:${target ?? ''}').timeout(const Duration(seconds: 10));
     } on AdbClosedException {
       // The device went down before closing the stream.
     } on AdbTimeoutException {
@@ -139,10 +132,7 @@ final class AdbDaemon {
     return const AdbDaemonAnswer(AdbDaemonOutcome.restarting, '');
   }
 
-  Future<AdbDaemonAnswer> _run(
-    String service,
-    Map<String, AdbDaemonOutcome> outcomes,
-  ) async {
+  Future<AdbDaemonAnswer> _run(String service, Map<String, AdbDaemonOutcome> outcomes) async {
     final AdbStream stream;
     try {
       stream = await _connection.open(service);
@@ -165,9 +155,7 @@ final class AdbDaemon {
         break;
       }
     }
-    if (cutOff &&
-        outcome == AdbDaemonOutcome.done &&
-        outcomes.containsValue(AdbDaemonOutcome.restarting)) {
+    if (cutOff && outcome == AdbDaemonOutcome.done && outcomes.containsValue(AdbDaemonOutcome.restarting)) {
       // A service that restarts adbd, cut off before it answered.
       outcome = AdbDaemonOutcome.restarting;
     }

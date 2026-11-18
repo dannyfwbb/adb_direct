@@ -32,8 +32,7 @@ final class FixturePacket {
   final Uint8List raw;
 
   @override
-  String toString() =>
-      '${direction == FixtureDirection.toDevice ? '>' : '<'} $message';
+  String toString() => '${direction == FixtureDirection.toDevice ? '>' : '<'} $message';
 }
 
 /// A recorded exchange with a real adbd, from `test/fixtures/<name>.jsonl`.
@@ -45,15 +44,9 @@ final class Fixture {
   /// Loads `test/fixtures/<name>.jsonl`.
   factory Fixture.load(String name) {
     final file = File('test/fixtures/$name.jsonl');
-    final lines = file
-        .readAsLinesSync()
-        .where((line) => line.trim().isNotEmpty)
-        .toList();
+    final lines = file.readAsLinesSync().where((line) => line.trim().isNotEmpty).toList();
     final header = (jsonDecode(lines.first) as Map).cast<String, Object?>();
-    final packets = [
-      for (final line in lines.skip(1))
-        _packet((jsonDecode(line) as Map).cast<String, Object?>()),
-    ];
+    final packets = [for (final line in lines.skip(1)) _packet((jsonDecode(line) as Map).cast<String, Object?>())];
     return Fixture._(name, header, List.unmodifiable(packets));
   }
 
@@ -63,10 +56,7 @@ final class Fixture {
     final names = [
       for (final entity in root.listSync(recursive: true))
         if (entity is File && entity.path.endsWith('.jsonl'))
-          entity.path
-              .substring(root.path.length + 1)
-              .replaceAll(r'\', '/')
-              .replaceFirst(RegExp(r'\.jsonl$'), ''),
+          entity.path.substring(root.path.length + 1).replaceAll(r'\', '/').replaceFirst(RegExp(r'\.jsonl$'), ''),
     ]..sort();
     return names;
   }
@@ -89,9 +79,8 @@ final class Fixture {
   String? get hostFeatures => header['host_features'] as String?;
 
   /// Packets the device sent.
-  Iterable<AdbMessage> get fromDevice => packets
-      .where((p) => p.direction == FixtureDirection.fromDevice)
-      .map((p) => p.message);
+  Iterable<AdbMessage> get fromDevice =>
+      packets.where((p) => p.direction == FixtureDirection.fromDevice).map((p) => p.message);
 
   /// The raw bytes of every packet sent in [direction], concatenated.
   Uint8List rawBytes(FixtureDirection direction) => Uint8List.fromList([
@@ -100,9 +89,8 @@ final class Fixture {
   ]);
 
   /// Packets the recorder sent.
-  Iterable<AdbMessage> get toDevice => packets
-      .where((p) => p.direction == FixtureDirection.toDevice)
-      .map((p) => p.message);
+  Iterable<AdbMessage> get toDevice =>
+      packets.where((p) => p.direction == FixtureDirection.toDevice).map((p) => p.message);
 
   static FixturePacket _packet(Map<String, Object?> json) {
     final direction = switch (json['dir']) {
@@ -114,12 +102,7 @@ final class Fixture {
       (c) => c.wireName == json['cmd'],
       orElse: () => throw FormatException('Bad command ${json['cmd']}'),
     );
-    final message = AdbMessage(
-      command,
-      json['arg0']! as int,
-      json['arg1']! as int,
-      _hex(json['data']! as String),
-    );
+    final message = AdbMessage(command, json['arg0']! as int, json['arg1']! as int, _hex(json['data']! as String));
     final raw = _hex(json['raw']! as String);
     _checkRaw(message, raw);
     return FixturePacket(direction, message, raw);
@@ -152,8 +135,6 @@ final class Fixture {
     return true;
   }
 
-  static Uint8List _hex(String hex) => Uint8List.fromList([
-    for (var i = 0; i < hex.length; i += 2)
-      int.parse(hex.substring(i, i + 2), radix: 16),
-  ]);
+  static Uint8List _hex(String hex) =>
+      Uint8List.fromList([for (var i = 0; i < hex.length; i += 2) int.parse(hex.substring(i, i + 2), radix: 16)]);
 }

@@ -113,11 +113,7 @@ enum AdbPairingFailure {
 /// Pairing ended without a trusted key.
 final class AdbPairingException extends AdbException {
   /// Creates the exception.
-  const AdbPairingException(
-    super.message, {
-    this.reason = AdbPairingFailure.protocol,
-    super.cause,
-  });
+  const AdbPairingException(super.message, {this.reason = AdbPairingFailure.protocol, super.cause});
 
   /// Why it failed.
   final AdbPairingFailure reason;
@@ -163,11 +159,7 @@ final class AdbProtocolException extends AdbException {
 /// The device refused to open [service].
 final class AdbServiceUnavailableException extends AdbException {
   /// Creates the exception.
-  const AdbServiceUnavailableException(
-    super.message, {
-    required this.service,
-    super.cause,
-  });
+  const AdbServiceUnavailableException(super.message, {required this.service, super.cause});
 
   /// The service name that was refused, as sent in `OPEN`.
   final String service;
@@ -179,12 +171,7 @@ final class AdbServiceUnavailableException extends AdbException {
 /// The package manager refused the package.
 final class AdbInstallException extends AdbException {
   /// Creates the exception.
-  const AdbInstallException(
-    super.message, {
-    required this.output,
-    this.failureCode,
-    super.cause,
-  });
+  const AdbInstallException(super.message, {required this.output, this.failureCode, super.cause});
 
   /// The package manager's code, such as `INSTALL_FAILED_VERSION_DOWNGRADE`,
   /// when its answer contained one.

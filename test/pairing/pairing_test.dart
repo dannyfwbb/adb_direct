@@ -15,10 +15,7 @@ import '../support/fake_pairing_server.dart';
 void main() {
   group('against the fake pairing server (both roles from one codebase)', () {
     test('the right code: the device GUID back, our key over there', () async {
-      final device = await FakePairingServer.start(
-        code: '482913',
-        serverKey: otherKey,
-      );
+      final device = await FakePairingServer.start(code: '482913', serverKey: otherKey);
       final paired = await AdbPairing.pair(
         '127.0.0.1',
         device.port,
@@ -34,25 +31,10 @@ void main() {
     });
 
     test("a wrong code: the device's answer does not decrypt", () async {
-      final device = await FakePairingServer.start(
-        code: '482913',
-        serverKey: otherKey,
-      );
+      final device = await FakePairingServer.start(code: '482913', serverKey: otherKey);
       await expectLater(
-        AdbPairing.pair(
-          '127.0.0.1',
-          device.port,
-          code: '482914',
-          key: testKey,
-          keyLog: device.keyLog.add,
-        ),
-        throwsA(
-          isA<AdbPairingException>().having(
-            (e) => e.reason,
-            'reason',
-            AdbPairingFailure.wrongCode,
-          ),
-        ),
+        AdbPairing.pair('127.0.0.1', device.port, code: '482914', key: testKey, keyLog: device.keyLog.add),
+        throwsA(isA<AdbPairingException>().having((e) => e.reason, 'reason', AdbPairingFailure.wrongCode)),
       );
       expect(device.pairedKeys, isEmpty);
       await device.close();
@@ -65,75 +47,31 @@ void main() {
         mode: PairingServerMode.closeOnWrongCode,
       );
       await expectLater(
-        AdbPairing.pair(
-          '127.0.0.1',
-          device.port,
-          code: '000000',
-          key: testKey,
-          keyLog: device.keyLog.add,
-        ),
-        throwsA(
-          isA<AdbPairingException>().having(
-            (e) => e.reason,
-            'reason',
-            AdbPairingFailure.wrongCode,
-          ),
-        ),
+        AdbPairing.pair('127.0.0.1', device.port, code: '000000', key: testKey, keyLog: device.keyLog.add),
+        throwsA(isA<AdbPairingException>().having((e) => e.reason, 'reason', AdbPairingFailure.wrongCode)),
       );
       await device.close();
     });
 
     test('a SPAKE2 message that is no point is a protocol failure', () async {
-      final device = await FakePairingServer.start(
-        code: '1',
-        serverKey: otherKey,
-        mode: PairingServerMode.badPoint,
-      );
+      final device = await FakePairingServer.start(code: '1', serverKey: otherKey, mode: PairingServerMode.badPoint);
       await expectLater(
-        AdbPairing.pair(
-          '127.0.0.1',
-          device.port,
-          code: '1',
-          key: testKey,
-          keyLog: device.keyLog.add,
-        ),
-        throwsA(
-          isA<AdbPairingException>().having(
-            (e) => e.reason,
-            'reason',
-            AdbPairingFailure.protocol,
-          ),
-        ),
+        AdbPairing.pair('127.0.0.1', device.port, code: '1', key: testKey, keyLog: device.keyLog.add),
+        throwsA(isA<AdbPairingException>().having((e) => e.reason, 'reason', AdbPairingFailure.protocol)),
       );
       await device.close();
     });
 
     test('a silent device: timeout; a cancel: cancelled', () async {
-      final device = await FakePairingServer.start(
-        code: '1',
-        serverKey: otherKey,
-        mode: PairingServerMode.silent,
-      );
+      final device = await FakePairingServer.start(code: '1', serverKey: otherKey, mode: PairingServerMode.silent);
       await expectLater(
-        AdbPairing.pair(
-          '127.0.0.1',
-          device.port,
-          code: '1',
-          key: testKey,
-          timeout: const Duration(milliseconds: 300),
-        ),
+        AdbPairing.pair('127.0.0.1', device.port, code: '1', key: testKey, timeout: const Duration(milliseconds: 300)),
         throwsA(isA<AdbTimeoutException>()),
       );
       final cancel = Completer<void>();
       Timer(const Duration(milliseconds: 200), cancel.complete);
       await expectLater(
-        AdbPairing.pair(
-          '127.0.0.1',
-          device.port,
-          code: '1',
-          key: testKey,
-          cancelOn: cancel.future,
-        ),
+        AdbPairing.pair('127.0.0.1', device.port, code: '1', key: testKey, cancelOn: cancel.future),
         throwsA(isA<AdbCancelledException>()),
       );
       await device.close();
@@ -144,10 +82,7 @@ void main() {
     final socket = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
     final port = socket.port;
     await socket.close();
-    await expectLater(
-      AdbPairing.pair('127.0.0.1', port, code: '1', key: testKey),
-      throwsA(isA<AdbRefusedException>()),
-    );
+    await expectLater(AdbPairing.pair('127.0.0.1', port, code: '1', key: testKey), throwsA(isA<AdbRefusedException>()));
   });
 
   group('wire format', () {
@@ -170,10 +105,7 @@ void main() {
       expect(info, hasLength(8192));
       expect(info.sublist(0, 4), [0, 65, 66, 0]);
       expect(PeerInfo.parse(info), (0, 'AB'));
-      expect(
-        () => PeerInfo.build(0, List.filled(8191, 65)),
-        throwsArgumentError,
-      );
+      expect(() => PeerInfo.build(0, List.filled(8191, 65)), throwsArgumentError);
     });
 
     test('GCM nonces count per direction; a wrong key does not decrypt', () {
@@ -200,41 +132,18 @@ void main() {
       expect(random.serviceName, matches(RegExp(r'^studio-[A-Za-z0-9]{10}$')));
       expect(random.password, hasLength(12));
       expect(AdbPairingQr.random().password, isNot(random.password));
-      expect(
-        () => AdbPairingQr(serviceName: 'studio;x', password: 'p'),
-        throwsArgumentError,
-      );
+      expect(() => AdbPairingQr(serviceName: 'studio;x', password: 'p'), throwsArgumentError);
     });
 
     test('waits for its own service, then pairs with the password', () async {
       final qr = AdbPairingQr.random();
-      final device = await FakePairingServer.start(
-        code: qr.password,
-        serverKey: otherKey,
-        guid: 'adb-QR-1',
-      );
+      final device = await FakePairingServer.start(code: qr.password, serverKey: otherKey, guid: 'adb-QR-1');
       final services = StreamController<AdbPairingService>();
-      final pairing = qr.pair(
-        services: services.stream,
-        key: testKey,
-        keyLog: device.keyLog.add,
-      );
+      final pairing = qr.pair(services: services.stream, key: testKey, keyLog: device.keyLog.add);
       // Another client's code first: ignored.
       services
-        ..add(
-          const AdbPairingService(
-            name: 'studio-other',
-            host: '127.0.0.1',
-            port: 1,
-          ),
-        )
-        ..add(
-          AdbPairingService(
-            name: qr.serviceName,
-            host: '127.0.0.1',
-            port: device.port,
-          ),
-        );
+        ..add(const AdbPairingService(name: 'studio-other', host: '127.0.0.1', port: 1))
+        ..add(AdbPairingService(name: qr.serviceName, host: '127.0.0.1', port: device.port));
       expect((await pairing).guid, 'adb-QR-1');
       expect(device.pairedKeys, [testKey.publicKey.encode()]);
       await services.close();
@@ -244,11 +153,7 @@ void main() {
     test('a code nobody scans times out', () async {
       final qr = AdbPairingQr.random();
       await expectLater(
-        qr.pair(
-          services: const Stream.empty(),
-          key: testKey,
-          waitTimeout: const Duration(milliseconds: 100),
-        ),
+        qr.pair(services: const Stream.empty(), key: testKey, waitTimeout: const Duration(milliseconds: 100)),
         throwsA(isA<AdbTimeoutException>()),
       );
     });

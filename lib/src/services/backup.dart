@@ -23,9 +23,7 @@ final class AdbBackup {
   /// package names, … as for `adb backup`), streamed as the device
   /// produces it after the user confirms.
   Stream<Uint8List> create(List<String> arguments) async* {
-    final stream = await _connection.open(
-      'backup:${arguments.map((a) => ' ${shellQuote(a)}').join()}',
-    );
+    final stream = await _connection.open('backup:${arguments.map((a) => ' ${shellQuote(a)}').join()}');
     try {
       yield* stream.input;
     } finally {

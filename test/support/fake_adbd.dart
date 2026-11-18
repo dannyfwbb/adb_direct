@@ -43,10 +43,7 @@ final class FakeAdbd {
 
   /// Starts a fake that serves exactly [connections] connections with
   /// [script], then stops listening.
-  static Future<FakeAdbd> start(
-    FakeAdbdScript script, {
-    int connections = 1,
-  }) async {
+  static Future<FakeAdbd> start(FakeAdbdScript script, {int connections = 1}) async {
     RangeError.checkValueInInterval(connections, 1, 1 << 16, 'connections');
     final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
     return FakeAdbd._(server, script, connections);
@@ -130,8 +127,7 @@ final class FakeAdbdSession {
       _onData,
       onError: (Object error) {
         // A client that closes with unread data gets reset: still a close.
-        if (error is SocketException &&
-            const {104, 54, 10054}.contains(error.osError?.errorCode)) {
+        if (error is SocketException && const {104, 54, 10054}.contains(error.osError?.errorCode)) {
           _clientClosed = true;
           _wake();
           return;
@@ -147,9 +143,7 @@ final class FakeAdbdSession {
 
   final Socket _socket;
   late final StreamSubscription<List<int>> _subscription;
-  late final AdbMessageReader _reader = AdbMessageReader(
-    onRawMessage: _receivedRaw.add,
-  );
+  late final AdbMessageReader _reader = AdbMessageReader(onRawMessage: _receivedRaw.add);
   final List<Uint8List> _receivedRaw = [];
   final Queue<AdbMessage> _inbox = Queue<AdbMessage>();
   final List<AdbMessage> _received = [];
@@ -168,8 +162,7 @@ final class FakeAdbdSession {
   List<Uint8List> get receivedRaw => List.unmodifiable(_receivedRaw);
 
   /// Sends [message] to the client.
-  void send(AdbMessage message) =>
-      _socket.add(AdbMessageCodec.encode(message, withChecksum: withChecksum));
+  void send(AdbMessage message) => _socket.add(AdbMessageCodec.encode(message, withChecksum: withChecksum));
 
   /// Sends raw bytes, for malformed-input tests.
   void sendRaw(List<int> bytes) => _socket.add(bytes);
@@ -178,17 +171,13 @@ final class FakeAdbdSession {
   ///
   /// Fails when the client closes the connection or sends nothing within
   /// [timeout].
-  Future<AdbMessage> receive({
-    Duration timeout = const Duration(seconds: 5),
-  }) async {
+  Future<AdbMessage> receive({Duration timeout = const Duration(seconds: 5)}) async {
     final deadline = DateTime.now().add(timeout);
     while (true) {
       _throwIfFailed();
       if (_inbox.isNotEmpty) return _inbox.removeFirst();
       if (_clientClosed) {
-        throw FakeAdbdFailure(
-          'client closed the connection while a message was expected',
-        );
+        throw FakeAdbdFailure('client closed the connection while a message was expected');
       }
       if (!await _waitUntil(deadline)) {
         throw FakeAdbdFailure('no message from the client within $timeout');
@@ -198,15 +187,10 @@ final class FakeAdbdSession {
 
   /// Receives the next message and checks it against [expected] with
   /// [matches] (exact equality by default).
-  Future<AdbMessage> expect(
-    AdbMessage expected, {
-    PacketMatcher? matches,
-  }) async {
+  Future<AdbMessage> expect(AdbMessage expected, {PacketMatcher? matches}) async {
     final actual = await receive();
     if (!(matches ?? _exact)(expected, actual)) {
-      throw FakeAdbdFailure(
-        'expected $expected, got $actual (payload ${_preview(actual)})',
-      );
+      throw FakeAdbdFailure('expected $expected, got $actual (payload ${_preview(actual)})');
     }
     return actual;
   }
@@ -229,16 +213,12 @@ final class FakeAdbdSession {
 
   /// Waits until the client closes the connection, failing if it sends a
   /// message first.
-  Future<void> expectClientClose({
-    Duration timeout = const Duration(seconds: 5),
-  }) async {
+  Future<void> expectClientClose({Duration timeout = const Duration(seconds: 5)}) async {
     final deadline = DateTime.now().add(timeout);
     while (true) {
       _throwIfFailed();
       if (_inbox.isNotEmpty) {
-        throw FakeAdbdFailure(
-          'expected the client to close, got ${_inbox.first}',
-        );
+        throw FakeAdbdFailure('expected the client to close, got ${_inbox.first}');
       }
       if (_clientClosed) return;
       if (!await _waitUntil(deadline)) {
@@ -331,10 +311,7 @@ FakeAdbdScript replay(
       case FixtureDirection.fromDevice:
         session.send(packet.message);
       case FixtureDirection.toDevice:
-        await session.expect(
-          packet.message,
-          matches: matches ?? recordedPacketMatcher,
-        );
+        await session.expect(packet.message, matches: matches ?? recordedPacketMatcher);
     }
   }
   await session.expectQuiet(quietAfter);
@@ -344,14 +321,10 @@ FakeAdbdScript replay(
 /// bytes are expected to differ between runs: a token signature (it signs a
 /// different random token with a possibly different key).
 bool recordedPacketMatcher(AdbMessage recorded, AdbMessage actual) {
-  if (recorded.command != actual.command ||
-      recorded.arg0 != actual.arg0 ||
-      recorded.arg1 != actual.arg1) {
+  if (recorded.command != actual.command || recorded.arg0 != actual.arg0 || recorded.arg1 != actual.arg1) {
     return false;
   }
-  final isSignature =
-      recorded.command == AdbCommand.auth &&
-      recorded.arg0 == AdbAuthType.signature.value;
+  final isSignature = recorded.command == AdbCommand.auth && recorded.arg0 == AdbAuthType.signature.value;
   return isSignature || _exact(recorded, actual);
 }
 

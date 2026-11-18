@@ -153,9 +153,7 @@ final class _Session {
   /// Legacy answers live 10 s: ask at least this often then.
   static const Duration _legacyCap = Duration(seconds: 5);
 
-  Duration get _cap => transport.hearsMulticast || maxInterval <= _legacyCap
-      ? maxInterval
-      : _legacyCap;
+  Duration get _cap => transport.hearsMulticast || maxInterval <= _legacyCap ? maxInterval : _legacyCap;
 
   Future<void> start() async {
     try {
@@ -223,9 +221,7 @@ final class _Session {
     if (now < next) return null;
     final newGap = gap == Duration.zero
         ? const Duration(seconds: 1)
-        : (gap * 2 > const Duration(seconds: 60)
-              ? const Duration(seconds: 60)
-              : gap * 2);
+        : (gap * 2 > const Duration(seconds: 60) ? const Duration(seconds: 60) : gap * 2);
     _asked[key] = (now + newGap, newGap);
     return DnsQuestion(name, type);
   }
@@ -237,15 +233,9 @@ final class _Session {
     for (final instance in _instances()) {
       final srv = _srv(instance);
       if (srv == null) {
-        questions.addAll([
-          ?_limited(instance, DnsType.srv),
-          ?_limited(instance, DnsType.txt),
-        ]);
+        questions.addAll([?_limited(instance, DnsType.srv), ?_limited(instance, DnsType.txt)]);
       } else if (_addresses(srv.target).isEmpty) {
-        questions.addAll([
-          ?_limited(srv.target, DnsType.a),
-          ?_limited(srv.target, DnsType.aaaa),
-        ]);
+        questions.addAll([?_limited(srv.target, DnsType.a), ?_limited(srv.target, DnsType.aaaa)]);
       }
     }
     // Forget limits for what is no longer asked.
@@ -272,16 +262,13 @@ final class _Session {
     final instances = {
       ..._instances().map((i) => i.toLowerCase()),
       for (final r in answers)
-        if (r.type == DnsType.ptr && types.contains(r.name.toLowerCase()))
-          (r.data as String).toLowerCase(),
+        if (r.type == DnsType.ptr && types.contains(r.name.toLowerCase())) (r.data as String).toLowerCase(),
     };
     final hosts = {
       for (final e in _cache.values)
-        if (e.record.type == DnsType.srv)
-          (e.record.data as DnsSrv).target.toLowerCase(),
+        if (e.record.type == DnsType.srv) (e.record.data as DnsSrv).target.toLowerCase(),
       for (final r in answers)
-        if (r.type == DnsType.srv && instances.contains(r.name.toLowerCase()))
-          (r.data as DnsSrv).target.toLowerCase(),
+        if (r.type == DnsType.srv && instances.contains(r.name.toLowerCase())) (r.data as DnsSrv).target.toLowerCase(),
     };
     bool relevant(DnsRecord r) => switch (r.type) {
       DnsType.ptr => types.contains(r.name.toLowerCase()),
@@ -299,10 +286,7 @@ final class _Session {
       final before = _cache.length;
       _cache.removeWhere(
         (key, e) =>
-            key.$1 == name &&
-            key.$2 == r.type &&
-            e.from == sender &&
-            e.received < now - const Duration(seconds: 1),
+            key.$1 == name && key.$2 == r.type && e.from == sender && e.received < now - const Duration(seconds: 1),
       );
       changed |= _cache.length != before;
     }
@@ -323,13 +307,7 @@ final class _Session {
       final ttl = r.ttl > _maxTtl ? _maxTtl : r.ttl;
       final record = ttl == r.ttl
           ? r
-          : DnsRecord(
-              name: r.name,
-              type: r.type,
-              ttl: ttl,
-              cacheFlush: r.cacheFlush,
-              data: r.data,
-            );
+          : DnsRecord(name: r.name, type: r.type, ttl: ttl, cacheFlush: r.cacheFlush, data: r.data);
       _cache[key] = _Entry(record, now, now + Duration(seconds: ttl), sender);
       changed = true;
     }
@@ -341,8 +319,7 @@ final class _Session {
   /// Drops the oldest entries beyond the bound.
   void _bound() {
     if (_cache.length <= _maxEntries) return;
-    final oldest = _cache.entries.toList()
-      ..sort((a, b) => a.value.received.compareTo(b.value.received));
+    final oldest = _cache.entries.toList()..sort((a, b) => a.value.received.compareTo(b.value.received));
     for (final e in oldest.take(_cache.length - _maxEntries)) {
       _cache.remove(e.key);
     }
@@ -409,8 +386,7 @@ final class _Session {
     return newest;
   }
 
-  DnsSrv? _srv(String instance) =>
-      _newest(instance, DnsType.srv)?.record.data as DnsSrv?;
+  DnsSrv? _srv(String instance) => _newest(instance, DnsType.srv)?.record.data as DnsSrv?;
 
   /// The host's addresses, most useful first: IPv4 before IPv6, routable
   /// before link-local, loopback last; no duplicates.
@@ -418,28 +394,19 @@ final class _Session {
     final lower = host.toLowerCase();
     final found = {
       for (final e in _cache.values)
-        if ((e.record.type == DnsType.a || e.record.type == DnsType.aaaa) &&
-            e.record.name.toLowerCase() == lower)
+        if ((e.record.type == DnsType.a || e.record.type == DnsType.aaaa) && e.record.name.toLowerCase() == lower)
           e.record.data as InternetAddress,
     }.toList();
     int rank(InternetAddress a) =>
-        (a.isLoopback ? 4 : 0) +
-        (a.isLinkLocal ? 2 : 0) +
-        (a.type == InternetAddressType.IPv4 ? 0 : 1);
-    found.sort(
-      (a, b) => rank(a) != rank(b)
-          ? rank(a) - rank(b)
-          : a.address.compareTo(b.address),
-    );
+        (a.isLoopback ? 4 : 0) + (a.isLinkLocal ? 2 : 0) + (a.type == InternetAddressType.IPv4 ? 0 : 1);
+    found.sort((a, b) => rank(a) != rank(b) ? rank(a) - rank(b) : a.address.compareTo(b.address));
     return found;
   }
 
   /// The pairs of the newest TXT record (RFC 6763 6.4: keys compare without
   /// case, the first occurrence wins, an empty key is ignored).
   Map<String, String> _txt(String instance) {
-    final strings =
-        _newest(instance, DnsType.txt)?.record.data as List<String>? ??
-        const [];
+    final strings = _newest(instance, DnsType.txt)?.record.data as List<String>? ?? const [];
     final txt = <String, String>{};
     for (final s in strings) {
       final eq = s.indexOf('=');
@@ -521,11 +488,7 @@ final class _IoTransport implements MdnsTransport {
   ) async {
     RawDatagramSocket? shared;
     try {
-      shared = await RawDatagramSocket.bind(
-        InternetAddress.anyIPv4,
-        5353,
-        reusePort: !Platform.isWindows,
-      );
+      shared = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 5353, reusePort: !Platform.isWindows);
       _socket = shared;
       _multicast = true;
       await refreshInterfaces();
@@ -558,9 +521,7 @@ final class _IoTransport implements MdnsTransport {
   Future<void> refreshInterfaces() async {
     final socket = _socket;
     if (socket == null || !_multicast) return;
-    for (final nic in await NetworkInterface.list(
-      type: InternetAddressType.IPv4,
-    )) {
+    for (final nic in await NetworkInterface.list(type: InternetAddressType.IPv4)) {
       if (_joined.contains(nic.name)) continue;
       try {
         socket.joinMulticast(_group, nic);

@@ -48,22 +48,16 @@ Future<void> main(List<String> args) async {
   await Future<void>.delayed(const Duration(milliseconds: 500));
   await adb.close();
 
-  String hex(List<int> bytes) =>
-      bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+  String hex(List<int> bytes) => bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
   final lines = [
     jsonEncode({
-      'fixture': out
-          .replaceFirst(RegExp(r'^.*test/fixtures/'), '')
-          .replaceFirst(RegExp(r'\.jsonl$'), ''),
+      'fixture': out.replaceFirst(RegExp(r'^.*test/fixtures/'), '').replaceFirst(RegExp(r'\.jsonl$'), ''),
       'device': device,
       'adbd': adbd,
       'recorded': DateTime.now().toIso8601String().substring(0, 10),
       'note': note,
       'starts': online ? 'online' : 'connection',
-      if (online)
-        'host_features': AdbConnectOptions.defaultHostFeatures
-            .map((f) => f.name)
-            .join(','),
+      if (online) 'host_features': AdbConnectOptions.defaultHostFeatures.map((f) => f.name).join(','),
     }),
     for (final packet in packets)
       jsonEncode({

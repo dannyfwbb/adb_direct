@@ -26,11 +26,8 @@ final class AdbApk {
   const AdbApk({required this.name, required this.size, required this.open});
 
   /// An APK file on `dart:io`.
-  factory AdbApk.file(File file) => AdbApk(
-    name: file.uri.pathSegments.last,
-    size: file.lengthSync(),
-    open: file.openRead,
-  );
+  factory AdbApk.file(File file) =>
+      AdbApk(name: file.uri.pathSegments.last, size: file.lengthSync(), open: file.openRead);
 
   /// An APK in memory.
   factory AdbApk.bytes(String name, List<int> bytes) =>
@@ -118,11 +115,7 @@ final class AdbInstallOptions {
 final class AdbPackages {
   /// Creates the namespace for [_connection].
   @internal
-  AdbPackages(
-    this._connection, {
-    required this.stallTimeout,
-    required this.answerTimeout,
-  });
+  AdbPackages(this._connection, {required this.stallTimeout, required this.answerTimeout});
 
   final AdbConnection _connection;
 
@@ -154,10 +147,7 @@ final class AdbPackages {
     final channel = _channel;
     if (channel == _Channel.pm) {
       return _withPushedFile(apk, onProgress, (path) async {
-        _checkSuccess(
-          await _run(channel, ['install', ...options.toArguments(), path]),
-          'install ${apk.name}',
-        );
+        _checkSuccess(await _run(channel, ['install', ...options.toArguments(), path]), 'install ${apk.name}');
       });
     }
     final output = await _run(
@@ -180,11 +170,7 @@ final class AdbPackages {
     if (apks.isEmpty) throw ArgumentError.value(apks, 'apks', 'is empty');
     final channel = _channel;
     final total = _total(apks);
-    final session = await _createSession(channel, [
-      ...options.toArguments(),
-      '-S',
-      '$total',
-    ]);
+    final session = await _createSession(channel, [...options.toArguments(), '-S', '$total']);
     try {
       await _writeAll(channel, session, apks, 0, total, onProgress);
       await _commit(channel, session);
@@ -206,34 +192,21 @@ final class AdbPackages {
     }
     final channel = _channel;
     if (channel == _Channel.pm) {
-      throw const AdbNotSupportedException(
-        'Installing several apps atomically needs "cmd package" (Android 10+)',
-      );
+      throw const AdbNotSupportedException('Installing several apps atomically needs "cmd package" (Android 10+)');
     }
     final total = packages.fold<int>(0, (sum, p) => sum + _total(p));
-    final parent = await _createSession(channel, [
-      '--multi-package',
-      ...options.toArguments(),
-    ]);
+    final parent = await _createSession(channel, ['--multi-package', ...options.toArguments()]);
     final children = <int>[];
     try {
       var done = 0;
       for (final apks in packages) {
-        final child = await _createSession(channel, [
-          ...options.toArguments(),
-          '-S',
-          '${_total(apks)}',
-        ]);
+        final child = await _createSession(channel, [...options.toArguments(), '-S', '${_total(apks)}']);
         children.add(child);
         await _writeAll(channel, child, apks, done, total, onProgress);
         done += _total(apks);
       }
       _checkSuccess(
-        await _run(channel, [
-          'install-add-session',
-          '$parent',
-          ...children.map((c) => '$c'),
-        ]),
+        await _run(channel, ['install-add-session', '$parent', ...children.map((c) => '$c')]),
         'add the sessions',
       );
       await _commit(channel, parent);
@@ -251,11 +224,7 @@ final class AdbPackages {
   /// `DELETE_FAILED_INTERNAL_ERROR` for an app that is not installed, or no
   /// code (`Failure [not installed for 0]`) when it is missing only for
   /// that [user].
-  Future<void> uninstall(
-    String package, {
-    bool keepData = false,
-    int? user,
-  }) async {
+  Future<void> uninstall(String package, {bool keepData = false, int? user}) async {
     final output = await _run(_channel, [
       'uninstall',
       if (keepData) '-k',
@@ -265,16 +234,13 @@ final class AdbPackages {
     _checkSuccess(output, 'uninstall $package');
   }
 
-  static int _total(List<AdbApk> apks) =>
-      apks.fold<int>(0, (sum, apk) => sum + apk.size);
+  static int _total(List<AdbApk> apks) => apks.fold<int>(0, (sum, apk) => sum + apk.size);
 
   Future<int> _createSession(_Channel channel, List<String> arguments) async {
     final output = await _run(channel, ['install-create', ...arguments]);
     if (pmSessionId(output) case final id?) return id;
     if (output.toLowerCase().contains('unknown command')) {
-      throw const AdbNotSupportedException(
-        'This device has no install sessions (Android 5 and later)',
-      );
+      throw const AdbNotSupportedException('This device has no install sessions (Android 5 and later)');
     }
     throw _failure(output, 'create an install session');
   }
@@ -296,14 +262,7 @@ final class AdbPackages {
         // and give pm its path.
         await _withPushedFile(apk, progress, (path) async {
           _checkSuccess(
-            await _run(channel, [
-              'install-write',
-              '-S',
-              '${apk.size}',
-              '$session',
-              apk.name,
-              path,
-            ]),
+            await _run(channel, ['install-write', '-S', '${apk.size}', '$session', apk.name, path]),
             'write ${apk.name}',
           );
         });
@@ -327,51 +286,31 @@ final class AdbPackages {
     // Android 7's `cmd package install-commit` prints nothing when it
     // succeeds (a failure still prints `Failure [...]`). An empty answer
     // from a connection that ended is no success.
-    if (output.trim().isEmpty &&
-        channel == _Channel.cmd &&
-        !_connection.isClosed) {
+    if (output.trim().isEmpty && channel == _Channel.cmd && !_connection.isClosed) {
       return;
     }
     _checkSuccess(output, 'commit');
   }
 
-  Future<void> _abandon(_Channel channel, int session) => _run(channel, [
-    'install-abandon',
-    '$session',
-  ]).then<void>((_) {}, onError: (Object _) {});
+  Future<void> _abandon(_Channel channel, int session) =>
+      _run(channel, ['install-abandon', '$session']).then<void>((_) {}, onError: (Object _) {});
 
   /// Pushes [apk] to a temporary file, runs [use] with its path, and removes
   /// the file whatever happens, a failed push included.
-  Future<void> _withPushedFile(
-    AdbApk apk,
-    AdbProgress? onProgress,
-    Future<void> Function(String path) use,
-  ) async {
+  Future<void> _withPushedFile(AdbApk apk, AdbProgress? onProgress, Future<void> Function(String path) use) async {
     final id = Random.secure().nextInt(1 << 32).toRadixString(16);
     final path = '/data/local/tmp/adb_direct_$id.apk';
     try {
-      await _connection.sync.write(
-        path,
-        apk.open(),
-        size: apk.size,
-        onProgress: onProgress,
-      );
+      await _connection.sync.write(path, apk.open(), size: apk.size, onProgress: onProgress);
       await use(path);
     } finally {
-      await _connection.shell
-          .run('rm -f ${shellQuote(path)}')
-          .then<void>((_) {}, onError: (Object _) {});
+      await _connection.shell.run('rm -f ${shellQuote(path)}').then<void>((_) {}, onError: (Object _) {});
     }
   }
 
   /// Runs a package manager command; streams [input] to its stdin; returns
   /// what it printed.
-  Future<String> _run(
-    _Channel channel,
-    List<String> arguments, {
-    AdbApk? input,
-    AdbProgress? onProgress,
-  }) async {
+  Future<String> _run(_Channel channel, List<String> arguments, {AdbApk? input, AdbProgress? onProgress}) async {
     final stream = await _connection.open(channel.service(arguments));
     final output = BytesBuilder(copy: false);
     final finished = Completer<void>();
@@ -409,11 +348,7 @@ final class AdbPackages {
   /// Streams [apk] into [stream] and waits until the device has
   /// acknowledged all of it. Fails with [AdbTimeoutException] when neither
   /// the source nor the device moves for [stallTimeout].
-  Future<void> _upload(
-    AdbStream stream,
-    AdbApk apk,
-    AdbProgress? onProgress,
-  ) async {
+  Future<void> _upload(AdbStream stream, AdbApk apk, AdbProgress? onProgress) async {
     final start = stream.acknowledgedBytes;
     final result = Completer<void>();
     var sent = 0;
@@ -435,11 +370,7 @@ final class AdbPackages {
       progress: () => sent + stream.acknowledgedBytes,
       onStall: () {
         unawaited(stream.close());
-        fail(
-          AdbTimeoutException(
-            'The upload of ${apk.name} made no progress for $stallTimeout',
-          ),
-        );
+        fail(AdbTimeoutException('The upload of ${apk.name} made no progress for $stallTimeout'));
       },
     );
 
@@ -447,11 +378,7 @@ final class AdbPackages {
       (chunk) {
         sent += chunk.length;
         if (sent > apk.size) {
-          fail(
-            ArgumentError(
-              '${apk.name} yielded more than the ${apk.size} bytes announced',
-            ),
-          );
+          fail(ArgumentError('${apk.name} yielded more than the ${apk.size} bytes announced'));
           return;
         }
         source.pause();
@@ -465,11 +392,7 @@ final class AdbPackages {
       onDone: () {
         if (result.isCompleted) return;
         if (sent != apk.size) {
-          fail(
-            ArgumentError(
-              '${apk.name} yielded $sent bytes, not the ${apk.size} announced',
-            ),
-          );
+          fail(ArgumentError('${apk.name} yielded $sent bytes, not the ${apk.size} announced'));
           return;
         }
         // The device has to take the last bytes before the silent
@@ -491,11 +414,7 @@ final class AdbPackages {
     }
   }
 
-  Future<void> _deadline(
-    Future<void> future,
-    Duration timeout,
-    AdbException Function() onTimeout,
-  ) {
+  Future<void> _deadline(Future<void> future, Duration timeout, AdbException Function() onTimeout) {
     final completer = Completer<void>();
     final Timer timer = _connection.clock.timer(timeout, () {
       if (!completer.isCompleted) completer.completeError(onTimeout());
@@ -520,8 +439,7 @@ final class AdbPackages {
   }
 
   static AdbInstallException _failure(String output, String what) =>
-      pmFailure(output, what) ??
-      AdbInstallException('Could not $what: $output', output: output);
+      pmFailure(output, what) ?? AdbInstallException('Could not $what: $output', output: output);
 }
 
 /// The failure in a package manager answer, or null when a line starts with
@@ -533,9 +451,7 @@ AdbInstallException? pmFailure(String output, String what) {
   for (final line in const LineSplitter().convert(output)) {
     if (line.trimLeft().startsWith('Success')) return null;
   }
-  final match = RegExp(
-    r'Failure \[([A-Z0-9_]+)(?::[^\]]*)?\]',
-  ).firstMatch(output);
+  final match = RegExp(r'Failure \[([A-Z0-9_]+)(?::[^\]]*)?\]').firstMatch(output);
   final text = output.trim();
   return AdbInstallException(
     'Could not $what: ${text.isEmpty ? 'no answer' : text}',
@@ -549,10 +465,7 @@ AdbInstallException? pmFailure(String output, String what) {
 /// lines, or null.
 @internal
 int? pmSessionId(String output) {
-  final match = RegExp(
-    r'^\s*Success.*\[(\d+)\]',
-    multiLine: true,
-  ).firstMatch(output);
+  final match = RegExp(r'^\s*Success.*\[(\d+)\]', multiLine: true).firstMatch(output);
   return match == null ? null : int.parse(match.group(1)!);
 }
 

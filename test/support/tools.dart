@@ -17,8 +17,7 @@ abstract final class Tools {
   ]);
 
   /// Skip reason for tests needing [tool] named [name], or null to run.
-  static String? skipUnless(String? tool, String name) =>
-      tool == null ? '$name is not installed' : null;
+  static String? skipUnless(String? tool, String name) => tool == null ? '$name is not installed' : null;
 
   /// Runs [executable] with [arguments] and returns its stdout as text.
   /// Throws with its output when it fails, and kills it after [timeout].
@@ -27,9 +26,7 @@ abstract final class Tools {
     List<String> arguments, {
     List<int>? stdin,
     Duration timeout = const Duration(seconds: 30),
-  }) async => String.fromCharCodes(
-    await runBytes(executable, arguments, stdin: stdin, timeout: timeout),
-  );
+  }) async => String.fromCharCodes(await runBytes(executable, arguments, stdin: stdin, timeout: timeout));
 
   /// Like [run] but returns raw stdout bytes.
   static Future<List<int>> runBytes(
@@ -65,9 +62,7 @@ abstract final class Tools {
   static String? _find(List<String> candidates) {
     for (final candidate in candidates) {
       try {
-        final result = Process.runSync(candidate, [
-          'version',
-        ], runInShell: false);
+        final result = Process.runSync(candidate, ['version'], runInShell: false);
         if (result.exitCode == 0) return candidate;
       } on ProcessException {
         continue;

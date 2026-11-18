@@ -50,32 +50,24 @@ abstract final class Der {
     return Uint8List(1 + length.length + content.length)
       ..[0] = tag
       ..setRange(1, 1 + length.length, length)
-      ..setRange(
-        1 + length.length,
-        1 + length.length + content.length,
-        content,
-      );
+      ..setRange(1 + length.length, 1 + length.length + content.length, content);
   }
 
   /// SEQUENCE of already encoded [items].
-  static Uint8List sequence(List<List<int>> items) =>
-      element(tagSequence, [for (final item in items) ...item]);
+  static Uint8List sequence(List<List<int>> items) => element(tagSequence, [for (final item in items) ...item]);
 
   /// SET of already encoded [items] (one item in all uses here, so no
   /// sorting is needed).
-  static Uint8List set(List<List<int>> items) =>
-      element(tagSet, [for (final item in items) ...item]);
+  static Uint8List set(List<List<int>> items) => element(tagSet, [for (final item in items) ...item]);
 
   /// INTEGER (two's complement, minimal length).
-  static Uint8List integer(BigInt value) =>
-      element(tagInteger, signedBytes(value));
+  static Uint8List integer(BigInt value) => element(tagInteger, signedBytes(value));
 
   /// INTEGER from a small int.
   static Uint8List smallInteger(int value) => integer(BigInt.from(value));
 
   /// BOOLEAN.
-  static Uint8List boolean(bool value) =>
-      element(tagBoolean, [value ? 0xff : 0x00]);
+  static Uint8List boolean(bool value) => element(tagBoolean, [value ? 0xff : 0x00]);
 
   /// NULL.
   static Uint8List nullValue() => element(tagNull, const []);
@@ -83,16 +75,10 @@ abstract final class Der {
   /// OBJECT IDENTIFIER from dotted text such as `1.2.840.113549.1.1.1`.
   static Uint8List objectIdentifier(String dotted) {
     final arcs = dotted.split('.').map(int.parse).toList();
-    if (arcs.length < 2 ||
-        arcs.any((arc) => arc < 0) ||
-        arcs[0] > 2 ||
-        (arcs[0] < 2 && arcs[1] >= 40)) {
+    if (arcs.length < 2 || arcs.any((arc) => arc < 0) || arcs[0] > 2 || (arcs[0] < 2 && arcs[1] >= 40)) {
       throw ArgumentError.value(dotted, 'dotted', 'not a valid OID');
     }
-    final out = <int>[
-      ..._base128(arcs[0] * 40 + arcs[1]),
-      for (final arc in arcs.skip(2)) ..._base128(arc),
-    ];
+    final out = <int>[..._base128(arcs[0] * 40 + arcs[1]), for (final arc in arcs.skip(2)) ..._base128(arc)];
     return element(tagObjectIdentifier, out);
   }
 
@@ -105,20 +91,16 @@ abstract final class Der {
   }
 
   /// BIT STRING with no unused bits.
-  static Uint8List bitString(List<int> bytes) =>
-      element(tagBitString, [0, ...bytes]);
+  static Uint8List bitString(List<int> bytes) => element(tagBitString, [0, ...bytes]);
 
   /// OCTET STRING.
-  static Uint8List octetString(List<int> bytes) =>
-      element(tagOctetString, bytes);
+  static Uint8List octetString(List<int> bytes) => element(tagOctetString, bytes);
 
   /// PrintableString (ASCII letters, digits, space and `'()+,-./:=?`).
-  static Uint8List printableString(String text) =>
-      element(tagPrintableString, ascii.encode(text));
+  static Uint8List printableString(String text) => element(tagPrintableString, ascii.encode(text));
 
   /// UTF8String.
-  static Uint8List utf8String(String text) =>
-      element(tagUtf8String, utf8.encode(text));
+  static Uint8List utf8String(String text) => element(tagUtf8String, utf8.encode(text));
 
   /// A certificate validity time: UTCTime for 1950 through 2049,
   /// GeneralizedTime from 2050 on, as RFC 5280 4.1.2.5 requires. Seconds
@@ -135,15 +117,11 @@ abstract final class Der {
         '${two(t.second)}Z';
     return t.year < 2050
         ? element(tagUtcTime, ascii.encode('${two(t.year % 100)}$rest'))
-        : element(
-            tagGeneralizedTime,
-            ascii.encode('${t.year.toString().padLeft(4, '0')}$rest'),
-          );
+        : element(tagGeneralizedTime, ascii.encode('${t.year.toString().padLeft(4, '0')}$rest'));
   }
 
   /// A context-specific constructed tag `[number]` around [content].
-  static Uint8List explicit(int number, List<int> content) =>
-      element(0xa0 | number, content);
+  static Uint8List explicit(int number, List<int> content) => element(0xa0 | number, content);
 
   /// The minimal two's complement big-endian bytes of [value].
   static Uint8List signedBytes(BigInt value) {
@@ -152,9 +130,7 @@ abstract final class Der {
       throw ArgumentError.value(value, 'value', 'negative values are unused');
     }
     final magnitude = unsignedBytes(value);
-    return magnitude[0] & 0x80 != 0
-        ? Uint8List.fromList([0, ...magnitude])
-        : magnitude;
+    return magnitude[0] & 0x80 != 0 ? Uint8List.fromList([0, ...magnitude]) : magnitude;
   }
 
   /// The big-endian bytes of a non-negative [value], without sign padding,
@@ -169,9 +145,7 @@ abstract final class Der {
     }
     if (length == null || length == bytes.length) return bytes;
     if (bytes.length > length) {
-      throw ArgumentError(
-        'Value needs ${bytes.length} bytes, more than $length',
-      );
+      throw ArgumentError('Value needs ${bytes.length} bytes, more than $length');
     }
     return Uint8List(length)..setRange(length - bytes.length, length, bytes);
   }
@@ -282,9 +256,7 @@ final class DerElement {
 
   void _expect(int expected, String name) {
     if (tag != expected) {
-      throw FormatException(
-        'Expected $name, found tag 0x${tag.toRadixString(16)}',
-      );
+      throw FormatException('Expected $name, found tag 0x${tag.toRadixString(16)}');
     }
   }
 }

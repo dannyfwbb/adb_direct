@@ -13,16 +13,12 @@ import '../support/adbd_scripts.dart';
 import '../support/fake_adbd.dart';
 
 final Map<String, String> answers =
-    (jsonDecode(File('test/fixtures/services/answers.json').readAsStringSync())
-            as Map<String, Object?>)
+    (jsonDecode(File('test/fixtures/services/answers.json').readAsStringSync()) as Map<String, Object?>)
         .cast<String, String>();
 
 /// Connects to a fake that answers one service with [text], closing the
 /// stream ([closeStream]) or dropping the whole connection after it.
-Future<(AdbConnection, FakeAdbd, Completer<String>)> serve(
-  String text, {
-  bool closeStream = true,
-}) async {
+Future<(AdbConnection, FakeAdbd, Completer<String>)> serve(String text, {bool closeStream = true}) async {
   final service = Completer<String>();
   final adbd = await FakeAdbd.start((session) async {
     await acceptHandshake(session, banner: classicBanner);
@@ -30,28 +26,16 @@ Future<(AdbConnection, FakeAdbd, Completer<String>)> serve(
     service.complete(utf8.decode(open.payload).replaceAll('\u0000', ''));
     session.send(AdbMessage.okay(localId: 9, remoteId: open.arg0));
     if (text.isNotEmpty) {
-      session.send(
-        AdbMessage.write(
-          localId: 9,
-          remoteId: open.arg0,
-          data: utf8.encode(text),
-        ),
-      );
+      session.send(AdbMessage.write(localId: 9, remoteId: open.arg0, data: utf8.encode(text)));
     }
     if (closeStream) {
       session.send(AdbMessage.close(localId: 9, remoteId: open.arg0));
-      await session
-          .expectClientClose(timeout: const Duration(seconds: 2))
-          .catchError((Object _) {});
+      await session.expectClientClose(timeout: const Duration(seconds: 2)).catchError((Object _) {});
     } else {
       session.destroy();
     }
   });
-  final adb = await AdbConnection.connect(
-    adbd.address,
-    adbd.port,
-    key: testKey,
-  );
+  final adb = await AdbConnection.connect(adbd.address, adbd.port, key: testKey);
   return (adb, adbd, service);
 }
 
@@ -76,10 +60,7 @@ void main() {
     });
 
     test('tcpip cut off before the stream closed still restarts', () async {
-      final (adb, adbd, service) = await serve(
-        answers['tcpip:5555']!,
-        closeStream: false,
-      );
+      final (adb, adbd, service) = await serve(answers['tcpip:5555']!, closeStream: false);
       final answer = await adb.daemon.tcpip(5555);
       expect(await service.future, 'tcpip:5555');
       expect(answer.outcome, AdbDaemonOutcome.restarting);
@@ -95,13 +76,8 @@ void main() {
       await adb.close();
       await adbd.done();
 
-      final (adb2, adbd2, _) = await serve(
-        answers['enable-verity: (TV, user build)']!,
-      );
-      expect(
-        (await adb2.daemon.enableVerity()).outcome,
-        AdbDaemonOutcome.refused,
-      );
+      final (adb2, adbd2, _) = await serve(answers['enable-verity: (TV, user build)']!);
+      expect((await adb2.daemon.enableVerity()).outcome, AdbDaemonOutcome.refused);
       await adb2.close();
       await adbd2.done();
 
@@ -134,11 +110,7 @@ void main() {
         await session.expectQuiet(const Duration(milliseconds: 50));
         await session.expectClientClose();
       });
-      final adb = await AdbConnection.connect(
-        adbd.address,
-        adbd.port,
-        key: testKey,
-      );
+      final adb = await AdbConnection.connect(adbd.address, adbd.port, key: testKey);
       expect(() => adb.daemon.tcpip(0), throwsArgumentError);
       expect(() => adb.daemon.reboot('bad target;'), throwsArgumentError);
       await Future<void>.delayed(const Duration(milliseconds: 60));
@@ -184,12 +156,7 @@ void main() {
       await server.close();
       final watch = Stopwatch()..start();
       await expectLater(
-        AdbConnection.waitFor(
-          '127.0.0.1',
-          port,
-          key: testKey,
-          timeout: const Duration(milliseconds: 700),
-        ),
+        AdbConnection.waitFor('127.0.0.1', port, key: testKey, timeout: const Duration(milliseconds: 700)),
         throwsA(isA<AdbRefusedException>()),
       );
       expect(watch.elapsed, lessThan(const Duration(seconds: 3)));
@@ -222,12 +189,7 @@ void main() {
       final cancel = Completer<void>();
       Timer(const Duration(milliseconds: 300), cancel.complete);
       await expectLater(
-        AdbConnection.waitFor(
-          '127.0.0.1',
-          port,
-          key: testKey,
-          cancelOn: cancel.future,
-        ),
+        AdbConnection.waitFor('127.0.0.1', port, key: testKey, cancelOn: cancel.future),
         throwsA(isA<AdbCancelledException>()),
       );
     });

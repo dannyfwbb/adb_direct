@@ -13,9 +13,7 @@ import 'package:crypto/crypto.dart';
 import 'package:test/test.dart';
 
 final String? host = Platform.environment['ADB_DIRECT_TEST_HOST'];
-final int port = int.parse(
-  Platform.environment['ADB_DIRECT_TEST_PORT'] ?? '5555',
-);
+final int port = int.parse(Platform.environment['ADB_DIRECT_TEST_PORT'] ?? '5555');
 final String? keyPath = Platform.environment['ADB_DIRECT_TEST_KEY'];
 final String? skip = host == null || keyPath == null
     ? 'ADB_DIRECT_TEST_HOST and ADB_DIRECT_TEST_KEY are not set '
@@ -30,11 +28,7 @@ void main() {
   AdbConnection adb() => connection!;
   setUpAll(() async {
     if (skip != null) return;
-    connection = await AdbConnection.connect(
-      host!,
-      port,
-      key: AdbKeyPair.fromPem(File(keyPath!).readAsStringSync()),
-    );
+    connection = await AdbConnection.connect(host!, port, key: AdbKeyPair.fromPem(File(keyPath!).readAsStringSync()));
     await adb().shell.run('rm -rf $scratch; mkdir -p $scratch');
   });
   tearDownAll(() async {
@@ -54,10 +48,7 @@ void main() {
     expect(link!.isLink, isTrue);
     if (!adb().sync.canFollowLinks) {
       // Before stat_v2 (Android 8) the device cannot follow it.
-      await expectLater(
-        adb().sync.stat('/sdcard', followLinks: true),
-        throwsA(isA<AdbNotSupportedException>()),
-      );
+      await expectLater(adb().sync.stat('/sdcard', followLinks: true), throwsA(isA<AdbNotSupportedException>()));
       return;
     }
     final target = await adb().sync.stat('/sdcard', followLinks: true);
@@ -76,9 +67,7 @@ void main() {
     () async {
       final random = Random(1);
       for (final size in [0, 1, 65535, 65536, 65537, 10 * 1024 * 1024 + 3]) {
-        final bytes = Uint8List.fromList(
-          List.generate(size, (_) => random.nextInt(256)),
-        );
+        final bytes = Uint8List.fromList(List.generate(size, (_) => random.nextInt(256)));
         final path = '$scratch/f$size';
         final modified = DateTime.utc(2024, 5, 6, 7, 8, 9);
         await adb().sync.writeAll(path, bytes, modified: modified);
@@ -98,18 +87,12 @@ void main() {
   test('a refused read is an AdbSyncException; the next call works', () async {
     // A missing file: refused for root too (old eng builds run adbd as
     // root and can read anything).
-    await expectLater(
-      adb().sync.readAll('/no/such/file'),
-      throwsA(isA<AdbSyncException>()),
-    );
+    await expectLater(adb().sync.readAll('/no/such/file'), throwsA(isA<AdbSyncException>()));
     expect((await adb().sync.stat('/system/etc/hosts'))!.isFile, isTrue);
   }, skip: skip);
 
   test('a refused write is an AdbSyncException', () async {
-    await expectLater(
-      adb().sync.writeAll('/system/adb_direct_test', [1, 2, 3]),
-      throwsA(isA<AdbSyncException>()),
-    );
+    await expectLater(adb().sync.writeAll('/system/adb_direct_test', [1, 2, 3]), throwsA(isA<AdbSyncException>()));
     expect(await adb().sync.stat('/system/adb_direct_test'), isNull);
   }, skip: skip);
 
@@ -145,10 +128,7 @@ void main() {
     File('${local.path}/sub/b.bin').writeAsBytesSync(List.filled(70000, 3));
     File('${local.path}/sub/deeper/c').writeAsStringSync('');
     expect(await adb().sync.pushDirectory(local, '$scratch/tree'), 3);
-    expect(
-      await adb().sync.pushDirectory(local, '$scratch/tree', onlyChanged: true),
-      0,
-    );
+    expect(await adb().sync.pushDirectory(local, '$scratch/tree', onlyChanged: true), 0);
     final back = await Directory.systemTemp.createTemp('adb_direct_back');
     addTearDown(() => back.delete(recursive: true));
     expect(await adb().sync.pullDirectory('$scratch/tree', back), 3);
@@ -160,8 +140,7 @@ void main() {
   test('pushFile and pullFile keep bytes and the modification time', () async {
     final dir = await Directory.systemTemp.createTemp('adb_direct_file');
     addTearDown(() => dir.delete(recursive: true));
-    final source = File('${dir.path}/in.bin')
-      ..writeAsBytesSync(List.generate(300000, (i) => i * 7 % 251));
+    final source = File('${dir.path}/in.bin')..writeAsBytesSync(List.generate(300000, (i) => i * 7 % 251));
     await source.setLastModified(DateTime.utc(2022, 2, 2, 2, 2, 2));
     await adb().sync.pushFile(source, '$scratch/one.bin');
     final back = File('${dir.path}/out.bin');
@@ -174,9 +153,7 @@ void main() {
     '200 MiB round trip, checked by SHA-256',
     () async {
       final random = Random(9);
-      final block = Uint8List.fromList(
-        List.generate(1 << 20, (_) => random.nextInt(256)),
-      );
+      final block = Uint8List.fromList(List.generate(1 << 20, (_) => random.nextInt(256)));
       Stream<List<int>> source() async* {
         for (var i = 0; i < 200; i++) {
           yield block;
@@ -194,9 +171,7 @@ void main() {
   );
 
   test('sizes match the device; past 4 GiB with stat_v2', () async {
-    final made = await adb().shell.run(
-      'truncate -s 5G $scratch/sparse && stat -c %s $scratch/sparse',
-    );
+    final made = await adb().shell.run('truncate -s 5G $scratch/sparse && stat -c %s $scratch/sparse');
     if (made.exitCode != 0) {
       // Old devices have neither tool.
       await adb().shell.run('rm -f $scratch/sparse');

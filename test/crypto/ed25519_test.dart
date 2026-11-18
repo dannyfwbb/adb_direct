@@ -11,9 +11,7 @@ import 'package:test/test.dart';
 import '../support/hex.dart';
 
 final BigInt p = (BigInt.one << 255) - BigInt.from(19);
-final BigInt l =
-    (BigInt.one << 252) +
-    BigInt.parse('27742317777372353535851937790883648493');
+final BigInt l = (BigInt.one << 252) + BigInt.parse('27742317777372353535851937790883648493');
 
 BigInt randomBelow(Random r, BigInt n) {
   var v = BigInt.zero;
@@ -44,14 +42,7 @@ void main() {
   group('field arithmetic against BigInt', () {
     final r = Random(25519);
     test('round trip, edges included', () {
-      for (final n in [
-        BigInt.zero,
-        BigInt.one,
-        p - BigInt.one,
-        p,
-        p + BigInt.one,
-        (BigInt.one << 255) - BigInt.one,
-      ]) {
+      for (final n in [BigInt.zero, BigInt.one, p - BigInt.one, p, p + BigInt.one, (BigInt.one << 255) - BigInt.one]) {
         expect(fieldRoundTrip(n), n % p, reason: '$n');
       }
     });
@@ -87,10 +78,7 @@ void main() {
 
     test('the order is l', () {
       expect(fromLe(groupOrder), l);
-      expect(
-        EdPoint.base.multiply(groupOrder).equals(EdPoint.identity()),
-        isTrue,
-      );
+      expect(EdPoint.base.multiply(groupOrder).equals(EdPoint.identity()), isTrue);
     });
   });
 
@@ -123,20 +111,17 @@ void main() {
       expect((b - b).equals(EdPoint.identity()), isTrue);
     });
 
-    test(
-      'y = 2 has no point; non-canonical y is accepted as BoringSSL does',
-      () {
-        expect(EdPoint.decode(Uint8List(32)..[0] = 2), isNull);
-        // y = p + 1 reads as y = 1, the identity.
-        final pPlusOne = Uint8List(32);
-        var v = p + BigInt.one;
-        for (var i = 0; i < 32; i++) {
-          pPlusOne[i] = (v & BigInt.from(0xff)).toInt();
-          v >>= 8;
-        }
-        expect(EdPoint.decode(pPlusOne)!.equals(EdPoint.identity()), isTrue);
-        expect(EdPoint.decode(Uint8List(31)), isNull);
-      },
-    );
+    test('y = 2 has no point; non-canonical y is accepted as BoringSSL does', () {
+      expect(EdPoint.decode(Uint8List(32)..[0] = 2), isNull);
+      // y = p + 1 reads as y = 1, the identity.
+      final pPlusOne = Uint8List(32);
+      var v = p + BigInt.one;
+      for (var i = 0; i < 32; i++) {
+        pPlusOne[i] = (v & BigInt.from(0xff)).toInt();
+        v >>= 8;
+      }
+      expect(EdPoint.decode(pPlusOne)!.equals(EdPoint.identity()), isTrue);
+      expect(EdPoint.decode(Uint8List(31)), isNull);
+    });
   });
 }

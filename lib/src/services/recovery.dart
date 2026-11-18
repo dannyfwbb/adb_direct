@@ -34,16 +34,11 @@ final class AdbRecovery {
   /// passes the size). Devices before Android 4.4 take the whole file at
   /// once instead. Throws [AdbServiceUnavailableException] when the device
   /// reports a failed install.
-  Future<void> sideload(
-    File package, {
-    bool rescue = false,
-    AdbProgress? onProgress,
-  }) async {
+  Future<void> sideload(File package, {bool rescue = false, AdbProgress? onProgress}) async {
     final file = await package.open();
     try {
       final size = await file.length();
-      final service =
-          '${rescue ? 'rescue-install' : 'sideload-host'}:$size:$blockSize';
+      final service = '${rescue ? 'rescue-install' : 'sideload-host'}:$size:$blockSize';
       final AdbStream stream;
       try {
         stream = await _connection.open(service);
@@ -58,11 +53,7 @@ final class AdbRecovery {
     }
   }
 
-  Future<void> _legacy(
-    RandomAccessFile file,
-    int size,
-    AdbProgress? onProgress,
-  ) async {
+  Future<void> _legacy(RandomAccessFile file, int size, AdbProgress? onProgress) async {
     final stream = await _connection.open('sideload:$size');
     final reading = stream.input.drain<void>();
     reading.ignore();
@@ -88,12 +79,7 @@ final class AdbRecovery {
 /// block number) or `DONEDONE` / `FAILFAIL`; each block is answered with
 /// its bytes (the last one short).
 @internal
-Future<void> serveBlocks(
-  AdbStream stream,
-  RandomAccessFile file,
-  int size,
-  AdbProgress? onProgress,
-) async {
+Future<void> serveBlocks(AdbStream stream, RandomAccessFile file, int size, AdbProgress? onProgress) async {
   final requests = ByteQueue();
   final input = StreamIterator(stream.input);
   var served = 0;
@@ -101,9 +87,7 @@ Future<void> serveBlocks(
     while (true) {
       while (requests.length < 8) {
         if (!await input.moveNext()) {
-          throw const AdbClosedException(
-            'The device ended the sideload before it was done',
-          );
+          throw const AdbClosedException('The device ended the sideload before it was done');
         }
         requests.add(input.current);
       }
@@ -115,17 +99,13 @@ Future<void> serveBlocks(
           service: 'sideload-host',
         );
       }
-      final block = RegExp(r'^[0-9]{8}$').hasMatch(request)
-          ? int.parse(request)
-          : null;
+      final block = RegExp(r'^[0-9]{8}$').hasMatch(request) ? int.parse(request) : null;
       final offset = block == null ? -1 : block * AdbRecovery.blockSize;
       if (block == null || offset >= size) {
         throw AdbProtocolException('The device asked for block "$request"');
       }
       await file.setPosition(offset);
-      final length = offset + AdbRecovery.blockSize > size
-          ? size - offset
-          : AdbRecovery.blockSize;
+      final length = offset + AdbRecovery.blockSize > size ? size - offset : AdbRecovery.blockSize;
       final data = Uint8List(length);
       await file.readInto(data);
       await stream.write(data);

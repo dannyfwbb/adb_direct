@@ -50,28 +50,19 @@ final class SmartAnswer {
     if (length == null || frame.length < 4 + length) {
       throw AdbProtocolException('A bad length prefix: "$frame"');
     }
-    return utf8.decode(
-      latin1.encode(frame.substring(4, 4 + length)),
-      allowMalformed: true,
-    );
+    return utf8.decode(latin1.encode(frame.substring(4, 4 + length)), allowMalformed: true);
   }
 }
 
 /// The value of four hex digits, or null for anything else (signs and
 /// spaces included, which `int.tryParse` would take).
 @internal
-int? parseHex4(String text) => RegExp(r'^[0-9a-fA-F]{4}$').hasMatch(text)
-    ? int.parse(text, radix: 16)
-    : null;
+int? parseHex4(String text) => RegExp(r'^[0-9a-fA-F]{4}$').hasMatch(text) ? int.parse(text, radix: 16) : null;
 
 /// Opens [service], reads until the device closes it (at most
 /// [maxBytes]), and returns what it sent.
 @internal
-Future<List<int>> readAll(
-  AdbConnection connection,
-  String service, {
-  int maxBytes = 1024 * 1024,
-}) async {
+Future<List<int>> readAll(AdbConnection connection, String service, {int maxBytes = 1024 * 1024}) async {
   final stream = await connection.open(service);
   final bytes = <int>[];
   await for (final chunk in stream.input) {

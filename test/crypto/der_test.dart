@@ -8,34 +8,20 @@ import '../support/hex.dart';
 
 void main() {
   test('object identifiers', () {
-    expect(
-      hex(Der.objectIdentifier('1.2.840.113549.1.1.1')),
-      '06092a864886f70d010101',
-    );
+    expect(hex(Der.objectIdentifier('1.2.840.113549.1.1.1')), '06092a864886f70d010101');
     expect(hex(Der.objectIdentifier('2.5.29.19')), '0603551d13');
-    final parsed = DerElement.parse(
-      Der.objectIdentifier('1.2.840.113549.1.1.11'),
-    );
+    final parsed = DerElement.parse(Der.objectIdentifier('1.2.840.113549.1.1.11'));
     expect(parsed.objectIdentifier, '1.2.840.113549.1.1.11');
   });
 
   test('OIDs with large first and later arcs', () {
-    for (final oid in [
-      '2.999.3',
-      '2.100.1',
-      '1.39.4',
-      '0.0',
-      '1.2.4294967295',
-    ]) {
+    for (final oid in ['2.999.3', '2.100.1', '1.39.4', '0.0', '1.2.4294967295']) {
       expect(DerElement.parse(Der.objectIdentifier(oid)).objectIdentifier, oid);
     }
     expect(hex(Der.objectIdentifier('2.999.3')), '0603883703');
     expect(() => Der.objectIdentifier('1.40'), throwsArgumentError);
     expect(() => Der.objectIdentifier('3.1'), throwsArgumentError);
-    expect(
-      () => DerElement.parse([0x06, 0x02, 0x2a, 0x86]).objectIdentifier,
-      throwsFormatException,
-    );
+    expect(() => DerElement.parse([0x06, 0x02, 0x2a, 0x86]).objectIdentifier, throwsFormatException);
   });
 
   test('integers are minimal two’s complement', () {
@@ -55,10 +41,7 @@ void main() {
   });
 
   test('times switch from UTCTime to GeneralizedTime in 2050', () {
-    expect(
-      String.fromCharCodes(Der.time(DateTime.utc(2036, 1, 2, 3, 4, 5)).skip(2)),
-      '360102030405Z',
-    );
+    expect(String.fromCharCodes(Der.time(DateTime.utc(2036, 1, 2, 3, 4, 5)).skip(2)), '360102030405Z');
     expect(Der.time(DateTime.utc(2049, 12, 31))[0], Der.tagUtcTime);
     final late = Der.time(DateTime.utc(2050, 1, 1));
     expect(late[0], Der.tagGeneralizedTime);
@@ -72,10 +55,7 @@ void main() {
 
   test('unsigned bytes pad to a length and refuse to truncate', () {
     expect(Der.unsignedBytes(BigInt.from(0x0102), length: 4), [0, 0, 1, 2]);
-    expect(
-      () => Der.unsignedBytes(BigInt.from(0x010203), length: 2),
-      throwsArgumentError,
-    );
+    expect(() => Der.unsignedBytes(BigInt.from(0x010203), length: 2), throwsArgumentError);
   });
 
   test('sequences parse back into children', () {
@@ -93,14 +73,8 @@ void main() {
 
   test('malformed input is a FormatException', () {
     expect(() => DerElement.parse([0x30, 0x05, 0x02]), throwsFormatException);
-    expect(
-      () => DerElement.parse([0x02, 0x01, 0x01, 0x00]),
-      throwsFormatException,
-    );
-    expect(
-      () => DerElement.parse([0x02, 0x01, 0x80]).integer,
-      throwsFormatException,
-    );
+    expect(() => DerElement.parse([0x02, 0x01, 0x01, 0x00]), throwsFormatException);
+    expect(() => DerElement.parse([0x02, 0x01, 0x80]).integer, throwsFormatException);
     expect(() => DerElement.parse([0x04, 0x00]).integer, throwsFormatException);
   });
 }

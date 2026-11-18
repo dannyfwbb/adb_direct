@@ -20,26 +20,12 @@ final class AdbPublicKey {
   ///
   /// Throws [ArgumentError] unless the modulus is an odd 2048-bit number
   /// and the exponent is odd, at least 3 and fits in 32 bits.
-  AdbPublicKey({
-    required this.modulus,
-    required this.exponent,
-    this.comment = '',
-  }) {
+  AdbPublicKey({required this.modulus, required this.exponent, this.comment = ''}) {
     if (modulus.bitLength != _modulusBytes * 8 || modulus.isEven) {
-      throw ArgumentError.value(
-        modulus.bitLength,
-        'modulus',
-        'adb keys are 2048-bit RSA with an odd modulus',
-      );
+      throw ArgumentError.value(modulus.bitLength, 'modulus', 'adb keys are 2048-bit RSA with an odd modulus');
     }
-    if (exponent.isEven ||
-        exponent < BigInt.from(3) ||
-        exponent.bitLength > 32) {
-      throw ArgumentError.value(
-        exponent,
-        'exponent',
-        'must be odd, at least 3 and fit in 32 bits',
-      );
+    if (exponent.isEven || exponent < BigInt.from(3) || exponent.bitLength > 32) {
+      throw ArgumentError.value(exponent, 'exponent', 'must be odd, at least 3 and fit in 32 bits');
     }
   }
 
@@ -65,9 +51,7 @@ final class AdbPublicKey {
   /// malformed or inconsistent.
   factory AdbPublicKey.fromBytes(List<int> bytes, {String comment = ''}) {
     if (bytes.length != encodedLength) {
-      throw FormatException(
-        'adb public key has ${bytes.length} bytes; expected $encodedLength',
-      );
+      throw FormatException('adb public key has ${bytes.length} bytes; expected $encodedLength');
     }
     final data = ByteData.sublistView(Uint8List.fromList(bytes));
     if (data.getUint32(0, Endian.little) != _modulusWords) {
@@ -76,18 +60,12 @@ final class AdbPublicKey {
     final modulus = _littleEndian(bytes.sublist(8, 8 + _modulusBytes));
     final AdbPublicKey key;
     try {
-      key = AdbPublicKey(
-        modulus: modulus,
-        exponent: BigInt.from(data.getUint32(520, Endian.little)),
-        comment: comment,
-      );
+      key = AdbPublicKey(modulus: modulus, exponent: BigInt.from(data.getUint32(520, Endian.little)), comment: comment);
     } on ArgumentError catch (e) {
       throw FormatException('Invalid adb public key: ${e.message}');
     }
     if (!_sameBytes(key.toBytes(), bytes)) {
-      throw const FormatException(
-        'adb public key has inconsistent n0inv or rr fields',
-      );
+      throw const FormatException('adb public key has inconsistent n0inv or rr fields');
     }
     return key;
   }
@@ -133,25 +111,18 @@ final class AdbPublicKey {
 
   /// The fingerprint a device shows in "Allow debugging?": MD5 of the
   /// 524-byte structure, uppercase hex bytes separated by colons.
-  String get md5Fingerprint => hashes.md5
-      .convert(toBytes())
-      .bytes
-      .map((b) => b.toRadixString(16).padLeft(2, '0').toUpperCase())
-      .join(':');
+  String get md5Fingerprint =>
+      hashes.md5.convert(toBytes()).bytes.map((b) => b.toRadixString(16).padLeft(2, '0').toUpperCase()).join(':');
 
   /// Whether [other] is the same RSA key, whatever the comments say. A
   /// device identifies a client by this alone.
-  bool hasSameKey(AdbPublicKey other) =>
-      other.modulus == modulus && other.exponent == exponent;
+  bool hasSameKey(AdbPublicKey other) => other.modulus == modulus && other.exponent == exponent;
 
   /// Equal when the key and the comment are equal; see [hasSameKey] to
   /// compare keys only.
   @override
   bool operator ==(Object other) =>
-      other is AdbPublicKey &&
-      other.modulus == modulus &&
-      other.exponent == exponent &&
-      other.comment == comment;
+      other is AdbPublicKey && other.modulus == modulus && other.exponent == exponent && other.comment == comment;
 
   @override
   int get hashCode => Object.hash(modulus, exponent, comment);
@@ -166,8 +137,7 @@ final class AdbPublicKey {
     return Uint8List.fromList(bigEndian.reversed.toList());
   }
 
-  static BigInt _littleEndian(List<int> bytes) =>
-      Der.unsignedValue(bytes.reversed.toList());
+  static BigInt _littleEndian(List<int> bytes) => Der.unsignedValue(bytes.reversed.toList());
 
   static bool _sameBytes(List<int> a, List<int> b) {
     if (a.length != b.length) return false;

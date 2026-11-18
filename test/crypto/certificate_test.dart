@@ -9,9 +9,7 @@ import 'package:test/test.dart';
 import '../support/tools.dart';
 
 void main() {
-  final pair = AdbKeyPair.fromPem(
-    File('test/fixtures/keys/adbkey').readAsStringSync(),
-  );
+  final pair = AdbKeyPair.fromPem(File('test/fixtures/keys/adbkey').readAsStringSync());
   final now = DateTime.utc(2026, 11, 17, 12, 30, 45, 999);
   final identity = pair.tlsIdentity(now: now);
 
@@ -23,8 +21,7 @@ void main() {
 
   group('the TLS certificate', () {
     test('has the fields adb puts in its own', () async {
-      final file = File('${temp.path}/cert.pem')
-        ..writeAsStringSync(identity.certificatePem);
+      final file = File('${temp.path}/cert.pem')..writeAsStringSync(identity.certificatePem);
       final text = await openssl(['x509', '-in', file.path, '-noout', '-text']);
       expect(text, contains('Version: 3 (0x2)'));
       expect(text, contains('Serial Number: 1 (0x1)'));
@@ -42,8 +39,7 @@ void main() {
     }, skip: Tools.skipUnless(Tools.openssl, 'openssl'));
 
     test('its signature verifies (self-signed CA)', () async {
-      final file = File('${temp.path}/verify.pem')
-        ..writeAsStringSync(identity.certificatePem);
+      final file = File('${temp.path}/verify.pem')..writeAsStringSync(identity.certificatePem);
       final result = await openssl([
         'verify',
         '-attime',
@@ -56,18 +52,9 @@ void main() {
     }, skip: Tools.skipUnless(Tools.openssl, 'openssl'));
 
     test('its subject key identifier is the SHA-1 of the public key', () async {
-      final file = File('${temp.path}/ski.pem')
-        ..writeAsStringSync(identity.certificatePem);
-      final text = await openssl([
-        'x509',
-        '-in',
-        file.path,
-        '-noout',
-        '-ext',
-        'subjectKeyIdentifier',
-      ]);
-      final keyFile = File('${temp.path}/ski.key')
-        ..writeAsStringSync(identity.privateKeyPem);
+      final file = File('${temp.path}/ski.pem')..writeAsStringSync(identity.certificatePem);
+      final text = await openssl(['x509', '-in', file.path, '-noout', '-ext', 'subjectKeyIdentifier']);
+      final keyFile = File('${temp.path}/ski.key')..writeAsStringSync(identity.privateKeyPem);
       // openssl computes the "hash" method itself from the key.
       final reference = await openssl([
         'req',
@@ -87,38 +74,16 @@ void main() {
     }, skip: Tools.skipUnless(Tools.openssl, 'openssl'));
 
     test('the private key PEM is the key pair’s', () async {
-      final file = File('${temp.path}/key.pem')
-        ..writeAsStringSync(identity.privateKeyPem);
-      final modulus = await openssl([
-        'rsa',
-        '-in',
-        file.path,
-        '-noout',
-        '-modulus',
-      ]);
-      expect(
-        BigInt.parse(modulus.trim().split('=').last, radix: 16),
-        pair.publicKey.modulus,
-      );
+      final file = File('${temp.path}/key.pem')..writeAsStringSync(identity.privateKeyPem);
+      final modulus = await openssl(['rsa', '-in', file.path, '-noout', '-modulus']);
+      expect(BigInt.parse(modulus.trim().split('=').last, radix: 16), pair.publicKey.modulus);
     }, skip: Tools.skipUnless(Tools.openssl, 'openssl'));
   });
 
   test('spkiSha256 matches openssl over the DER public key', () async {
-    final file = File('${temp.path}/spki.pem')
-      ..writeAsStringSync(identity.privateKeyPem);
-    final der = await Tools.runBytes(Tools.openssl!, [
-      'pkey',
-      '-in',
-      file.path,
-      '-pubout',
-      '-outform',
-      'DER',
-    ]);
-    final digest = await Tools.run(Tools.openssl!, [
-      'dgst',
-      '-sha256',
-      '-hex',
-    ], stdin: der);
+    final file = File('${temp.path}/spki.pem')..writeAsStringSync(identity.privateKeyPem);
+    final der = await Tools.runBytes(Tools.openssl!, ['pkey', '-in', file.path, '-pubout', '-outform', 'DER']);
+    final digest = await Tools.run(Tools.openssl!, ['dgst', '-sha256', '-hex'], stdin: der);
     expect(digest.trim().split(' ').last.toUpperCase(), pair.spkiSha256);
   }, skip: Tools.skipUnless(Tools.openssl, 'openssl'));
 }

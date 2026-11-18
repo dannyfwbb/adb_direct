@@ -8,15 +8,11 @@ import 'dart:io';
 import 'package:adb_direct/adb_direct.dart';
 import 'package:test/test.dart';
 
-String frame(String text) =>
-    '${utf8.encode(text).length.toRadixString(16).padLeft(4, '0')}$text';
+String frame(String text) => '${utf8.encode(text).length.toRadixString(16).padLeft(4, '0')}$text';
 
 /// A fake adb server: [answer] gets each request (in order on one socket)
 /// and returns what to send back, or null to hand the socket to [raw].
-Future<ServerSocket> fakeServer(
-  String? Function(String request) answer, {
-  void Function(Socket socket)? raw,
-}) async {
+Future<ServerSocket> fakeServer(String? Function(String request) answer, {void Function(Socket socket)? raw}) async {
   final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
   server.listen((socket) {
     final buffer = <int>[];
@@ -70,11 +66,7 @@ void main() {
     await expectLater(
       client.disconnect('x'),
       throwsA(
-        isA<AdbServiceUnavailableException>().having(
-          (e) => e.message,
-          'message',
-          contains('unknown host service'),
-        ),
+        isA<AdbServiceUnavailableException>().having((e) => e.message, 'message', contains('unknown host service')),
       ),
     );
     await server.close();
@@ -88,10 +80,7 @@ void main() {
     );
     final client = AdbServer(port: server.port);
     expect(await client.connect('192.168.0.20'), contains('connected'));
-    await expectLater(
-      client.connect('192.168.0.21'),
-      throwsA(isA<AdbUnreachableException>()),
-    );
+    await expectLater(client.connect('192.168.0.21'), throwsA(isA<AdbUnreachableException>()));
     await server.close();
   });
 
@@ -124,18 +113,9 @@ void main() {
     expect(adb.device.model, 'X');
     expect(adb.supports(AdbFeature.shellV2), isTrue);
     final stream = await adb.open('exec:echo');
-    expect(
-      utf8.decode(await stream.input.expand((b) => b).toList()),
-      'hello from the device',
-    );
-    expect(
-      requests,
-      containsAllInOrder(['host:transport:emulator-5554', 'exec:echo']),
-    );
-    await expectLater(
-      adb.open('jdwp:1'),
-      throwsA(isA<AdbServiceUnavailableException>()),
-    );
+    expect(utf8.decode(await stream.input.expand((b) => b).toList()), 'hello from the device');
+    expect(requests, containsAllInOrder(['host:transport:emulator-5554', 'exec:echo']));
+    await expectLater(adb.open('jdwp:1'), throwsA(isA<AdbServiceUnavailableException>()));
     await adb.close();
     expect(adb.isClosed, isTrue);
     await server.close();
@@ -145,62 +125,50 @@ void main() {
     final probe = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
     final port = probe.port;
     await probe.close();
-    await expectLater(
-      AdbServer(port: port).version(),
-      throwsA(isA<AdbRefusedException>()),
-    );
+    await expectLater(AdbServer(port: port).version(), throwsA(isA<AdbRefusedException>()));
   });
 
-  test(
-    'tracking stays open while nothing changes (past the timeout)',
-    () async {
-      final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
-      server.listen((socket) async {
-        socket.write('OKAY${frame('a device\n')}');
-        await Future<void>.delayed(const Duration(milliseconds: 600));
-        socket.write(frame('b device\n'));
-      });
-      final lists = await AdbServer(
-        port: server.port,
-        timeout: const Duration(milliseconds: 200),
-      ).trackDevices().take(2).toList();
-      expect(lists.map((l) => l.single.serial), ['a', 'b']);
-      await server.close();
-    },
-  );
+  test('tracking stays open while nothing changes (past the timeout)', () async {
+    final server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+    server.listen((socket) async {
+      socket.write('OKAY${frame('a device\n')}');
+      await Future<void>.delayed(const Duration(milliseconds: 600));
+      socket.write(frame('b device\n'));
+    });
+    final lists = await AdbServer(
+      port: server.port,
+      timeout: const Duration(milliseconds: 200),
+    ).trackDevices().take(2).toList();
+    expect(lists.map((l) => l.single.serial), ['a', 'b']);
+    await server.close();
+  });
 
-  test(
-    'a device that leaves ends its connection; unauthorized is said',
-    () async {
-      Socket? tracker;
-      final server = await fakeServer(
-        (r) {
-          if (r == 'host:devices-l') {
-            return 'OKAY${frame('s1 device model:X\ns2 unauthorized\n')}';
-          }
-          if (r == 'host-serial:s1:features') return 'OKAY${frame('shell_v2')}';
-          if (r == 'host:track-devices-l') return null;
-          return 'FAIL${frame('device unauthorized')}';
-        },
-        raw: (socket) {
-          tracker = socket;
-          socket.write('OKAY${frame('s1 device\n')}');
-        },
-      );
-      final client = AdbServer(port: server.port);
-      await expectLater(
-        client.device('s2'),
-        throwsA(isA<AdbUnauthorizedException>()),
-      );
-      final adb = await client.device('s1');
-      await Future<void>.delayed(const Duration(milliseconds: 50));
-      expect(adb.isClosed, isFalse);
-      tracker!.write(frame('s1 offline\n'));
-      await adb.done.timeout(const Duration(seconds: 2));
-      expect(adb.closeReason, isA<AdbClosedException>());
-      await server.close();
-    },
-  );
+  test('a device that leaves ends its connection; unauthorized is said', () async {
+    Socket? tracker;
+    final server = await fakeServer(
+      (r) {
+        if (r == 'host:devices-l') {
+          return 'OKAY${frame('s1 device model:X\ns2 unauthorized\n')}';
+        }
+        if (r == 'host-serial:s1:features') return 'OKAY${frame('shell_v2')}';
+        if (r == 'host:track-devices-l') return null;
+        return 'FAIL${frame('device unauthorized')}';
+      },
+      raw: (socket) {
+        tracker = socket;
+        socket.write('OKAY${frame('s1 device\n')}');
+      },
+    );
+    final client = AdbServer(port: server.port);
+    await expectLater(client.device('s2'), throwsA(isA<AdbUnauthorizedException>()));
+    final adb = await client.device('s1');
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(adb.isClosed, isFalse);
+    tracker!.write(frame('s1 offline\n'));
+    await adb.done.timeout(const Duration(seconds: 2));
+    expect(adb.closeReason, isA<AdbClosedException>());
+    await server.close();
+  });
 
   test('device lines: "no permissions" and properties', () {
     final d = AdbServerDevice.parse(

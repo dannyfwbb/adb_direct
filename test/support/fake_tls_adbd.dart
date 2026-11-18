@@ -42,9 +42,7 @@ final class FakeTlsAdbd {
       ..useCertificateChainBytes(utf8.encode(identity.certificatePem))
       ..usePrivateKeyBytes(utf8.encode(identity.privateKeyPem));
     if (trusted.isNotEmpty) {
-      context.setTrustedCertificatesBytes(
-        utf8.encode(trusted.map((k) => k.tls.certificatePem).join()),
-      );
+      context.setTrustedCertificatesBytes(utf8.encode(trusted.map((k) => k.tls.certificatePem).join()));
     }
     final server = await RawServerSocket.bind(InternetAddress.loopbackIPv4, 0);
     final adbd = FakeTlsAdbd._(server, context, identity.certificateDer, banner)
@@ -121,15 +119,7 @@ final class FakeTlsAdbd {
         return;
       }
       accepted++;
-      _write(
-        tls,
-        AdbMessage(
-          AdbCommand.connect,
-          AdbProtocol.version,
-          AdbProtocol.maxPayload,
-          utf8.encode(banner),
-        ),
-      );
+      _write(tls, AdbMessage(AdbCommand.connect, AdbProtocol.version, AdbProtocol.maxPayload, utf8.encode(banner)));
       _echo(tls);
     } on Object {
       await raw.close().catchError((Object _) => raw);
@@ -157,34 +147,17 @@ final class FakeTlsAdbd {
               continue;
             }
             _write(tls, AdbMessage.okay(localId: id, remoteId: m.arg0));
-            _write(
-              tls,
-              AdbMessage.write(
-                localId: id,
-                remoteId: m.arg0,
-                data: utf8.encode(service.substring(5)),
-              ),
-            );
+            _write(tls, AdbMessage.write(localId: id, remoteId: m.arg0, data: utf8.encode(service.substring(5))));
             pending[id] = m.arg0;
           case AdbCommand.okay when pending.containsKey(m.arg1):
-            _write(
-              tls,
-              AdbMessage.close(
-                localId: m.arg1,
-                remoteId: pending.remove(m.arg1)!,
-              ),
-            );
+            _write(tls, AdbMessage.close(localId: m.arg1, remoteId: pending.remove(m.arg1)!));
           default:
         }
       }
     });
   }
 
-  static void _write(
-    RawSocket socket,
-    AdbMessage m, {
-    bool withChecksum = false,
-  }) {
+  static void _write(RawSocket socket, AdbMessage m, {bool withChecksum = false}) {
     final bytes = AdbMessageCodec.encode(m, withChecksum: withChecksum);
     var offset = 0;
     while (offset < bytes.length) {

@@ -47,11 +47,7 @@ final class FakePairingServer {
     final context = SecurityContext(withTrustedRoots: false)
       ..useCertificateChainBytes(utf8.encode(identity.certificatePem))
       ..usePrivateKeyBytes(utf8.encode(identity.privateKeyPem));
-    final server = await SecureServerSocket.bind(
-      InternetAddress.loopbackIPv4,
-      0,
-      context,
-    );
+    final server = await SecureServerSocket.bind(InternetAddress.loopbackIPv4, 0, context);
     final fake = FakePairingServer._(server, code, guid, mode);
     server.listen(fake._serve, onError: (Object _) {});
     return fake;
@@ -90,21 +86,14 @@ final class FakePairingServer {
         await Future<void>.delayed(const Duration(seconds: 30));
         return;
       }
-      final exported = TlsExporter.fromKeyLog(
-        keyLog,
-      ).export(pairingExporterLabel, pairingExporterLength);
+      final exported = TlsExporter.fromKeyLog(keyLog).export(pairingExporterLabel, pairingExporterLength);
       if (mode == PairingServerMode.badPoint) {
         await reader.next();
-        socket.add(
-          pairingPacket(PairingPacket.spake2Message, Uint8List(32)..[0] = 2),
-        );
+        socket.add(pairingPacket(PairingPacket.spake2Message, Uint8List(32)..[0] = 2));
         await reader.next().catchError((Object _) => (0, Uint8List(0)));
         return;
       }
-      final info = await _exchange(socket, reader, [
-        ...utf8.encode(code),
-        ...exported,
-      ]);
+      final info = await _exchange(socket, reader, [...utf8.encode(code), ...exported]);
       final (type, key) = PeerInfo.parse(info);
       if (type == PeerInfo.rsaPublicKey) pairedKeys.add(key);
     } on Object catch (e) {
@@ -115,11 +104,7 @@ final class FakePairingServer {
     }
   }
 
-  Future<Uint8List> _exchange(
-    SecureSocket socket,
-    PairingReader reader,
-    List<int> password,
-  ) async {
+  Future<Uint8List> _exchange(SecureSocket socket, PairingReader reader, List<int> password) async {
     if (mode != PairingServerMode.closeOnWrongCode) {
       return runPairingExchange(
         role: Spake2Role.bob,
@@ -131,27 +116,15 @@ final class FakePairingServer {
     }
     // adbd's order on a wrong code: read the client's info first, fail to
     // decrypt it, close without answering.
-    final spake = Spake2(
-      Spake2Role.bob,
-      myName: pairingServerName,
-      theirName: pairingClientName,
-    );
-    socket.add(
-      pairingPacket(
-        PairingPacket.spake2Message,
-        spake.generateMessage(password),
-      ),
-    );
+    final spake = Spake2(Spake2Role.bob, myName: pairingServerName, theirName: pairingClientName);
+    socket.add(pairingPacket(PairingPacket.spake2Message, spake.generateMessage(password)));
     final (_, theirMessage) = await reader.next();
     final cipher = PairingCipher(spake.processMessage(theirMessage));
     final (_, sealed) = await reader.next();
     final info = cipher.decrypt(sealed);
     if (info == null) throw StateError('wrong code');
     socket.add(
-      pairingPacket(
-        PairingPacket.peerInfo,
-        cipher.encrypt(PeerInfo.build(PeerInfo.deviceGuid, utf8.encode(guid))),
-      ),
+      pairingPacket(PairingPacket.peerInfo, cipher.encrypt(PeerInfo.build(PeerInfo.deviceGuid, utf8.encode(guid)))),
     );
     return info;
   }

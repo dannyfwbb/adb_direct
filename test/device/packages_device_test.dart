@@ -10,9 +10,7 @@ import 'package:adb_direct/adb_direct.dart';
 import 'package:test/test.dart';
 
 final String? host = Platform.environment['ADB_DIRECT_TEST_HOST'];
-final int port = int.parse(
-  Platform.environment['ADB_DIRECT_TEST_PORT'] ?? '5555',
-);
+final int port = int.parse(Platform.environment['ADB_DIRECT_TEST_PORT'] ?? '5555');
 final String? keyPath = Platform.environment['ADB_DIRECT_TEST_KEY'];
 final String? skip = host == null || keyPath == null
     ? 'ADB_DIRECT_TEST_HOST and ADB_DIRECT_TEST_KEY are not set '
@@ -33,30 +31,18 @@ void main() {
   /// says so.
   Future<bool> hasSessions() async {
     if (sdk >= 21) return true;
-    await expectLater(
-      adb().packages.installMultiple([apk('app-v2')]),
-      throwsA(isA<AdbNotSupportedException>()),
-    );
+    await expectLater(adb().packages.installMultiple([apk('app-v2')]), throwsA(isA<AdbNotSupportedException>()));
     markTestSkipped('no install sessions before API 21 (checked: refused)');
     return false;
   }
 
-  Future<String> installedVersion() async => (await adb().shell.run(
-    'dumpsys package $package | grep versionCode',
-  )).stdoutText;
+  Future<String> installedVersion() async =>
+      (await adb().shell.run('dumpsys package $package | grep versionCode')).stdoutText;
 
   setUpAll(() async {
     if (skip != null) return;
-    connection = await AdbConnection.connect(
-      host!,
-      port,
-      key: AdbKeyPair.fromPem(File(keyPath!).readAsStringSync()),
-    );
-    sdk = int.parse(
-      (await connection!.shell.run(
-        'getprop ro.build.version.sdk',
-      )).stdoutText.trim(),
-    );
+    connection = await AdbConnection.connect(host!, port, key: AdbKeyPair.fromPem(File(keyPath!).readAsStringSync()));
+    sdk = int.parse((await connection!.shell.run('getprop ro.build.version.sdk')).stdoutText.trim());
   });
   tearDown(() async {
     await connection?.shell.run('pm uninstall $package');
@@ -65,10 +51,7 @@ void main() {
 
   test('install, reinstall, downgrade refused then allowed', () async {
     final progress = <int>[];
-    await adb().packages.install(
-      apk('app-v2'),
-      onProgress: (done, _) => progress.add(done),
-    );
+    await adb().packages.install(apk('app-v2'), onProgress: (done, _) => progress.add(done));
     expect(await installedVersion(), contains('versionCode=2'));
     final size = File('test/fixtures/apks/app-v2.apk').lengthSync();
     expect(progress.last, size);
@@ -77,17 +60,10 @@ void main() {
     await expectLater(
       adb().packages.install(apk('app-v1')),
       throwsA(
-        isA<AdbInstallException>().having(
-          (e) => e.failureCode,
-          'failureCode',
-          'INSTALL_FAILED_VERSION_DOWNGRADE',
-        ),
+        isA<AdbInstallException>().having((e) => e.failureCode, 'failureCode', 'INSTALL_FAILED_VERSION_DOWNGRADE'),
       ),
     );
-    await adb().packages.install(
-      apk('app-v1'),
-      options: const AdbInstallOptions(allowDowngrade: true),
-    );
+    await adb().packages.install(apk('app-v1'), options: const AdbInstallOptions(allowDowngrade: true));
     expect(await installedVersion(), contains('versionCode=1'));
   }, skip: skip);
 
@@ -99,25 +75,15 @@ void main() {
     expect(paths, contains('split_extra.apk'));
   }, skip: skip);
 
-  test(
-    'a split without its base is refused ("Full install must include a base package")',
-    () async {
-      if (!await hasSessions()) return;
-      // That the session is then abandoned is checked by the unit tests: this
-      // device offers the shell user no way to list install sessions.
-      await expectLater(
-        adb().packages.installMultiple([apk('app-v2-extra')]),
-        throwsA(
-          isA<AdbInstallException>().having(
-            (e) => e.failureCode,
-            'failureCode',
-            'INSTALL_FAILED_INVALID_APK',
-          ),
-        ),
-      );
-    },
-    skip: skip,
-  );
+  test('a split without its base is refused ("Full install must include a base package")', () async {
+    if (!await hasSessions()) return;
+    // That the session is then abandoned is checked by the unit tests: this
+    // device offers the shell user no way to list install sessions.
+    await expectLater(
+      adb().packages.installMultiple([apk('app-v2-extra')]),
+      throwsA(isA<AdbInstallException>().having((e) => e.failureCode, 'failureCode', 'INSTALL_FAILED_INVALID_APK')),
+    );
+  }, skip: skip);
 
   test('a file that is not an APK', () async {
     await expectLater(
@@ -126,10 +92,7 @@ void main() {
         isA<AdbInstallException>().having(
           (e) => e.failureCode,
           'failureCode',
-          anyOf(
-            startsWith('INSTALL_PARSE_FAILED_'),
-            'INSTALL_FAILED_INVALID_APK',
-          ),
+          anyOf(startsWith('INSTALL_PARSE_FAILED_'), 'INSTALL_FAILED_INVALID_APK'),
         ),
       ),
     );

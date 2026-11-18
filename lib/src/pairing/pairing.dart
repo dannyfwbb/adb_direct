@@ -119,10 +119,7 @@ abstract final class AdbPairing {
         throw TcpTransport.mapConnectError(e, '$host:$port');
       } on HandshakeException catch (e) {
         if (cancelled) throw interrupted();
-        throw AdbPairingException(
-          'The TLS handshake on the pairing port failed',
-          cause: e,
-        );
+        throw AdbPairingException('The TLS handshake on the pairing port failed', cause: e);
       }
       if (cancelled) throw interrupted();
 
@@ -133,10 +130,7 @@ abstract final class AdbPairing {
       try {
         exported = await _exporter(lines);
       } on FormatException catch (e) {
-        throw AdbNotSupportedException(
-          'This platform does not expose the TLS secrets pairing needs',
-          cause: e,
-        );
+        throw AdbNotSupportedException('This platform does not expose the TLS secrets pairing needs', cause: e);
       }
       final reader = PairingReader(open);
       try {
@@ -151,10 +145,7 @@ abstract final class AdbPairing {
         if (type != PeerInfo.deviceGuid) {
           throw AdbPairingException('The device sent peer info of type $type');
         }
-        return AdbPairedDevice(
-          guid: guid,
-          certificate: open.peerCertificate?.der ?? Uint8List(0),
-        );
+        return AdbPairedDevice(guid: guid, certificate: open.peerCertificate?.der ?? Uint8List(0));
       } on AdbException {
         if (cancelled) throw interrupted();
         rethrow;
@@ -173,9 +164,7 @@ abstract final class AdbPairing {
   static Future<Uint8List> _exporter(List<String> lines) async {
     for (var attempt = 0; ; attempt++) {
       try {
-        return TlsExporter.fromKeyLog(
-          lines,
-        ).export(pairingExporterLabel, pairingExporterLength);
+        return TlsExporter.fromKeyLog(lines).export(pairingExporterLabel, pairingExporterLength);
       } on FormatException {
         if (attempt >= 2) rethrow;
         await Future<void>.delayed(Duration.zero);

@@ -10,15 +10,8 @@ import '../support/hex.dart';
 void main() {
   // RFC 5869 appendix A, test cases 1-3 (SHA-256).
   test('RFC 5869 A.1 basic', () {
-    final prk = Hkdf.extract(
-      sha256,
-      unhex('0b' * 22),
-      salt: unhex('000102030405060708090a0b0c'),
-    );
-    expect(
-      hex(prk),
-      '077709362c2e32df0ddc3f0dc47bba6390b6c73bb50f9c3122ec844ad7c2b3e5',
-    );
+    final prk = Hkdf.extract(sha256, unhex('0b' * 22), salt: unhex('000102030405060708090a0b0c'));
+    expect(hex(prk), '077709362c2e32df0ddc3f0dc47bba6390b6c73bb50f9c3122ec844ad7c2b3e5');
     expect(
       hex(Hkdf.expand(sha256, prk, unhex('f0f1f2f3f4f5f6f7f8f9'), 42)),
       '3cb25f25faacd57a90434f64d0362f2a2d2d0a90cf1a5a4c5db02d56ecc4c5bf'
@@ -29,18 +22,9 @@ void main() {
   test('RFC 5869 A.2 longer inputs and outputs', () {
     final okm = Hkdf.derive(
       sha256,
-      unhex(
-        [for (var i = 0x00; i <= 0x4f; i++) i.toRadixString(16).padLeft(2, '0')]
-            .join(),
-      ),
-      salt: unhex(
-        [for (var i = 0x60; i <= 0xaf; i++) i.toRadixString(16).padLeft(2, '0')]
-            .join(),
-      ),
-      info: unhex(
-        [for (var i = 0xb0; i <= 0xff; i++) i.toRadixString(16).padLeft(2, '0')]
-            .join(),
-      ),
+      unhex([for (var i = 0x00; i <= 0x4f; i++) i.toRadixString(16).padLeft(2, '0')].join()),
+      salt: unhex([for (var i = 0x60; i <= 0xaf; i++) i.toRadixString(16).padLeft(2, '0')].join()),
+      info: unhex([for (var i = 0xb0; i <= 0xff; i++) i.toRadixString(16).padLeft(2, '0')].join()),
       length: 82,
     );
     expect(
@@ -52,12 +36,7 @@ void main() {
   });
 
   test('RFC 5869 A.3 empty salt and info', () {
-    final okm = Hkdf.derive(
-      sha256,
-      unhex('0b' * 22),
-      info: const [],
-      length: 42,
-    );
+    final okm = Hkdf.derive(sha256, unhex('0b' * 22), info: const [], length: 42);
     expect(
       hex(okm),
       '8da4e775a563c18f715f802a063c5a31b8a11f5c5ee1879ec3454e5f3c738d2d'
@@ -66,9 +45,6 @@ void main() {
   });
 
   test('refuses lengths above 255 blocks', () {
-    expect(
-      () => Hkdf.expand(sha256, List.filled(32, 1), const [], 255 * 32 + 1),
-      throwsRangeError,
-    );
+    expect(() => Hkdf.expand(sha256, List.filled(32, 1), const [], 255 * 32 + 1), throwsRangeError);
   });
 }

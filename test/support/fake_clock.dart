@@ -23,12 +23,7 @@ final class FakeClock implements AdbClock {
 
   @override
   Timer timer(Duration duration, void Function() callback) {
-    final timer = _FakeTimer(
-      this,
-      _elapsed + (duration.isNegative ? Duration.zero : duration),
-      _sequence++,
-      callback,
-    );
+    final timer = _FakeTimer(this, _elapsed + (duration.isNegative ? Duration.zero : duration), _sequence++, callback);
     _timers.add(timer);
     return timer;
   }

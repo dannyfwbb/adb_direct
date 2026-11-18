@@ -84,20 +84,14 @@ abstract final class AdbProbe {
       );
       final AdbMessage answer;
       try {
-        answer = await link.next(
-          timeout: timeout,
-          onTimeout: () => const AdbTimeoutException('No answer'),
-        );
+        answer = await link.next(timeout: timeout, onTimeout: () => const AdbTimeoutException('No answer'));
       } on AdbException {
         // Silence, a close, or bytes that are not ADB messages.
         return const AdbEndpoint(AdbEndpointKind.notAdb);
       }
       return switch (answer.command) {
         AdbCommand.auth => const AdbEndpoint(AdbEndpointKind.adbAuthentication),
-        AdbCommand.connect => AdbEndpoint(
-          AdbEndpointKind.adbOpen,
-          banner: AdbBanner.parse(answer.payload),
-        ),
+        AdbCommand.connect => AdbEndpoint(AdbEndpointKind.adbOpen, banner: AdbBanner.parse(answer.payload)),
         AdbCommand.stls => const AdbEndpoint(AdbEndpointKind.adbTls),
         _ => const AdbEndpoint(AdbEndpointKind.notAdb),
       };
@@ -128,10 +122,7 @@ abstract final class AdbProbe {
       await Handshake(
         link,
         keys: [key],
-        options: AdbConnectOptions(
-          handshakeTimeout: timeout,
-          allowPrompt: false,
-        ),
+        options: AdbConnectOptions(handshakeTimeout: timeout, allowPrompt: false),
       ).run();
       return true;
     } on AdbUnauthorizedException {
@@ -168,10 +159,7 @@ abstract final class AdbProbe {
 
     var exhausted = false;
     void next() {
-      while (!cancelled &&
-          !controller.isPaused &&
-          !exhausted &&
-          running < concurrency) {
+      while (!cancelled && !controller.isPaused && !exhausted && running < concurrency) {
         try {
           if (!pending.moveNext()) {
             exhausted = true;
@@ -185,28 +173,26 @@ abstract final class AdbProbe {
         }
         final (host, port) = pending.current;
         running++;
-        identify(host, port, timeout: timeout, clock: clock)
-            .then<AdbEndpoint?>((e) => e, onError: (Object _) => null)
-            .then((endpoint) {
-              running--;
-              if (cancelled) return;
-              if (endpoint != null && endpoint.isAdb) {
-                controller.add(AdbScanResult(host, port, endpoint));
-              }
-              next();
-            })
-            .ignore();
+        identify(
+          host,
+          port,
+          timeout: timeout,
+          clock: clock,
+        ).then<AdbEndpoint?>((e) => e, onError: (Object _) => null).then((endpoint) {
+          running--;
+          if (cancelled) return;
+          if (endpoint != null && endpoint.isAdb) {
+            controller.add(AdbScanResult(host, port, endpoint));
+          }
+          next();
+        }).ignore();
       }
       if (exhausted && running == 0 && !cancelled && !controller.isClosed) {
         unawaited(controller.close());
       }
     }
 
-    controller = StreamController<AdbScanResult>(
-      onListen: next,
-      onResume: next,
-      onCancel: () => cancelled = true,
-    );
+    controller = StreamController<AdbScanResult>(onListen: next, onResume: next, onCancel: () => cancelled = true);
     return controller.stream;
   }
 }

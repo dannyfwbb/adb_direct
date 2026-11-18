@@ -27,13 +27,7 @@ Future<(AdbConnection, FakeAdbd)> connectTo(
     await acceptHandshake(session, banner: banner ?? classicBanner);
     await script(session);
   });
-  final adb = await AdbConnection.connect(
-    adbd.address,
-    adbd.port,
-    key: testKey,
-    clock: clock,
-    options: options,
-  );
+  final adb = await AdbConnection.connect(adbd.address, adbd.port, key: testKey, clock: clock, options: options);
   return (adb, adbd);
 }
 
@@ -50,9 +44,7 @@ void main() {
       final (adb, adbd) = await connectTo((session) async {
         await session.expect(open(1, 'shell:id'));
         session.send(AdbMessage.okay(localId: 77, remoteId: 1));
-        await session.expect(
-          AdbMessage.write(localId: 1, remoteId: 77, data: [1]),
-        );
+        await session.expect(AdbMessage.write(localId: 1, remoteId: 77, data: [1]));
         session.send(AdbMessage.close(localId: 77, remoteId: 1));
         await session.expectQuiet(const Duration(milliseconds: 100));
       });
@@ -72,40 +64,28 @@ void main() {
       });
       await expectLater(
         adb.open('nosuchservice:'),
-        throwsA(
-          isA<AdbServiceUnavailableException>().having(
-            (e) => e.service,
-            'service',
-            'nosuchservice:',
-          ),
-        ),
+        throwsA(isA<AdbServiceUnavailableException>().having((e) => e.service, 'service', 'nosuchservice:')),
       );
       expect(adb.isClosed, isFalse);
       await adb.close();
       await adbd.done();
     });
 
-    test(
-      'a stream closed while opening is closed when the device answers',
-      () async {
-        final (adb, adbd) = await connectTo((session) async {
-          await session.expect(open(1, 'shell:'));
-          await Future<void>.delayed(const Duration(milliseconds: 50));
-          session.send(AdbMessage.okay(localId: 5, remoteId: 1));
-          await session.expect(AdbMessage.close(localId: 1, remoteId: 5));
-        });
-        final stream = adb.openStream('shell:');
-        final opened = expectLater(
-          stream.opened,
-          throwsA(isA<AdbCancelledException>()),
-        );
-        await stream.close();
-        await opened;
-        expect(stream.closeReason, isNull);
-        await adbd.done();
-        await adb.close();
-      },
-    );
+    test('a stream closed while opening is closed when the device answers', () async {
+      final (adb, adbd) = await connectTo((session) async {
+        await session.expect(open(1, 'shell:'));
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        session.send(AdbMessage.okay(localId: 5, remoteId: 1));
+        await session.expect(AdbMessage.close(localId: 1, remoteId: 5));
+      });
+      final stream = adb.openStream('shell:');
+      final opened = expectLater(stream.opened, throwsA(isA<AdbCancelledException>()));
+      await stream.close();
+      await opened;
+      expect(stream.closeReason, isNull);
+      await adbd.done();
+      await adb.close();
+    });
 
     test('ids are allocated in order, starting at 1', () async {
       final (adb, adbd) = await connectTo((session) async {
@@ -129,15 +109,11 @@ void main() {
       final (adb, adbd) = await connectTo((session) async {
         await session.expect(open(1, 'exec:cat'));
         session.send(AdbMessage.okay(localId: 9, remoteId: 1));
-        await session.expect(
-          AdbMessage.write(localId: 1, remoteId: 9, data: [1]),
-        );
+        await session.expect(AdbMessage.write(localId: 1, remoteId: 9, data: [1]));
         firstSeen.complete();
         await session.expectQuiet(const Duration(milliseconds: 150));
         session.send(AdbMessage.okay(localId: 9, remoteId: 1));
-        await session.expect(
-          AdbMessage.write(localId: 1, remoteId: 9, data: [2]),
-        );
+        await session.expect(AdbMessage.write(localId: 1, remoteId: 9, data: [2]));
         session.send(AdbMessage.okay(localId: 9, remoteId: 1));
       });
       final stream = await adb.open('exec:cat');
@@ -168,41 +144,35 @@ void main() {
       await adb.close();
     });
 
-    test(
-      'a paused listener holds the acknowledgement until it resumes',
-      () async {
-        final (adb, adbd) = await connectTo((session) async {
-          await session.expect(open(1, 'shell:x'));
-          session
-            ..send(AdbMessage.okay(localId: 9, remoteId: 1))
-            ..send(AdbMessage.write(localId: 9, remoteId: 1, data: [1]));
-          await session.expect(AdbMessage.okay(localId: 1, remoteId: 9));
-          session.send(AdbMessage.write(localId: 9, remoteId: 1, data: [2]));
-          await session.expectQuiet(const Duration(milliseconds: 150));
-          await session.expect(AdbMessage.okay(localId: 1, remoteId: 9));
-          session.send(AdbMessage.close(localId: 9, remoteId: 1));
-        });
-        final stream = await adb.open('shell:x');
-        final got = <int>[];
-        late StreamSubscription<Uint8List> subscription;
-        subscription = stream.input.listen((data) {
-          got.addAll(data);
-          if (data.first == 1) {
-            subscription.pause();
-            Future<void>.delayed(
-              const Duration(milliseconds: 250),
-              subscription.resume,
-            );
-          }
-        });
-        await stream.done;
-        await subscription.asFuture<void>();
-        await subscription.cancel();
-        expect(got, [1, 2]);
-        await adbd.done();
-        await adb.close();
-      },
-    );
+    test('a paused listener holds the acknowledgement until it resumes', () async {
+      final (adb, adbd) = await connectTo((session) async {
+        await session.expect(open(1, 'shell:x'));
+        session
+          ..send(AdbMessage.okay(localId: 9, remoteId: 1))
+          ..send(AdbMessage.write(localId: 9, remoteId: 1, data: [1]));
+        await session.expect(AdbMessage.okay(localId: 1, remoteId: 9));
+        session.send(AdbMessage.write(localId: 9, remoteId: 1, data: [2]));
+        await session.expectQuiet(const Duration(milliseconds: 150));
+        await session.expect(AdbMessage.okay(localId: 1, remoteId: 9));
+        session.send(AdbMessage.close(localId: 9, remoteId: 1));
+      });
+      final stream = await adb.open('shell:x');
+      final got = <int>[];
+      late StreamSubscription<Uint8List> subscription;
+      subscription = stream.input.listen((data) {
+        got.addAll(data);
+        if (data.first == 1) {
+          subscription.pause();
+          Future<void>.delayed(const Duration(milliseconds: 250), subscription.resume);
+        }
+      });
+      await stream.done;
+      await subscription.asFuture<void>();
+      await subscription.cancel();
+      expect(got, [1, 2]);
+      await adbd.done();
+      await adb.close();
+    });
   });
 
   group('delayed acknowledgements', () {
@@ -213,23 +183,15 @@ void main() {
         await session.expect(open(1, 'exec:cat', window: window));
         session.send(AdbMessage.okay(localId: 9, remoteId: 1, acknowledged: 6));
         // Budget 6: two writes of 3 go out without waiting.
-        await session.expect(
-          AdbMessage.write(localId: 1, remoteId: 9, data: [1, 1, 1]),
-        );
-        await session.expect(
-          AdbMessage.write(localId: 1, remoteId: 9, data: [2, 2, 2]),
-        );
+        await session.expect(AdbMessage.write(localId: 1, remoteId: 9, data: [1, 1, 1]));
+        await session.expect(AdbMessage.write(localId: 1, remoteId: 9, data: [2, 2, 2]));
         await session.expectQuiet(const Duration(milliseconds: 150));
         session.send(AdbMessage.okay(localId: 9, remoteId: 1, acknowledged: 3));
-        await session.expect(
-          AdbMessage.write(localId: 1, remoteId: 9, data: [3, 3, 3]),
-        );
+        await session.expect(AdbMessage.write(localId: 1, remoteId: 9, data: [3, 3, 3]));
         session
           ..send(AdbMessage.okay(localId: 9, remoteId: 1, acknowledged: 6))
           ..send(AdbMessage.write(localId: 9, remoteId: 1, data: [5, 5]));
-        await session.expect(
-          AdbMessage.okay(localId: 1, remoteId: 9, acknowledged: 2),
-        );
+        await session.expect(AdbMessage.okay(localId: 1, remoteId: 9, acknowledged: 2));
         session.send(AdbMessage.close(localId: 9, remoteId: 1));
       });
       expect(adb.delayedAck, isTrue);
@@ -282,30 +244,25 @@ void main() {
       await adb.close();
     });
 
-    test(
-      'a message from another device stream id does not reach the stream',
-      () async {
-        final (adb, adbd) = await connectTo((session) async {
-          await session.expect(open(1, 'shell:x'));
-          session
-            ..send(AdbMessage.okay(localId: 9, remoteId: 1))
-            ..send(AdbMessage.write(localId: 8, remoteId: 1, data: [9]))
-            ..send(AdbMessage.close(localId: 8, remoteId: 1));
-          await session.expectQuiet(const Duration(milliseconds: 150));
-          session.send(AdbMessage.close(localId: 9, remoteId: 1));
-        });
-        final stream = await adb.open('shell:x');
-        expect(await stream.input.toList(), isEmpty);
-        await adbd.done();
-        await adb.close();
-      },
-    );
+    test('a message from another device stream id does not reach the stream', () async {
+      final (adb, adbd) = await connectTo((session) async {
+        await session.expect(open(1, 'shell:x'));
+        session
+          ..send(AdbMessage.okay(localId: 9, remoteId: 1))
+          ..send(AdbMessage.write(localId: 8, remoteId: 1, data: [9]))
+          ..send(AdbMessage.close(localId: 8, remoteId: 1));
+        await session.expectQuiet(const Duration(milliseconds: 150));
+        session.send(AdbMessage.close(localId: 9, remoteId: 1));
+      });
+      final stream = await adb.open('shell:x');
+      expect(await stream.input.toList(), isEmpty);
+      await adbd.done();
+      await adb.close();
+    });
 
     test('a device OPEN is refused', () async {
       final (adb, adbd) = await connectTo((session) async {
-        session.send(
-          AdbMessage(AdbCommand.open, 33, 0, utf8.encode('tcp:19000\u0000')),
-        );
+        session.send(AdbMessage(AdbCommand.open, 33, 0, utf8.encode('tcp:19000\u0000')));
         await session.expect(AdbMessage.close(localId: 0, remoteId: 33));
       });
       await adbd.done();
@@ -315,14 +272,7 @@ void main() {
     test('a new CNXN ends the connection', () async {
       final (adb, adbd) = await connectTo((session) async {
         await session.receive();
-        session.send(
-          AdbMessage(
-            AdbCommand.connect,
-            AdbProtocol.version,
-            4096,
-            classicBanner,
-          ),
-        );
+        session.send(AdbMessage(AdbCommand.connect, AdbProtocol.version, 4096, classicBanner));
         await session.expectClientClose();
       });
       final stream = adb.openStream('shell:x');
@@ -343,10 +293,7 @@ void main() {
         await session.expect(open(1, 'x:'));
         session.send(AdbMessage.close(localId: 0, remoteId: 1));
       });
-      await expectLater(
-        adb.open('x:'),
-        throwsA(isA<AdbServiceUnavailableException>()),
-      );
+      await expectLater(adb.open('x:'), throwsA(isA<AdbServiceUnavailableException>()));
       await adbd.done();
       await adb.close();
     });
@@ -356,9 +303,7 @@ void main() {
     test('an overdue acknowledgement checks the device; no answer fails '
         'the connection (frozen device)', () async {
       final clock = FakeClock();
-      final (adb, adbd) = await connectTo(clock: clock, options: noLiveness, (
-        session,
-      ) async {
+      final (adb, adbd) = await connectTo(clock: clock, options: noLiveness, (session) async {
         await session.expect(open(1, 'exec:cat'));
         session.send(AdbMessage.okay(localId: 9, remoteId: 1));
         await session.receive(); // the write, never acknowledged
@@ -369,10 +314,7 @@ void main() {
       });
       final stream = await adb.open('exec:cat');
       await stream.write([1]);
-      final second = expectLater(
-        stream.write([2]),
-        throwsA(isA<AdbTimeoutException>()),
-      );
+      final second = expectLater(stream.write([2]), throwsA(isA<AdbTimeoutException>()));
       await adb.done;
       await second;
       expect(adb.closeReason, isA<AdbTimeoutException>());
@@ -384,9 +326,7 @@ void main() {
     test('a stalled stream on a healthy device does not end the connection '
         '(adbd holds OKAY while a process does not read)', () async {
       final clock = FakeClock();
-      final (adb, adbd) = await connectTo(clock: clock, options: noLiveness, (
-        session,
-      ) async {
+      final (adb, adbd) = await connectTo(clock: clock, options: noLiveness, (session) async {
         await session.expect(open(1, 'shell:sleep 60'));
         session.send(AdbMessage.okay(localId: 9, remoteId: 1));
         await session.receive(); // never acknowledged: sleep reads nothing
@@ -397,10 +337,7 @@ void main() {
       });
       final stream = await adb.open('shell:sleep 60');
       await stream.write([1]);
-      final second = expectLater(
-        stream.write([2]),
-        throwsA(isA<AdbCancelledException>()),
-      );
+      final second = expectLater(stream.write([2]), throwsA(isA<AdbCancelledException>()));
       await adbd.done();
       expect(adb.isClosed, isFalse);
       expect(stream.isClosed, isFalse);
@@ -408,44 +345,36 @@ void main() {
       await second;
     });
 
-    test(
-      'a device that never answers OPEN is checked, then given up',
-      () async {
-        final clock = FakeClock();
-        final (adb, adbd) = await connectTo(clock: clock, options: noLiveness, (
-          session,
-        ) async {
-          await session.receive();
-          clock.advance(const Duration(seconds: 21));
-          await session.expect(open(2, livenessService));
-          clock.advance(const Duration(seconds: 21));
-          await session.expectClientClose();
-        });
-        await expectLater(adb.open('x:'), throwsA(isA<AdbTimeoutException>()));
-        await adbd.done();
-      },
-    );
+    test('a device that never answers OPEN is checked, then given up', () async {
+      final clock = FakeClock();
+      final (adb, adbd) = await connectTo(clock: clock, options: noLiveness, (session) async {
+        await session.receive();
+        clock.advance(const Duration(seconds: 21));
+        await session.expect(open(2, livenessService));
+        clock.advance(const Duration(seconds: 21));
+        await session.expectClientClose();
+      });
+      await expectLater(adb.open('x:'), throwsA(isA<AdbTimeoutException>()));
+      await adbd.done();
+    });
 
-    test(
-      'a dropped socket fails streams, pending writes and the input',
-      () async {
-        final (adb, adbd) = await connectTo((session) async {
-          await session.expect(open(1, 'exec:cat'));
-          session.send(AdbMessage.okay(localId: 9, remoteId: 1));
-          await session.receive();
-          session.destroy();
-        });
-        final stream = await adb.open('exec:cat');
-        final input = stream.input.toList();
-        await stream.write([1]);
-        final pending = stream.write([2]);
-        await expectLater(pending, throwsA(isA<AdbClosedException>()));
-        await expectLater(input, throwsA(isA<AdbClosedException>()));
-        await stream.done;
-        await adb.done;
-        await adbd.done();
-      },
-    );
+    test('a dropped socket fails streams, pending writes and the input', () async {
+      final (adb, adbd) = await connectTo((session) async {
+        await session.expect(open(1, 'exec:cat'));
+        session.send(AdbMessage.okay(localId: 9, remoteId: 1));
+        await session.receive();
+        session.destroy();
+      });
+      final stream = await adb.open('exec:cat');
+      final input = stream.input.toList();
+      await stream.write([1]);
+      final pending = stream.write([2]);
+      await expectLater(pending, throwsA(isA<AdbClosedException>()));
+      await expectLater(input, throwsA(isA<AdbClosedException>()));
+      await stream.done;
+      await adb.done;
+      await adbd.done();
+    });
 
     test('closing the connection cancels pending work', () async {
       final (adb, adbd) = await connectTo((session) async {
@@ -456,10 +385,7 @@ void main() {
       });
       final stream = await adb.open('exec:cat');
       await stream.write([1]);
-      final pending = expectLater(
-        stream.write([2]),
-        throwsA(isA<AdbCancelledException>()),
-      );
+      final pending = expectLater(stream.write([2]), throwsA(isA<AdbCancelledException>()));
       await adb.close();
       await pending;
       expect(adb.closeReason, isA<AdbCancelledException>());
@@ -500,30 +426,24 @@ void main() {
       await adb.close();
     });
 
-    test(
-      'a ping without an answer fails the connection (frozen device)',
-      () async {
-        final clock = FakeClock();
-        final (adb, adbd) = await connectTo(clock: clock, (session) async {
-          await session.expect(open(1, 'shell:sleep 60'));
-          session.send(AdbMessage.okay(localId: 9, remoteId: 1));
-          await session.expectQuiet(const Duration(milliseconds: 50));
-          clock.advance(const Duration(seconds: 10));
-          await session.expect(open(2, livenessService));
-          clock.advance(const Duration(seconds: 21));
-          await session.expectClientClose();
-        });
-        final stream = await adb.open('shell:sleep 60');
-        final input = expectLater(
-          stream.input.toList(),
-          throwsA(isA<AdbTimeoutException>()),
-        );
-        await adb.done;
-        expect(adb.closeReason, isA<AdbTimeoutException>());
-        await input;
-        await adbd.done();
-      },
-    );
+    test('a ping without an answer fails the connection (frozen device)', () async {
+      final clock = FakeClock();
+      final (adb, adbd) = await connectTo(clock: clock, (session) async {
+        await session.expect(open(1, 'shell:sleep 60'));
+        session.send(AdbMessage.okay(localId: 9, remoteId: 1));
+        await session.expectQuiet(const Duration(milliseconds: 50));
+        clock.advance(const Duration(seconds: 10));
+        await session.expect(open(2, livenessService));
+        clock.advance(const Duration(seconds: 21));
+        await session.expectClientClose();
+      });
+      final stream = await adb.open('shell:sleep 60');
+      final input = expectLater(stream.input.toList(), throwsA(isA<AdbTimeoutException>()));
+      await adb.done;
+      expect(adb.closeReason, isA<AdbTimeoutException>());
+      await input;
+      await adbd.done();
+    });
 
     test('no streams, no ping', () async {
       final clock = FakeClock();
@@ -554,8 +474,7 @@ void main() {
       final queued = opening.write([1, 2, 3]);
       final closedWhileOpening = adb.openStream('exec:also');
       await closedWhileOpening.close();
-      Future<Object?> outcome(Future<Object?> f) =>
-          f.then<Object?>((v) => v, onError: (Object e) => e);
+      Future<Object?> outcome(Future<Object?> f) => f.then<Object?>((v) => v, onError: (Object e) => e);
       final results = await Future.wait<Object?>([
         outcome(run),
         outcome(session),
@@ -596,49 +515,37 @@ void main() {
       await adb.close();
     });
 
-    test(
-      'delayed acknowledgements: a paused listener holds the OKAY',
-      () async {
-        final window = const AdbConnectOptions().receiveWindow;
-        final (adb, adbd) = await connectTo(banner: tvBanner, (session) async {
-          await session.expect(open(1, 'shell:x', window: window));
-          session
-            ..send(AdbMessage.okay(localId: 9, remoteId: 1, acknowledged: 100))
-            ..send(AdbMessage.write(localId: 9, remoteId: 1, data: [1, 1]))
-            ..send(AdbMessage.write(localId: 9, remoteId: 1, data: [2, 2, 2]));
-          await session.expect(
-            AdbMessage.okay(localId: 1, remoteId: 9, acknowledged: 2),
-          );
-          await session.expectQuiet(const Duration(milliseconds: 150));
-          await session.expect(
-            AdbMessage.okay(localId: 1, remoteId: 9, acknowledged: 3),
-          );
-          session.send(AdbMessage.close(localId: 9, remoteId: 1));
-        });
-        final stream = await adb.open('shell:x');
-        late StreamSubscription<Uint8List> subscription;
-        subscription = stream.input.listen((data) {
-          if (data.first == 1) {
-            subscription.pause();
-            Future<void>.delayed(
-              const Duration(milliseconds: 250),
-              subscription.resume,
-            );
-          }
-        });
-        await stream.done;
-        await subscription.cancel();
-        await adbd.done();
-        await adb.close();
-      },
-    );
+    test('delayed acknowledgements: a paused listener holds the OKAY', () async {
+      final window = const AdbConnectOptions().receiveWindow;
+      final (adb, adbd) = await connectTo(banner: tvBanner, (session) async {
+        await session.expect(open(1, 'shell:x', window: window));
+        session
+          ..send(AdbMessage.okay(localId: 9, remoteId: 1, acknowledged: 100))
+          ..send(AdbMessage.write(localId: 9, remoteId: 1, data: [1, 1]))
+          ..send(AdbMessage.write(localId: 9, remoteId: 1, data: [2, 2, 2]));
+        await session.expect(AdbMessage.okay(localId: 1, remoteId: 9, acknowledged: 2));
+        await session.expectQuiet(const Duration(milliseconds: 150));
+        await session.expect(AdbMessage.okay(localId: 1, remoteId: 9, acknowledged: 3));
+        session.send(AdbMessage.close(localId: 9, remoteId: 1));
+      });
+      final stream = await adb.open('shell:x');
+      late StreamSubscription<Uint8List> subscription;
+      subscription = stream.input.listen((data) {
+        if (data.first == 1) {
+          subscription.pause();
+          Future<void>.delayed(const Duration(milliseconds: 250), subscription.resume);
+        }
+      });
+      await stream.done;
+      await subscription.cancel();
+      await adbd.done();
+      await adb.close();
+    });
 
     test('writes are split at the payload limit', () async {
       final (adb, adbd) = await connectTo(banner: tvBanner, (session) async {
         final o = await session.receive();
-        session.send(
-          AdbMessage.okay(localId: 9, remoteId: o.arg0, acknowledged: 1 << 30),
-        );
+        session.send(AdbMessage.okay(localId: 9, remoteId: o.arg0, acknowledged: 1 << 30));
         final sizes = <int>[];
         while (sizes.fold<int>(0, (a, b) => a + b) < 2621440) {
           sizes.add((await session.receive()).payload.length);
@@ -667,20 +574,11 @@ void main() {
 
     test('close() does not hang on a device that stopped reading', () async {
       final (adb, adbd) = await connectTo(
-        options: const AdbConnectOptions(
-          acknowledgementTimeout: Duration(milliseconds: 300),
-          livenessInterval: null,
-        ),
+        options: const AdbConnectOptions(acknowledgementTimeout: Duration(milliseconds: 300), livenessInterval: null),
         banner: tvBanner,
         (session) async {
           final o = await session.receive();
-          session.send(
-            AdbMessage.okay(
-              localId: 9,
-              remoteId: o.arg0,
-              acknowledged: 1 << 30,
-            ),
-          );
+          session.send(AdbMessage.okay(localId: 9, remoteId: o.arg0, acknowledged: 1 << 30));
           // Read nothing more: the client's socket buffers fill up.
           await Future<void>.delayed(const Duration(seconds: 2));
         },
@@ -700,10 +598,7 @@ void main() {
         const AdbConnectOptions(acknowledgementTimeout: Duration.zero),
         const AdbConnectOptions(livenessInterval: Duration(seconds: -1)),
       ]) {
-        await expectLater(
-          AdbConnection.connect('127.0.0.1', 1, key: testKey, options: options),
-          throwsArgumentError,
-        );
+        await expectLater(AdbConnection.connect('127.0.0.1', 1, key: testKey, options: options), throwsArgumentError);
       }
     });
   });
@@ -733,9 +628,7 @@ void main() {
       final window = const AdbConnectOptions().receiveWindow;
       final (adb, adbd) = await connectTo(banner: tvBanner, (session) async {
         await session.expect(open(1, 'exec:cat', window: window));
-        session.send(
-          AdbMessage.okay(localId: 9, remoteId: 1, acknowledged: 100),
-        );
+        session.send(AdbMessage.okay(localId: 9, remoteId: 1, acknowledged: 100));
         await session.receive();
         await session.receive();
         session.send(AdbMessage.okay(localId: 9, remoteId: 1, acknowledged: 2));

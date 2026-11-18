@@ -196,8 +196,7 @@ final class StreamEndpoint implements StreamCore {
   Timer? _acknowledgementTimer;
   int _queued = 0;
   final List<(int, Completer<void>)> _flushes = [];
-  final StreamController<int> _acknowledgements =
-      StreamController<int>.broadcast();
+  final StreamController<int> _acknowledgements = StreamController<int>.broadcast();
 
   /// See [AdbStream.input].
   @override
@@ -232,15 +231,10 @@ final class StreamEndpoint implements StreamCore {
   @override
   Future<void> write(List<int> data) {
     if (_state == _State.closed) {
-      return Future.error(
-        _closeReason ??
-            AdbClosedException('The stream to "$service" is closed'),
-      );
+      return Future.error(_closeReason ?? AdbClosedException('The stream to "$service" is closed'));
     }
     if (data.isEmpty) return Future.value();
-    final pending = _PendingWrite(
-      data is Uint8List ? data : Uint8List.fromList(data),
-    );
+    final pending = _PendingWrite(data is Uint8List ? data : Uint8List.fromList(data));
     _queued += pending.data.length;
     _writes.add(pending);
     _pump();
@@ -251,10 +245,7 @@ final class StreamEndpoint implements StreamCore {
   @override
   Future<void> flush() {
     if (_state == _State.closed) {
-      return Future.error(
-        _closeReason ??
-            AdbClosedException('The stream to "$service" is closed'),
-      );
+      return Future.error(_closeReason ?? AdbClosedException('The stream to "$service" is closed'));
     }
     final target = _queued;
     if (_acknowledged >= target) return Future.value();
@@ -346,17 +337,9 @@ final class StreamEndpoint implements StreamCore {
           _host.endpointFinished(localId);
         }
       case _State.opening:
-        _finish(
-          AdbServiceUnavailableException(
-            'The device refused to open "$service"',
-            service: service,
-          ),
-        );
+        _finish(AdbServiceUnavailableException('The device refused to open "$service"', service: service));
       case _State.open:
-        _finish(
-          AdbClosedException('The device closed the stream to "$service"'),
-          normal: true,
-        );
+        _finish(AdbClosedException('The device closed the stream to "$service"'), normal: true);
     }
   }
 
@@ -411,11 +394,7 @@ final class StreamEndpoint implements StreamCore {
       final pending = _writes.first;
       final remaining = pending.data.length - pending.offset;
       final size = remaining < limit ? remaining : limit;
-      final chunk = Uint8List.sublistView(
-        pending.data,
-        pending.offset,
-        pending.offset + size,
-      );
+      final chunk = Uint8List.sublistView(pending.data, pending.offset, pending.offset + size);
       pending.offset += size;
       _inFlight += size;
       if (_host.delayedAck) {
@@ -424,9 +403,7 @@ final class StreamEndpoint implements StreamCore {
         _readyToSend = false;
       }
       if (_acknowledgementTimer == null) _armAcknowledgementTimer();
-      _host.send(
-        AdbMessage.write(localId: localId, remoteId: _remoteId, data: chunk),
-      );
+      _host.send(AdbMessage.write(localId: localId, remoteId: _remoteId, data: chunk));
       // Sending can end the stream (a tracer closing it, a failing
       // transport): the queue is then already failed and emptied.
       if (_state != _State.open) return;
@@ -452,13 +429,7 @@ final class StreamEndpoint implements StreamCore {
     _unacknowledgedWrites = 0;
     _unacknowledgedBytes = 0;
     if (_host.delayedAck) {
-      _host.send(
-        AdbMessage.okay(
-          localId: localId,
-          remoteId: _remoteId,
-          acknowledged: bytes,
-        ),
-      );
+      _host.send(AdbMessage.okay(localId: localId, remoteId: _remoteId, acknowledged: bytes));
     } else {
       for (var i = 0; i < writes && _state == _State.open; i++) {
         _host.send(AdbMessage.okay(localId: localId, remoteId: _remoteId));

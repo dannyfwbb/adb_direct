@@ -77,12 +77,7 @@ abstract base class AdbConnection {
     AdbClock clock = AdbClock.system,
     AdbTracer? tracer,
   }) => connectTransport(
-    () => TcpTransport.connect(
-      host,
-      port,
-      timeout: options.connectTimeout,
-      cancelOn: cancelOn,
-    ),
+    () => TcpTransport.connect(host, port, timeout: options.connectTimeout, cancelOn: cancelOn),
     key: key,
     extraKeys: extraKeys,
     options: options,
@@ -173,9 +168,7 @@ abstract base class AdbConnection {
     var delay = const Duration(milliseconds: 250);
     while (true) {
       if (cancelled) {
-        throw const AdbCancelledException(
-          'Waiting for the device was cancelled',
-        );
+        throw const AdbCancelledException('Waiting for the device was cancelled');
       }
       try {
         return await connect(
@@ -198,14 +191,10 @@ abstract base class AdbConnection {
           _ => false,
         };
         if (e is AdbCancelledException) {
-          throw const AdbCancelledException(
-            'Waiting for the device was cancelled',
-          );
+          throw const AdbCancelledException('Waiting for the device was cancelled');
         }
         if (!retry || clock.elapsed >= deadline) rethrow;
-        tracer?.call(
-          AdbNoteTrace(at: clock.elapsed, message: 'waitFor: ${e.message}'),
-        );
+        tracer?.call(AdbNoteTrace(at: clock.elapsed, message: 'waitFor: ${e.message}'));
       }
       final left = deadline - clock.elapsed;
       final wait = delay < left ? delay : left;
@@ -238,9 +227,7 @@ abstract base class AdbConnection {
     var connected = false;
     void cancel() {
       if (!connected) {
-        link.fail(
-          const AdbCancelledException('The connection attempt was cancelled'),
-        );
+        link.fail(const AdbCancelledException('The connection attempt was cancelled'));
       }
     }
 
@@ -257,22 +244,15 @@ abstract base class AdbConnection {
       connected = true;
       return _PacketConnection(link, result, options);
     } on TlsKeyRejected {
-      link.fail(
-        const AdbUnauthorizedException('The key was not accepted over TLS'),
-      );
+      link.fail(const AdbUnauthorizedException('The key was not accepted over TLS'));
       // A cancel that raced the rejection wins.
       if (link.failure case final AdbCancelledException failure) throw failure;
       rethrow;
     } on Object catch (e) {
-      link.fail(
-        e is AdbException
-            ? e
-            : AdbCancelledException('The handshake was abandoned', cause: e),
-      );
+      link.fail(e is AdbException ? e : AdbCancelledException('The handshake was abandoned', cause: e));
       // The link's own failure (a cancel, a lost socket) explains more than
       // the handshake's view of it.
-      if (link.failure case final AdbCancelledException failure
-          when e is AdbException && e is! AdbCancelledException) {
+      if (link.failure case final AdbCancelledException failure when e is AdbException && e is! AdbCancelledException) {
         throw failure;
       }
       rethrow;
@@ -354,17 +334,11 @@ abstract base class AdbConnection {
   /// `localabstract:<name>`, `jdwp:<pid>`, …), like `adb forward`. [port]
   /// 0 picks a free port ([AdbForward.port] tells which). The forward ends
   /// with [AdbForward.close] or with this connection.
-  Future<AdbForward> forward(
-    String remote, {
-    int port = 0,
-    Object address = '127.0.0.1',
-  }) => AdbForward.start(this, remote, port: port, address: address);
+  Future<AdbForward> forward(String remote, {int port = 0, Object address = '127.0.0.1'}) =>
+      AdbForward.start(this, remote, port: port, address: address);
 
   /// Files: stat, list, read and write over the sync protocol.
-  late final AdbSync sync = AdbSync(
-    this,
-    stallTimeout: options.transferStallTimeout,
-  );
+  late final AdbSync sync = AdbSync(this, stallTimeout: options.transferStallTimeout);
 
   /// Opens a stream to [service] on the device, such as `shell:ls` or
   /// `sync:`.
@@ -393,10 +367,7 @@ abstract base class AdbConnection {
 
   /// Accepts device-initiated `OPEN`s of [label] from now on.
   @internal
-  void registerReverseTarget(
-    String label,
-    FutureOr<void> Function(AdbStream) handler,
-  );
+  void registerReverseTarget(String label, FutureOr<void> Function(AdbStream) handler);
 
   /// Stops accepting them.
   @internal
@@ -410,9 +381,7 @@ abstract base class AdbConnection {
 
 /// A connection that speaks the ADB protocol itself, over TCP or TLS.
 final class _PacketConnection extends AdbConnection {
-  _PacketConnection(this._link, this._handshake, this._options)
-    : clock = _link.clock,
-      super.base() {
+  _PacketConnection(this._link, this._handshake, this._options) : clock = _link.clock, super.base() {
     _core = _ConnectionCore(this);
     _lastInbound = clock.elapsed;
     _link.route(_core);
@@ -508,24 +477,12 @@ final class _PacketConnection extends AdbConnection {
     if (_closeReason case final reason?) throw reason;
     final payloadLength = utf8.encode(service).length + 1;
     if (payloadLength > maxPayload) {
-      throw ArgumentError.value(
-        service,
-        'service',
-        'longer than the payload limit of $maxPayload bytes',
-      );
+      throw ArgumentError.value(service, 'service', 'longer than the payload limit of $maxPayload bytes');
     }
-    final endpoint = StreamEndpoint(
-      _core,
-      localId: _allocateId(),
-      service: service,
-    );
+    final endpoint = StreamEndpoint(_core, localId: _allocateId(), service: service);
     _endpoints[endpoint.localId] = endpoint;
     _link.send(
-      AdbMessage.open(
-        localId: endpoint.localId,
-        service: service,
-        window: delayedAck ? _options.receiveWindow : 0,
-      ),
+      AdbMessage.open(localId: endpoint.localId, service: service, window: delayedAck ? _options.receiveWindow : 0),
     );
     return endpoint;
   }
@@ -540,9 +497,7 @@ final class _PacketConnection extends AdbConnection {
         if (endpoint == null) {
           // We no longer know the stream (closed while the device answered):
           // tell the device, as adb does.
-          _link.send(
-            AdbMessage.close(localId: message.arg1, remoteId: message.arg0),
-          );
+          _link.send(AdbMessage.close(localId: message.arg1, remoteId: message.arg0));
         } else if (endpoint.acceptsFrom(message.arg0)) {
           endpoint.handleOkay(message);
         }
@@ -556,8 +511,7 @@ final class _PacketConnection extends AdbConnection {
         // CLSE(remote id or 0, our id). Unknown ids: already closed, ignore.
         if (message.arg1 == 0) return;
         final endpoint = _endpoints[message.arg1];
-        if (endpoint != null &&
-            (message.arg0 == 0 || endpoint.acceptsFrom(message.arg0))) {
+        if (endpoint != null && (message.arg0 == 0 || endpoint.acceptsFrom(message.arg0))) {
           endpoint.handleClose();
         }
       case AdbCommand.open:
@@ -574,9 +528,7 @@ final class _PacketConnection extends AdbConnection {
         // As adbd: the window must be there exactly when delayed
         // acknowledgements are on. And a device may not flood us.
         final reverseStreams = _endpoints.values.where((e) => e.accepted);
-        if (handler == null ||
-            delayedAck != (message.arg1 != 0) ||
-            reverseStreams.length >= maxReverseStreams) {
+        if (handler == null || delayedAck != (message.arg1 != 0) || reverseStreams.length >= maxReverseStreams) {
           _link
             ..note('Refused a device-initiated OPEN of "$target"')
             ..send(AdbMessage.close(localId: 0, remoteId: message.arg0));
@@ -586,11 +538,7 @@ final class _PacketConnection extends AdbConnection {
       case AdbCommand.connect:
         // A new CNXN means adbd started over (restarted, or switched mode):
         // every stream on this connection is gone.
-        _link.fail(
-          const AdbClosedException(
-            'The device restarted the connection (new CNXN)',
-          ),
-        );
+        _link.fail(const AdbClosedException('The device restarted the connection (new CNXN)'));
       case AdbCommand.auth || AdbCommand.stls || AdbCommand.sync:
         _link.note('Ignored ${message.command.wireName} on an open connection');
     }
@@ -666,21 +614,15 @@ final class _PacketConnection extends AdbConnection {
   /// Accepts device-initiated `OPEN`s of [label] from now on.
   @internal
   @override
-  void registerReverseTarget(
-    String label,
-    FutureOr<void> Function(AdbStream) handler,
-  ) => _reverseTargets[label] = handler;
+  void registerReverseTarget(String label, FutureOr<void> Function(AdbStream) handler) =>
+      _reverseTargets[label] = handler;
 
   /// Stops accepting them.
   @internal
   @override
   void unregisterReverseTarget(String label) => _reverseTargets.remove(label);
 
-  void _acceptReverse(
-    AdbMessage open,
-    String target,
-    FutureOr<void> Function(AdbStream) handler,
-  ) {
+  void _acceptReverse(AdbMessage open, String target, FutureOr<void> Function(AdbStream) handler) {
     final endpoint = StreamEndpoint.accepted(
       _core,
       localId: _allocateId(),
@@ -746,13 +688,11 @@ final class _ConnectionCore implements MessageHandler, StreamHost {
   AdbClock get clock => _connection.clock;
 
   @override
-  Duration get acknowledgementTimeout =>
-      _connection._options.acknowledgementTimeout;
+  Duration get acknowledgementTimeout => _connection._options.acknowledgementTimeout;
 
   @override
   void endpointFinished(int localId) => _connection._endpoints.remove(localId);
 
   @override
-  void acknowledgementOverdue(StreamEndpoint endpoint) =>
-      _connection._onAcknowledgementOverdue(endpoint);
+  void acknowledgementOverdue(StreamEndpoint endpoint) => _connection._onAcknowledgementOverdue(endpoint);
 }

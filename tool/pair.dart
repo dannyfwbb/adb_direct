@@ -27,29 +27,17 @@ Future<void> main(List<String> args) async {
   final file = File(keyPath);
   final AdbKeyPair key;
   if (file.existsSync()) {
-    key = AdbKeyPair.fromPem(
-      file.readAsStringSync(),
-      comment: 'adb_direct@pair',
-    );
+    key = AdbKeyPair.fromPem(file.readAsStringSync(), comment: 'adb_direct@pair');
   } else {
     key = await AdbKeyPair.generate(comment: 'adb_direct@pair');
     file.writeAsStringSync(key.toPem());
   }
   print('key ${key.publicKey.md5Fingerprint}');
   final watch = Stopwatch()..start();
-  final paired = await AdbPairing.pair(
-    host,
-    int.parse(pairingPort),
-    code: code,
-    key: key,
-  );
+  final paired = await AdbPairing.pair(host, int.parse(pairingPort), code: code, key: key);
   print('paired in ${watch.elapsedMilliseconds} ms: guid ${paired.guid}');
   if (rest.isEmpty) return;
-  final adb = await AdbConnection.connect(
-    host,
-    int.parse(rest.first),
-    key: key,
-  );
+  final adb = await AdbConnection.connect(host, int.parse(rest.first), key: key);
   final result = await adb.shell.run('getprop ro.product.model');
   print('TLS ${adb.isTls}: ${result.stdoutText.trim()}');
   await adb.close();

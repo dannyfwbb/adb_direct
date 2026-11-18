@@ -77,10 +77,7 @@ final class MessageLink implements AdbTransportListener {
 
   /// The next message, failing with [onTimeout]'s exception when none
   /// arrives within [timeout], and with the link's failure when it ends.
-  Future<AdbMessage> next({
-    required Duration timeout,
-    required AdbException Function() onTimeout,
-  }) async {
+  Future<AdbMessage> next({required Duration timeout, required AdbException Function() onTimeout}) async {
     if (_handler != null) throw StateError('MessageLink is routed');
     var timedOut = false;
     final timer = clock.timer(timeout, () {
@@ -122,10 +119,7 @@ final class MessageLink implements AdbTransportListener {
 
   /// Sends what is queued (for at most [drainTimeout]) and closes the
   /// connection; the link ends with [reason].
-  Future<void> close(
-    AdbException reason, {
-    Duration drainTimeout = const Duration(seconds: 10),
-  }) async {
+  Future<void> close(AdbException reason, {Duration drainTimeout = const Duration(seconds: 10)}) async {
     if (_failure != null) return;
     _failure = reason;
     _note('Link closed: ${reason.message}');
@@ -139,10 +133,7 @@ final class MessageLink implements AdbTransportListener {
 
   /// Switches the transport to TLS (after `STLS`); see
   /// [AdbTransport.startTls].
-  Future<X509Certificate?> startTls({
-    required SecurityContext context,
-    void Function(String line)? keyLog,
-  }) {
+  Future<X509Certificate?> startTls({required SecurityContext context, void Function(String line)? keyLog}) {
     note('TLS: handshake');
     return _transport.startTls(context: context, keyLog: keyLog);
   }
@@ -180,9 +171,7 @@ final class MessageLink implements AdbTransportListener {
   @override
   void onError(Object error) {
     if (_failure != null) return;
-    _failure = error is AdbException
-        ? error
-        : AdbClosedException('The connection failed', cause: error);
+    _failure = error is AdbException ? error : AdbClosedException('The connection failed', cause: error);
     _note('Link failed: $error');
     _wake();
     _handler?.onLinkClosed(_failure!);
@@ -194,8 +183,7 @@ final class MessageLink implements AdbTransportListener {
     if (waiter != null && !waiter.isCompleted) waiter.complete();
   }
 
-  void _note(String message) =>
-      tracer?.call(AdbNoteTrace(at: clock.elapsed, message: message));
+  void _note(String message) => tracer?.call(AdbNoteTrace(at: clock.elapsed, message: message));
 
   /// The raw bytes of the message the reader is about to return; set by
   /// the reader's callback just before the message comes out of `drain`.

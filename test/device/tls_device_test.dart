@@ -14,14 +14,11 @@ import 'package:test/test.dart';
 /// A wireless debugging (TLS) port: ADB_DIRECT_TEST_TLS_PORT on
 /// ADB_DIRECT_TEST_HOST (see test/device/README.md, "TLS").
 final String? host = Platform.environment['ADB_DIRECT_TEST_HOST'];
-final int? port = int.tryParse(
-  Platform.environment['ADB_DIRECT_TEST_TLS_PORT'] ?? '',
-);
+final int? port = int.tryParse(Platform.environment['ADB_DIRECT_TEST_TLS_PORT'] ?? '');
 final String? keyPath = Platform.environment['ADB_DIRECT_TEST_KEY'];
 
 /// Where to save the device's certificate (DER), when set.
-final String? certificateOut =
-    Platform.environment['ADB_DIRECT_TEST_TLS_CERT_OUT'];
+final String? certificateOut = Platform.environment['ADB_DIRECT_TEST_TLS_CERT_OUT'];
 
 final String? skip = host == null || port == null || keyPath == null
     ? 'ADB_DIRECT_TEST_HOST, ADB_DIRECT_TEST_TLS_PORT and '
@@ -61,10 +58,7 @@ void main() {
     expect(echo.exitCode, 4);
 
     final watch = Stopwatch()..start();
-    final big = await adb.shell.run(
-      'head -c 20000000 /dev/zero',
-      maxOutputBytes: 32 * 1024 * 1024,
-    );
+    final big = await adb.shell.run('head -c 20000000 /dev/zero', maxOutputBytes: 32 * 1024 * 1024);
     final ms = watch.elapsedMilliseconds;
     expect(big.stdout.length, 20000000);
     print(

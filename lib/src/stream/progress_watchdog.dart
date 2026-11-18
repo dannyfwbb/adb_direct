@@ -13,13 +13,9 @@ import '../clock.dart';
 /// movement.
 final class ProgressWatchdog {
   /// Starts watching.
-  ProgressWatchdog({
-    required this.clock,
-    required this.timeout,
-    required this.progress,
-    required this.onStall,
-  }) : _last = progress(),
-       _lastMove = clock.elapsed {
+  ProgressWatchdog({required this.clock, required this.timeout, required this.progress, required this.onStall})
+    : _last = progress(),
+      _lastMove = clock.elapsed {
     _schedule();
   }
 

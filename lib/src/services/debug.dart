@@ -86,10 +86,7 @@ final class AdbDebug {
   /// starting with the current one. Never ends by itself; cancel the
   /// subscription to stop.
   Stream<List<int>> trackJdwp() => _frames('track-jdwp').map(
-    (frame) => [
-      for (final line in utf8.decode(frame, allowMalformed: true).split('\n'))
-        ?int.tryParse(line.trim()),
-    ],
+    (frame) => [for (final line in utf8.decode(frame, allowMalformed: true).split('\n')) ?int.tryParse(line.trim())],
   );
 
   /// The app processes (Android 12+, feature `track_app`): a new list each
@@ -97,11 +94,7 @@ final class AdbDebug {
   /// [AdbNotSupportedException] on older devices.
   Stream<List<AdbAppProcess>> trackApps() {
     if (!_connection.supports(AdbFeature.trackApp)) {
-      return Stream.error(
-        const AdbNotSupportedException(
-          'The device cannot track app processes (Android 12+)',
-        ),
-      );
+      return Stream.error(const AdbNotSupportedException('The device cannot track app processes (Android 12+)'));
     }
     return _frames('track-app').map(decodeAppProcesses);
   }
@@ -144,8 +137,7 @@ final class AdbDebug {
       bytes = await _screencapToFile(command);
     }
     const signature = [0x89, 0x50, 0x4e, 0x47];
-    if (bytes.length < 8 ||
-        !List.generate(4, (i) => bytes[i] == signature[i]).every((b) => b)) {
+    if (bytes.length < 8 || !List.generate(4, (i) => bytes[i] == signature[i]).every((b) => b)) {
       final text = utf8.decode(bytes.take(200).toList(), allowMalformed: true);
       throw AdbProtocolException('screencap did not return a PNG: $text');
     }
@@ -153,15 +145,12 @@ final class AdbDebug {
   }
 
   Future<Uint8List> _screencapToFile(String command) async {
-    final path =
-        '/data/local/tmp/adb_direct_${DateTime.now().microsecondsSinceEpoch}.png';
+    final path = '/data/local/tmp/adb_direct_${DateTime.now().microsecondsSinceEpoch}.png';
     try {
       await _connection.shell.run('$command ${shellQuote(path)}');
       return await _connection.sync.readAll(path);
     } finally {
-      await _connection.shell
-          .run('rm -f ${shellQuote(path)}')
-          .then<void>((_) {}, onError: (Object _) {});
+      await _connection.shell.run('rm -f ${shellQuote(path)}').then<void>((_) {}, onError: (Object _) {});
     }
   }
 
@@ -175,9 +164,7 @@ final class AdbDebug {
     try {
       stream = await _connection.open('exec:bugreportz -p');
     } on AdbServiceUnavailableException {
-      throw const AdbNotSupportedException(
-        'Bug reports as zip files need Android 7 or later',
-      );
+      throw const AdbNotSupportedException('Bug reports as zip files need Android 7 or later');
     }
     String? path;
     String? failure;
@@ -199,10 +186,7 @@ final class AdbDebug {
       }
     }
     if (failure != null) {
-      throw AdbServiceUnavailableException(
-        'The bug report failed: $failure',
-        service: 'bugreportz',
-      );
+      throw AdbServiceUnavailableException('The bug report failed: $failure', service: 'bugreportz');
     }
     final remote = path;
     if (remote == null) {
@@ -211,9 +195,7 @@ final class AdbDebug {
     try {
       await _connection.sync.pullFile(remote, local);
     } finally {
-      await _connection.shell
-          .run('rm -f ${shellQuote(remote)}')
-          .then<void>((_) {}, onError: (Object _) {});
+      await _connection.shell.run('rm -f ${shellQuote(remote)}').then<void>((_) {}, onError: (Object _) {});
     }
   }
 

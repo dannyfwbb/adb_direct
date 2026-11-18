@@ -10,18 +10,9 @@ void main() {
     final clock = FakeClock();
     final fired = <String>[];
     clock
-      ..timer(
-        const Duration(seconds: 3),
-        () => fired.add('c@${clock.elapsed.inSeconds}'),
-      )
-      ..timer(
-        const Duration(seconds: 1),
-        () => fired.add('a@${clock.elapsed.inSeconds}'),
-      )
-      ..timer(
-        const Duration(seconds: 1),
-        () => fired.add('b@${clock.elapsed.inSeconds}'),
-      );
+      ..timer(const Duration(seconds: 3), () => fired.add('c@${clock.elapsed.inSeconds}'))
+      ..timer(const Duration(seconds: 1), () => fired.add('a@${clock.elapsed.inSeconds}'))
+      ..timer(const Duration(seconds: 1), () => fired.add('b@${clock.elapsed.inSeconds}'));
     clock.advance(const Duration(seconds: 2));
     expect(fired, ['a@1', 'b@1']);
     expect(clock.elapsed, const Duration(seconds: 2));
@@ -46,10 +37,7 @@ void main() {
     final fired = <int>[];
     clock.timer(const Duration(seconds: 1), () {
       fired.add(clock.elapsed.inSeconds);
-      clock.timer(
-        const Duration(seconds: 1),
-        () => fired.add(clock.elapsed.inSeconds),
-      );
+      clock.timer(const Duration(seconds: 1), () => fired.add(clock.elapsed.inSeconds));
     });
     clock.advance(const Duration(seconds: 5));
     expect(fired, [1, 2]);

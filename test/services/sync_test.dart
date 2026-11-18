@@ -22,14 +22,10 @@ final class SyncPeer {
   SyncPeer._(this.session, this.localId, this.remoteId);
 
   /// Waits for `OPEN sync:` and accepts it as device stream [deviceId].
-  static Future<SyncPeer> accept(
-    FakeAdbdSession session, {
-    int deviceId = 9,
-  }) async {
+  static Future<SyncPeer> accept(FakeAdbdSession session, {int deviceId = 9}) async {
     var open = await session.receive();
     // Leftovers of an earlier stream: acknowledgements, a close.
-    while (open.command == AdbCommand.okay ||
-        open.command == AdbCommand.close) {
+    while (open.command == AdbCommand.okay || open.command == AdbCommand.close) {
       open = await session.receive();
     }
     expect(open.command, AdbCommand.open);
@@ -62,10 +58,7 @@ final class SyncPeer {
   /// Reads `{id, value}` and returns them.
   Future<(String, int)> header() async {
     final data = ByteData.sublistView(await read(8));
-    return (
-      SyncId.name(data.getUint32(0, Endian.little)),
-      data.getUint32(4, Endian.little),
-    );
+    return (SyncId.name(data.getUint32(0, Endian.little)), data.getUint32(4, Endian.little));
   }
 
   /// Reads a request with a path: `{id, length}` + path.
@@ -75,9 +68,7 @@ final class SyncPeer {
   }
 
   /// Sends sync bytes to the client.
-  void send(List<int> bytes) => session.send(
-    AdbMessage.write(localId: localId, remoteId: remoteId, data: bytes),
-  );
+  void send(List<int> bytes) => session.send(AdbMessage.write(localId: localId, remoteId: remoteId, data: bytes));
 
   /// Sends `FAIL` with [message], then closes, as adbd does after a failed
   /// read or listing.
@@ -108,10 +99,7 @@ final class SyncPeer {
   /// Takes the client's trailing acknowledgements for [window]; any other
   /// message fails, unless [anything] is set (a client still sending what
   /// it had queued when the device failed).
-  Future<void> settle({
-    Duration window = const Duration(milliseconds: 100),
-    bool anything = false,
-  }) async {
+  Future<void> settle({Duration window = const Duration(milliseconds: 100), bool anything = false}) async {
     while (true) {
       final AdbMessage message;
       try {
@@ -185,10 +173,7 @@ void main() {
       expect(file.size, 12);
       expect(file.modified, DateTime.utc(2023, 11, 14, 22, 13, 20));
       expect(await adb.sync.stat('/missing'), isNull);
-      await expectLater(
-        adb.sync.stat('/a', followLinks: true),
-        throwsA(isA<AdbNotSupportedException>()),
-      );
+      await expectLater(adb.sync.stat('/a', followLinks: true), throwsA(isA<AdbNotSupportedException>()));
       await adbd.done();
       await adb.close();
     });
@@ -229,21 +214,20 @@ void main() {
 
   group('sync v2', () {
     test('STA2 and LST2; errno becomes an AdbSyncException', () async {
-      final (adb, adbd) = await connectTo(
-        banner: utf8.encode('${utf8.decode(classicBanner)},sendrecv_v2'),
-        (session) async {
-          final peer = await SyncPeer.accept(session);
-          expect(await peer.request(), ('LST2', '/l'));
-          peer.send(stat2(SyncId.lstat2, mode: 0xa1ff));
-          expect(await peer.request(), ('STA2', '/l'));
-          peer.send(stat2(SyncId.stat2, mode: 0x41f9, size: 1 << 33));
-          expect(await peer.request(), ('LST2', '/gone'));
-          peer.send(stat2(SyncId.lstat2, error: 2));
-          expect(await peer.request(), ('LST2', '/secret'));
-          peer.send(stat2(SyncId.lstat2, error: 13));
-          await peer.settle();
-        },
-      );
+      final (adb, adbd) = await connectTo(banner: utf8.encode('${utf8.decode(classicBanner)},sendrecv_v2'), (
+        session,
+      ) async {
+        final peer = await SyncPeer.accept(session);
+        expect(await peer.request(), ('LST2', '/l'));
+        peer.send(stat2(SyncId.lstat2, mode: 0xa1ff));
+        expect(await peer.request(), ('STA2', '/l'));
+        peer.send(stat2(SyncId.stat2, mode: 0x41f9, size: 1 << 33));
+        expect(await peer.request(), ('LST2', '/gone'));
+        peer.send(stat2(SyncId.lstat2, error: 2));
+        expect(await peer.request(), ('LST2', '/secret'));
+        peer.send(stat2(SyncId.lstat2, error: 13));
+        await peer.settle();
+      });
       expect((await adb.sync.stat('/l'))!.isLink, isTrue);
       final target = await adb.sync.stat('/l', followLinks: true);
       expect(target!.isDirectory, isTrue);
@@ -261,40 +245,37 @@ void main() {
       await adb.close();
     });
 
-    test(
-      'RCV2 and SND2 with their second parts; DATA split at 64 KiB',
-      () async {
-        final banner = utf8.encode('${utf8.decode(classicBanner)},sendrecv_v2');
-        final (adb, adbd) = await connectTo(banner: banner, (session) async {
-          final peer = await SyncPeer.accept(session);
-          expect(await peer.request(), ('RCV2', '/r'));
-          expect(await peer.header(), ('RCV2', 0));
-          peer
-            ..send(SyncRequest.header(SyncId.data, 1, [5]))
-            ..send(SyncRequest.header(SyncId.done, 0));
-          expect(await peer.request(), ('SND2', '/w'));
-          final second = ByteData.sublistView(await peer.read(12));
-          expect(SyncId.name(second.getUint32(0, Endian.little)), 'SND2');
-          expect(second.getUint32(4, Endian.little), 0x81a4);
-          expect(second.getUint32(8, Endian.little), 0);
-          final sizes = <int>[];
-          while (true) {
-            final (id, value) = await peer.header();
-            if (id == 'DONE') break;
-            expect(id, 'DATA');
-            sizes.add(value);
-            await peer.read(value);
-          }
-          expect(sizes, [65536, 65536, 22528]);
-          peer.send(SyncRequest.header(SyncId.okay, 0));
-          await peer.settle();
-        });
-        expect(await adb.sync.readAll('/r'), [5]);
-        await adb.sync.writeAll('/w', Uint8List(150 * 1024));
-        await adbd.done();
-        await adb.close();
-      },
-    );
+    test('RCV2 and SND2 with their second parts; DATA split at 64 KiB', () async {
+      final banner = utf8.encode('${utf8.decode(classicBanner)},sendrecv_v2');
+      final (adb, adbd) = await connectTo(banner: banner, (session) async {
+        final peer = await SyncPeer.accept(session);
+        expect(await peer.request(), ('RCV2', '/r'));
+        expect(await peer.header(), ('RCV2', 0));
+        peer
+          ..send(SyncRequest.header(SyncId.data, 1, [5]))
+          ..send(SyncRequest.header(SyncId.done, 0));
+        expect(await peer.request(), ('SND2', '/w'));
+        final second = ByteData.sublistView(await peer.read(12));
+        expect(SyncId.name(second.getUint32(0, Endian.little)), 'SND2');
+        expect(second.getUint32(4, Endian.little), 0x81a4);
+        expect(second.getUint32(8, Endian.little), 0);
+        final sizes = <int>[];
+        while (true) {
+          final (id, value) = await peer.header();
+          if (id == 'DONE') break;
+          expect(id, 'DATA');
+          sizes.add(value);
+          await peer.read(value);
+        }
+        expect(sizes, [65536, 65536, 22528]);
+        peer.send(SyncRequest.header(SyncId.okay, 0));
+        await peer.settle();
+      });
+      expect(await adb.sync.readAll('/r'), [5]);
+      await adb.sync.writeAll('/w', Uint8List(150 * 1024));
+      await adbd.done();
+      await adb.close();
+    });
   });
 
   group('failures and sessions', () {
@@ -310,13 +291,7 @@ void main() {
       });
       await expectLater(
         adb.sync.readAll('/secret'),
-        throwsA(
-          isA<AdbSyncException>().having(
-            (e) => e.message,
-            'message',
-            'open failed: Permission denied',
-          ),
-        ),
+        throwsA(isA<AdbSyncException>().having((e) => e.message, 'message', 'open failed: Permission denied')),
       );
       expect((await adb.sync.stat('/ok'))!.isFile, isTrue);
       await adbd.done();
@@ -336,13 +311,7 @@ void main() {
       });
       await expectLater(
         adb.sync.writeAll('/full', Uint8List(4 * 1024 * 1024)),
-        throwsA(
-          isA<AdbSyncException>().having(
-            (e) => e.message,
-            'message',
-            'No space left on device',
-          ),
-        ),
+        throwsA(isA<AdbSyncException>().having((e) => e.message, 'message', 'No space left on device')),
       );
       await adbd.done();
       // Not the whole 4 MiB: the client noticed the FAIL and sent DONE.
@@ -352,9 +321,7 @@ void main() {
 
     test('a transfer without progress fails; the connection stays', () async {
       final clock = FakeClock();
-      final (adb, adbd) = await connectTo(clock: clock, options: noLiveness, (
-        session,
-      ) async {
+      final (adb, adbd) = await connectTo(clock: clock, options: noLiveness, (session) async {
         final peer = await SyncPeer.accept(session);
         expect(await peer.request(), ('RECV', '/slow'));
         peer.send(SyncRequest.header(SyncId.data, 1, [1]));
@@ -366,10 +333,7 @@ void main() {
         }
         expect(close.command, AdbCommand.close);
       });
-      await expectLater(
-        adb.sync.readAll('/slow'),
-        throwsA(isA<AdbTimeoutException>()),
-      );
+      await expectLater(adb.sync.readAll('/slow'), throwsA(isA<AdbTimeoutException>()));
       await adbd.done();
       expect(adb.isClosed, isFalse);
       await adb.close();
@@ -377,9 +341,7 @@ void main() {
 
     test('calls in a row share a session, which quits when idle', () async {
       final clock = FakeClock();
-      final (adb, adbd) = await connectTo(clock: clock, options: noLiveness, (
-        session,
-      ) async {
+      final (adb, adbd) = await connectTo(clock: clock, options: noLiveness, (session) async {
         final peer = await SyncPeer.accept(session);
         for (final path in ['/1', '/2']) {
           expect(await peer.request(), ('LST2', path));
@@ -425,28 +387,25 @@ void main() {
 
     final v2Banner = utf8.encode('${utf8.decode(classicBanner)},sendrecv_v2');
 
-    test(
-      'LIS2: entries, an entry with an errno left out, padded DONE',
-      () async {
-        final (adb, adbd) = await connectTo(banner: v2Banner, (session) async {
-          final peer = await SyncPeer.accept(session);
-          expect(await peer.request(), ('LIS2', '/d'));
-          peer
-            ..send(dent2('..', mode: 0x41ed))
-            ..send(dent2('ok'))
-            ..send(dent2('vanished', error: 2))
-            ..send(SyncRequest.header(SyncId.done, 0, Uint8List(68)));
-          expect(await peer.request(), ('LST2', '/next'));
-          peer.send(stat2(SyncId.lstat2, mode: 0x81a4));
-          await peer.settle();
-        });
-        expect((await adb.sync.list('/d')).map((e) => e.name), ['ok']);
-        // The session is still in step after the padded DONE.
-        expect((await adb.sync.stat('/next'))!.isFile, isTrue);
-        await adbd.done();
-        await adb.close();
-      },
-    );
+    test('LIS2: entries, an entry with an errno left out, padded DONE', () async {
+      final (adb, adbd) = await connectTo(banner: v2Banner, (session) async {
+        final peer = await SyncPeer.accept(session);
+        expect(await peer.request(), ('LIS2', '/d'));
+        peer
+          ..send(dent2('..', mode: 0x41ed))
+          ..send(dent2('ok'))
+          ..send(dent2('vanished', error: 2))
+          ..send(SyncRequest.header(SyncId.done, 0, Uint8List(68)));
+        expect(await peer.request(), ('LST2', '/next'));
+        peer.send(stat2(SyncId.lstat2, mode: 0x81a4));
+        await peer.settle();
+      });
+      expect((await adb.sync.list('/d')).map((e) => e.name), ['ok']);
+      // The session is still in step after the padded DONE.
+      expect((await adb.sync.stat('/next'))!.isFile, isTrue);
+      await adbd.done();
+      await adb.close();
+    });
 
     test('a read cancelled midway abandons its session; the next call '
         'opens a new one', () async {
@@ -485,41 +444,29 @@ void main() {
         throw const FileSystemException('disk gone');
       }
 
-      await expectLater(
-        adb.sync.write('/w', source()),
-        throwsA(isA<FileSystemException>()),
-      );
+      await expectLater(adb.sync.write('/w', source()), throwsA(isA<FileSystemException>()));
       await adbd.done();
       await adb.close();
     });
 
     test('a frame cut short, then silence, fails as a stall', () async {
       final clock = FakeClock();
-      final (adb, adbd) = await connectTo(clock: clock, options: noLiveness, (
-        session,
-      ) async {
+      final (adb, adbd) = await connectTo(clock: clock, options: noLiveness, (session) async {
         final peer = await SyncPeer.accept(session);
         expect(await peer.request(), ('RECV', '/cut'));
-        peer.send(
-          Uint8List.fromList([...SyncRequest.header(SyncId.data, 10), 1, 2, 3]),
-        );
+        peer.send(Uint8List.fromList([...SyncRequest.header(SyncId.data, 10), 1, 2, 3]));
         await peer.settle(window: const Duration(milliseconds: 50));
         clock.advance(const Duration(seconds: 31));
         await peer.settle(anything: true);
       });
-      await expectLater(
-        adb.sync.readAll('/cut'),
-        throwsA(isA<AdbTimeoutException>()),
-      );
+      await expectLater(adb.sync.readAll('/cut'), throwsA(isA<AdbTimeoutException>()));
       await adbd.done();
       await adb.close();
     });
 
     test('a push the device stops acknowledging fails as a stall', () async {
       final clock = FakeClock();
-      final (adb, adbd) = await connectTo(clock: clock, options: noLiveness, (
-        session,
-      ) async {
+      final (adb, adbd) = await connectTo(clock: clock, options: noLiveness, (session) async {
         final open = await session.receive();
         session.send(AdbMessage.okay(localId: 9, remoteId: open.arg0));
         await session.receive(); // the SEND request, never acknowledged
@@ -536,10 +483,7 @@ void main() {
           break;
         }
       });
-      await expectLater(
-        adb.sync.writeAll('/w', [1]),
-        throwsA(isA<AdbTimeoutException>()),
-      );
+      await expectLater(adb.sync.writeAll('/w', [1]), throwsA(isA<AdbTimeoutException>()));
       await adbd.done();
       expect(adb.isClosed, isFalse);
       await adb.close();
@@ -574,12 +518,7 @@ void main() {
         for (var i = 0; i < 2; i++) {
           final request = await session.receive();
           session
-            ..send(
-              AdbMessage.okay(
-                localId: 20 + opens.indexOf(request.arg0),
-                remoteId: request.arg0,
-              ),
-            )
+            ..send(AdbMessage.okay(localId: 20 + opens.indexOf(request.arg0), remoteId: request.arg0))
             ..send(
               AdbMessage.write(
                 localId: 20 + opens.indexOf(request.arg0),
@@ -590,10 +529,7 @@ void main() {
         }
         await Future<void>.delayed(const Duration(milliseconds: 100));
       });
-      final results = await Future.wait([
-        adb.sync.stat('/a'),
-        adb.sync.stat('/b'),
-      ]);
+      final results = await Future.wait([adb.sync.stat('/a'), adb.sync.stat('/b')]);
       expect(results.every((r) => r!.isFile), isTrue);
       await adbd.done();
       await adb.close();
@@ -615,10 +551,7 @@ void main() {
       final file = File('${dir.path}/f');
       await adb.sync.pullFile('/f', file);
       expect(file.readAsBytesSync(), [4, 2]);
-      expect(
-        file.lastModifiedSync().toUtc(),
-        DateTime.utc(2023, 11, 14, 22, 13, 20),
-      );
+      expect(file.lastModifiedSync().toUtc(), DateTime.utc(2023, 11, 14, 22, 13, 20));
       expect(dir.listSync(), hasLength(1), reason: 'no partial file left');
       await adbd.done();
       await adb.close();
@@ -628,10 +561,7 @@ void main() {
       final (adb, adbd) = await connectTo((session) async {
         await session.expectQuiet(const Duration(milliseconds: 50));
       });
-      await expectLater(
-        adb.sync.writeAll('/t', [1], modified: DateTime.utc(1969)),
-        throwsArgumentError,
-      );
+      await expectLater(adb.sync.writeAll('/t', [1], modified: DateTime.utc(1969)), throwsArgumentError);
       await adbd.done();
       await adb.close();
     });

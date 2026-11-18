@@ -35,10 +35,7 @@ final class TlsIdentity {
 /// SHA-256. adbd identifies the client by the key alone; the fields follow
 /// adb so nothing about the certificate stands out.
 TlsIdentity buildTlsIdentity(RsaPrivateKey key, {required DateTime now}) {
-  final notBefore = DateTime.fromMillisecondsSinceEpoch(
-    now.millisecondsSinceEpoch ~/ 1000 * 1000,
-    isUtc: true,
-  );
+  final notBefore = DateTime.fromMillisecondsSinceEpoch(now.millisecondsSinceEpoch ~/ 1000 * 1000, isUtc: true);
   final notAfter = notBefore.add(const Duration(days: 365 * 10));
   // As BoringSSL encodes adb's names: the country as PrintableString (its
   // type is fixed), the others as UTF8String (the default string mask).
@@ -47,19 +44,12 @@ TlsIdentity buildTlsIdentity(RsaPrivateKey key, {required DateTime now}) {
     _rdn('2.5.4.10', Der.utf8String('Android')),
     _rdn('2.5.4.3', Der.utf8String('Adb')),
   ]);
-  final algorithm = Der.sequence([
-    Der.objectIdentifier(sha256WithRsaOid),
-    Der.nullValue(),
-  ]);
+  final algorithm = Der.sequence([Der.objectIdentifier(sha256WithRsaOid), Der.nullValue()]);
   final keyIdentifier = hashes.sha1.convert(key.publicKeyPkcs1()).bytes;
   final extensions = Der.explicit(
     3,
     Der.sequence([
-      _extension(
-        '2.5.29.19',
-        critical: true,
-        value: Der.sequence([Der.boolean(true)]),
-      ),
+      _extension('2.5.29.19', critical: true, value: Der.sequence([Der.boolean(true)])),
       _extension(
         '2.5.29.15',
         critical: true,
@@ -67,11 +57,7 @@ TlsIdentity buildTlsIdentity(RsaPrivateKey key, {required DateTime now}) {
         // trailing bit, so the bit string is 0x86 with 1 unused bit.
         value: Der.element(Der.tagBitString, const [0x01, 0x86]),
       ),
-      _extension(
-        '2.5.29.14',
-        critical: false,
-        value: Der.octetString(keyIdentifier),
-      ),
+      _extension('2.5.29.14', critical: false, value: Der.octetString(keyIdentifier)),
     ]),
   );
   final tbs = Der.sequence([
@@ -84,11 +70,7 @@ TlsIdentity buildTlsIdentity(RsaPrivateKey key, {required DateTime now}) {
     key.subjectPublicKeyInfo(),
     extensions,
   ]);
-  final certificate = Der.sequence([
-    tbs,
-    algorithm,
-    Der.bitString(key.signSha256(tbs)),
-  ]);
+  final certificate = Der.sequence([tbs, algorithm, Der.bitString(key.signSha256(tbs))]);
   return TlsIdentity(certificateDer: certificate, key: key);
 }
 
@@ -96,12 +78,5 @@ Uint8List _rdn(String oid, Uint8List value) => Der.set([
   Der.sequence([Der.objectIdentifier(oid), value]),
 ]);
 
-Uint8List _extension(
-  String oid, {
-  required bool critical,
-  required List<int> value,
-}) => Der.sequence([
-  Der.objectIdentifier(oid),
-  if (critical) Der.boolean(true),
-  Der.octetString(value),
-]);
+Uint8List _extension(String oid, {required bool critical, required List<int> value}) =>
+    Der.sequence([Der.objectIdentifier(oid), if (critical) Der.boolean(true), Der.octetString(value)]);

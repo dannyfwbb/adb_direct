@@ -17,8 +17,7 @@ import '../stream/adb_stream.dart';
 /// Quotes [argument] for the device's shell: one argument, whatever it
 /// contains.
 String shellQuote(String argument) {
-  if (argument.isNotEmpty &&
-      RegExp(r'^[A-Za-z0-9_@%+=:,./-]+$').hasMatch(argument)) {
+  if (argument.isNotEmpty && RegExp(r'^[A-Za-z0-9_@%+=:,./-]+$').hasMatch(argument)) {
     return argument;
   }
   return "'${argument.replaceAll("'", r"'\''")}'";
@@ -100,9 +99,7 @@ final class AdbShell {
     AdbStream? stream;
     final timer = _connection.clock.timer(timeout, () {
       if (finished.isCompleted) return;
-      finished.completeError(
-        AdbTimeoutException('"$command" did not finish within $timeout'),
-      );
+      finished.completeError(AdbTimeoutException('"$command" did not finish within $timeout'));
       unawaited(stream?.close());
     });
     var pty = false;
@@ -115,9 +112,7 @@ final class AdbShell {
         // stdin cannot be closed there, so it is empty from the start, as
         // with the protocol; a subshell keeps an `exit` from skipping the
         // marker.
-        (stream, pty) = await _openWithoutProtocol(
-          'exec </dev/null\n(\n$command\n)\necho $marker\$?',
-        );
+        (stream, pty) = await _openWithoutProtocol('exec </dev/null\n(\n$command\n)\necho $marker\$?');
       }
     } on Object {
       timer.cancel();
@@ -150,11 +145,7 @@ final class AdbShell {
     );
     if (v2) {
       // An empty stdin: commands that read it end at once.
-      unawaited(
-        open
-            .write(ShellProtocol.encode(ShellPacketId.closeStdin, const []))
-            .catchError((Object _) {}),
-      );
+      unawaited(open.write(ShellProtocol.encode(ShellPacketId.closeStdin, const [])).catchError((Object _) {}));
     }
     try {
       await finished.future;
@@ -196,11 +187,7 @@ final class AdbShell {
   /// On devices without shell protocol v2 (Android 6 and older) the session
   /// always has a PTY and no separate stderr, exit status or window size;
   /// asking for `pty: false` there throws [AdbNotSupportedException].
-  Future<AdbShellSession> start({
-    String command = '',
-    bool pty = true,
-    String terminal = 'xterm-256color',
-  }) async {
+  Future<AdbShellSession> start({String command = '', bool pty = true, String terminal = 'xterm-256color'}) async {
     final v2 = supportsShellProtocol;
     if (!v2 && !pty) {
       throw const AdbNotSupportedException(
@@ -218,10 +205,7 @@ final class AdbShell {
 
   static String _exitMarker() {
     final random = Random.secure();
-    final id = List.generate(
-      12,
-      (_) => random.nextInt(16).toRadixString(16),
-    ).join();
+    final id = List.generate(12, (_) => random.nextInt(16).toRadixString(16)).join();
     return 'ADB_DIRECT_EXIT_${id}_';
   }
 }
@@ -304,14 +288,9 @@ final class _Collector {
     // The marker, up to three digits and a line end: only the tail matters.
     final tailStart = max(0, output.length - marker.length - 8);
     final tail = latin1.decode(Uint8List.sublistView(output, tailStart));
-    final match = RegExp(
-      '${RegExp.escape(marker)}(\\d{1,3})\\r?\\n?\$',
-    ).firstMatch(tail);
+    final match = RegExp('${RegExp.escape(marker)}(\\d{1,3})\\r?\\n?\$').firstMatch(tail);
     if (match == null) return (output, null);
-    return (
-      Uint8List.sublistView(output, 0, tailStart + match.start),
-      int.parse(match[1]!),
-    );
+    return (Uint8List.sublistView(output, 0, tailStart + match.start), int.parse(match[1]!));
   }
 }
 
@@ -369,26 +348,18 @@ final class AdbShellSession {
   AdbException? get closeReason => _stream.closeReason;
 
   /// Sends [data] to the command's stdin.
-  Future<void> write(List<int> data) => _stream.write(
-    shellProtocol ? ShellProtocol.encode(ShellPacketId.stdin, data) : data,
-  );
+  Future<void> write(List<int> data) =>
+      _stream.write(shellProtocol ? ShellProtocol.encode(ShellPacketId.stdin, data) : data);
 
   /// Ends stdin (EOF for a command without a PTY). Without shell protocol
   /// v2 the only way to end stdin is [close].
   Future<void> closeStdin() async {
     if (!shellProtocol) return;
-    await _stream.write(
-      ShellProtocol.encode(ShellPacketId.closeStdin, const []),
-    );
+    await _stream.write(ShellProtocol.encode(ShellPacketId.closeStdin, const []));
   }
 
   /// Tells the PTY its size. Ignored without shell protocol v2.
-  Future<void> resize({
-    required int rows,
-    required int columns,
-    int widthPixels = 0,
-    int heightPixels = 0,
-  }) async {
+  Future<void> resize({required int rows, required int columns, int widthPixels = 0, int heightPixels = 0}) async {
     if (!shellProtocol) return;
     await _stream.write(
       ShellProtocol.encode(
@@ -431,10 +402,7 @@ final class AdbShellSession {
   /// Holds the device back while nobody listens to stdout, or a listener
   /// of either output is paused. (Unread stderr is kept: it is small.)
   void _syncPause() {
-    final paused =
-        !_stdout.hasListener ||
-        _stdout.isPaused ||
-        (_stderr.hasListener && _stderr.isPaused);
+    final paused = !_stdout.hasListener || _stdout.isPaused || (_stderr.hasListener && _stderr.isPaused);
     if (paused && !_subscription.isPaused) {
       _subscription.pause();
     } else if (!paused && _subscription.isPaused) {

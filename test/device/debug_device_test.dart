@@ -13,9 +13,7 @@ import 'package:test/test.dart';
 /// JDWP needs a debuggable app running on the device; bug reports take
 /// minutes and run only with ADB_DIRECT_TEST_BUGREPORT=1.
 final String? host = Platform.environment['ADB_DIRECT_TEST_HOST'];
-final int port = int.parse(
-  Platform.environment['ADB_DIRECT_TEST_PORT'] ?? '5555',
-);
+final int port = int.parse(Platform.environment['ADB_DIRECT_TEST_PORT'] ?? '5555');
 final String? keyPath = Platform.environment['ADB_DIRECT_TEST_KEY'];
 final bool bugreport = Platform.environment['ADB_DIRECT_TEST_BUGREPORT'] == '1';
 final String? skip = host == null || keyPath == null
@@ -66,9 +64,7 @@ void main() {
   }, skip: skip);
 
   test('logcat and a screenshot', () async {
-    final lines = await adb.debug
-        .logcat(arguments: ['-d', '-t', '20'])
-        .toList();
+    final lines = await adb.debug.logcat(arguments: ['-d', '-t', '20']).toList();
     expect(lines, isNotEmpty);
     final watch = Stopwatch()..start();
     final png = await adb.debug.screencap();

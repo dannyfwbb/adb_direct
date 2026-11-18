@@ -30,9 +30,7 @@ final AdbKeyPair otherKey = AdbKeyPair.fromPem(
 );
 
 /// The banner the Google TV emulator (Android 14) sent on 2026-11-17.
-final Uint8List tvBanner = Fixture.load(
-  'handshake/trusted_key',
-).fromDevice.last.payload;
+final Uint8List tvBanner = Fixture.load('handshake/trusted_key').fromDevice.last.payload;
 
 /// A banner like [tvBanner] without `delayed_ack`.
 final Uint8List classicBanner = utf8.encode(
@@ -41,17 +39,11 @@ final Uint8List classicBanner = utf8.encode(
 );
 
 /// A banner of a device without shell protocol v2 (Android 6 and older).
-final Uint8List oldBanner = utf8.encode(
-  'device::ro.product.name=p;ro.product.model=Old;ro.product.device=d;',
-);
+final Uint8List oldBanner = utf8.encode('device::ro.product.name=p;ro.product.model=Old;ro.product.device=d;');
 
 /// Whether [signature] is [publicKey]'s PKCS#1 v1.5 SHA-1 signature of
 /// [token], checked the way adbd does (`RSA_verify(NID_sha1, token, …)`).
-bool verifyTokenSignature(
-  AdbPublicKey publicKey,
-  List<int> token,
-  List<int> signature,
-) {
+bool verifyTokenSignature(AdbPublicKey publicKey, List<int> token, List<int> signature) {
   final s = Der.unsignedValue(signature);
   final m = s.modPow(publicKey.exponent, publicKey.modulus);
   final em = Der.unsignedBytes(m, length: 256);
@@ -85,8 +77,7 @@ Future<AdbMessage> acceptHandshake(
     final token = randomToken();
     session.send(AdbMessage.auth(AdbAuthType.token, token));
     final answer = await session.receive();
-    if (answer.command != AdbCommand.auth ||
-        answer.arg0 != AdbAuthType.signature.value) {
+    if (answer.command != AdbCommand.auth || answer.arg0 != AdbAuthType.signature.value) {
       throw FakeAdbdFailure('expected a signature, got $answer');
     }
     if (keys.any((k) => verifyTokenSignature(k, token, answer.payload))) {
@@ -94,9 +85,7 @@ Future<AdbMessage> acceptHandshake(
     }
   }
   session
-    ..send(
-      AdbMessage(AdbCommand.connect, version, maxPayload, banner ?? tvBanner),
-    )
+    ..send(AdbMessage(AdbCommand.connect, version, maxPayload, banner ?? tvBanner))
     ..withChecksum = version < AdbProtocol.versionSkipChecksum;
   return cnxn;
 }
@@ -104,9 +93,7 @@ Future<AdbMessage> acceptHandshake(
 /// A fresh random 20-byte token.
 Uint8List randomToken() {
   final random = Random.secure();
-  return Uint8List.fromList(
-    List.generate(AdbProtocol.authTokenLength, (_) => random.nextInt(256)),
-  );
+  return Uint8List.fromList(List.generate(AdbProtocol.authTokenLength, (_) => random.nextInt(256)));
 }
 
 /// The host banner a client sent in [cnxn].

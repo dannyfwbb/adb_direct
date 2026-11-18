@@ -82,13 +82,7 @@ final class TlsKeyRejected implements Exception {
 /// trust it closes the session, and [run] throws [TlsKeyRejected].
 final class Handshake {
   /// Prepares a handshake over [link] trying [keys] in order.
-  Handshake(
-    this.link, {
-    required this.keys,
-    required this.options,
-    this.onWaitingForApproval,
-    this.tlsKey = 0,
-  });
+  Handshake(this.link, {required this.keys, required this.options, this.onWaitingForApproval, this.tlsKey = 0});
 
   /// The index in [keys] of the key to present if the device asks for TLS.
   final int tlsKey;
@@ -118,14 +112,7 @@ final class Handshake {
     link
       ..withChecksum = true
       ..note('Handshake: sending CNXN')
-      ..send(
-        AdbMessage(
-          AdbCommand.connect,
-          AdbProtocol.version,
-          AdbProtocol.maxPayload,
-          bannerBytes,
-        ),
-      );
+      ..send(AdbMessage(AdbCommand.connect, AdbProtocol.version, AdbProtocol.maxPayload, bannerBytes));
 
     var nextKey = 0;
     var offered = false;
@@ -170,9 +157,7 @@ final class Handshake {
             throw const AdbProtocolException('STLS out of order');
           }
           if (tlsKey >= keys.length) {
-            throw const AdbUnauthorizedException(
-              'The device wants TLS and there is no key to present',
-            );
+            throw const AdbUnauthorizedException('The device wants TLS and there is no key to present');
           }
           final key = keys[tlsKey];
           link
@@ -194,14 +179,10 @@ final class Handshake {
           deadline = link.clock.elapsed + options.handshakeTimeout;
         case AdbCommand.auth:
           if (message.arg0 != AdbAuthType.token.value) {
-            throw AdbProtocolException(
-              'Unexpected AUTH type ${message.arg0} from the device',
-            );
+            throw AdbProtocolException('Unexpected AUTH type ${message.arg0} from the device');
           }
           if (message.payload.length != AdbProtocol.authTokenLength) {
-            throw AdbProtocolException(
-              'AUTH token of ${message.payload.length} bytes',
-            );
+            throw AdbProtocolException('AUTH token of ${message.payload.length} bytes');
           }
           if (tls) {
             throw const AdbProtocolException('AUTH after TLS');
@@ -214,35 +195,19 @@ final class Handshake {
             accepted = key;
             link
               ..note('Handshake: signing the token with key $nextKey')
-              ..send(
-                AdbMessage.auth(
-                  AdbAuthType.signature,
-                  key.signAuthToken(message.payload),
-                ),
-              );
+              ..send(AdbMessage.auth(AdbAuthType.signature, key.signAuthToken(message.payload)));
           } else if (options.allowPrompt && keys.isNotEmpty) {
             offered = true;
             accepted = null;
             deadline = link.clock.elapsed + options.approvalTimeout;
             link
               ..note('Handshake: offering the public key; waiting for the user')
-              ..send(
-                AdbMessage.auth(AdbAuthType.rsaPublicKey, [
-                  ...utf8.encode(keys.first.publicKey.encode()),
-                  0,
-                ]),
-              );
+              ..send(AdbMessage.auth(AdbAuthType.rsaPublicKey, [...utf8.encode(keys.first.publicKey.encode()), 0]));
             onWaitingForApproval?.call();
           } else {
-            throw const AdbUnauthorizedException(
-              'The device does not trust the key',
-            );
+            throw const AdbUnauthorizedException('The device does not trust the key');
           }
-        case AdbCommand.open ||
-            AdbCommand.okay ||
-            AdbCommand.close ||
-            AdbCommand.write ||
-            AdbCommand.sync:
+        case AdbCommand.open || AdbCommand.okay || AdbCommand.close || AdbCommand.write || AdbCommand.sync:
           // Messages before CNXN must be ignored (protocol.md).
           link.note('Handshake: ignored ${message.command.wireName}');
       }
@@ -255,11 +220,7 @@ final class Handshake {
     final done = Completer<T>();
     final timer = link.clock.timer(timeout, () {
       if (!done.isCompleted) {
-        done.completeError(
-          AdbTimeoutException(
-            'The TLS handshake did not finish within $timeout',
-          ),
-        );
+        done.completeError(AdbTimeoutException('The TLS handshake did not finish within $timeout'));
       }
     });
     future
@@ -283,24 +244,16 @@ final class Handshake {
     required bool tls,
     required Uint8List? deviceCertificate,
   }) {
-    final version = cnxn.arg0 < AdbProtocol.version
-        ? cnxn.arg0
-        : AdbProtocol.version;
+    final version = cnxn.arg0 < AdbProtocol.version ? cnxn.arg0 : AdbProtocol.version;
     if (version < AdbProtocol.versionMin) {
-      throw AdbProtocolException(
-        'Unsupported protocol version 0x${cnxn.arg0.toRadixString(16)}',
-      );
+      throw AdbProtocolException('Unsupported protocol version 0x${cnxn.arg0.toRadixString(16)}');
     }
     if (cnxn.arg1 == 0) {
       throw const AdbProtocolException('The device announced maxdata 0');
     }
-    final maxPayload = cnxn.arg1 < AdbProtocol.maxPayload
-        ? cnxn.arg1
-        : AdbProtocol.maxPayload;
+    final maxPayload = cnxn.arg1 < AdbProtocol.maxPayload ? cnxn.arg1 : AdbProtocol.maxPayload;
     final banner = AdbBanner.parse(cnxn.payload);
-    final delayedAck =
-        options.hostFeatures.contains(AdbFeature.delayedAck) &&
-        banner.supports(AdbFeature.delayedAck);
+    final delayedAck = options.hostFeatures.contains(AdbFeature.delayedAck) && banner.supports(AdbFeature.delayedAck);
     link
       ..withChecksum = version < AdbProtocol.versionSkipChecksum
       ..maxIncomingPayload = maxPayload

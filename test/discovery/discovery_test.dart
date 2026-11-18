@@ -20,20 +20,11 @@ final class Answer {
   int _count = 0;
 
   static List<int> _name(String name) => [
-    for (final label in name.split('.')) ...[
-      label.length,
-      ...utf8.encode(label),
-    ],
+    for (final label in name.split('.')) ...[label.length, ...utf8.encode(label)],
     0,
   ];
 
-  void _add(
-    String name,
-    int type,
-    int ttl,
-    List<int> data, {
-    bool flush = true,
-  }) {
+  void _add(String name, int type, int ttl, List<int> data, {bool flush = true}) {
     _records
       ..add(_name(name))
       ..add([type >> 8, type & 255, flush ? 0x80 : 0, 1])
@@ -43,39 +34,19 @@ final class Answer {
     _count++;
   }
 
-  void ptr(String type, String instance, {int ttl = 4500}) =>
-      _add(type, 12, ttl, _name(instance), flush: false);
+  void ptr(String type, String instance, {int ttl = 4500}) => _add(type, 12, ttl, _name(instance), flush: false);
 
-  void srv(String instance, String host, int port, {int ttl = 120}) => _add(
-    instance,
-    33,
-    ttl,
-    [0, 0, 0, 0, port >> 8, port & 255, ..._name(host)],
-  );
+  void srv(String instance, String host, int port, {int ttl = 120}) =>
+      _add(instance, 33, ttl, [0, 0, 0, 0, port >> 8, port & 255, ..._name(host)]);
 
-  void txt(String instance, List<String> strings, {int ttl = 4500}) =>
-      _add(instance, 16, ttl, [
-        for (final s in strings) ...[s.length, ...utf8.encode(s)],
-      ]);
-
-  void a(String host, String address, {int ttl = 120}) =>
-      _add(host, 1, ttl, InternetAddress(address).rawAddress);
-
-  Uint8List bytes() => Uint8List.fromList([
-    0,
-    0,
-    0x84,
-    0,
-    0,
-    0,
-    _count >> 8,
-    _count & 255,
-    0,
-    0,
-    0,
-    0,
-    ..._records.toBytes(),
+  void txt(String instance, List<String> strings, {int ttl = 4500}) => _add(instance, 16, ttl, [
+    for (final s in strings) ...[s.length, ...utf8.encode(s)],
   ]);
+
+  void a(String host, String address, {int ttl = 120}) => _add(host, 1, ttl, InternetAddress(address).rawAddress);
+
+  Uint8List bytes() =>
+      Uint8List.fromList([0, 0, 0x84, 0, 0, 0, _count >> 8, _count & 255, 0, 0, 0, 0, ..._records.toBytes()]);
 }
 
 final class FakeTransport implements MdnsTransport {
@@ -134,30 +105,20 @@ Answer fullTv({int port = 37123, String address = '192.168.0.20'}) => Answer()
 void main() {
   group('DNS messages', () {
     test('a real Avahi answer (legacy unicast, compressed names)', () {
-      final message = DnsMessage.decode(
-        File('test/fixtures/mdns/avahi_legacy_answer.bin').readAsBytesSync(),
-      );
+      final message = DnsMessage.decode(File('test/fixtures/mdns/avahi_legacy_answer.bin').readAsBytesSync());
       expect(message.isResponse, isTrue);
       expect(message.id, 0x1234);
       expect(message.questions.single.name, '_adbdirect-test._tcp.local');
       final byType = {for (final r in message.answers) r.type: r};
-      expect(
-        byType[DnsType.ptr]!.data,
-        'adb-TESTSERIAL01-AbC123._adbdirect-test._tcp.local',
-      );
+      expect(byType[DnsType.ptr]!.data, 'adb-TESTSERIAL01-AbC123._adbdirect-test._tcp.local');
       expect((byType[DnsType.srv]!.data as DnsSrv).port, 40123);
       expect(byType[DnsType.txt]!.data, ['v=1']);
-      expect(
-        (byType[DnsType.a]!.data as InternetAddress).address,
-        '192.168.0.20',
-      );
+      expect((byType[DnsType.a]!.data as InternetAddress).address, '192.168.0.20');
       expect(message.answers.every((r) => r.ttl <= 10), isTrue);
     });
 
     test('a query: id, question count, QU bit', () {
-      final bytes = DnsMessage.query([
-        const DnsQuestion(tls, DnsType.ptr, unicastResponse: true),
-      ]);
+      final bytes = DnsMessage.query([const DnsQuestion(tls, DnsType.ptr, unicastResponse: true)]);
       expect(bytes.sublist(0, 6), [0, 0, 0, 0, 0, 1]);
       final back = DnsMessage.decode(bytes);
       expect(back.questions.single.name, tls);
@@ -165,10 +126,7 @@ void main() {
     });
 
     test('malformed input: FormatException, also for pointer loops', () {
-      expect(
-        () => DnsMessage.decode(Uint8List.fromList([0, 0, 0x84, 0])),
-        throwsFormatException,
-      );
+      expect(() => DnsMessage.decode(Uint8List.fromList([0, 0, 0x84, 0])), throwsFormatException);
       // One answer whose name points at itself.
       final loop = Uint8List.fromList([
         0, 0, 0x84, 0, 0, 0, 0, 1, 0, 0, 0, 0, //
@@ -180,13 +138,9 @@ void main() {
 
   group('instance names', () {
     test('serial and suffix', () {
-      AdbService s(String instance) =>
-          AdbService(type: AdbServiceType.connect, instance: instance, port: 1);
+      AdbService s(String instance) => AdbService(type: AdbServiceType.connect, instance: instance, port: 1);
       expect(
-        (
-          s('adb-14141FDF600081-QXjCrW').serial,
-          s('adb-14141FDF600081-QXjCrW').suffix,
-        ),
+        (s('adb-14141FDF600081-QXjCrW').serial, s('adb-14141FDF600081-QXjCrW').suffix),
         ('14141FDF600081', 'QXjCrW'),
       );
       expect(s('adb-EMULATOR37X1X11X0-gaC25L').serial, 'EMULATOR37X1X11X0');
@@ -207,10 +161,7 @@ void main() {
       clock = FakeClock();
       transport = FakeTransport(hearsMulticast: multicast, clock: clock);
       events = [];
-      sub = AdbMdnsBrowser(
-        clock: clock,
-        transport: transport,
-      ).browse([AdbServiceType.tlsConnect]).listen(events.add);
+      sub = AdbMdnsBrowser(clock: clock, transport: transport).browse([AdbServiceType.tlsConnect]).listen(events.add);
       await Future<void>.delayed(Duration.zero);
     }
 
@@ -233,9 +184,7 @@ void main() {
 
       // Wireless debugging restarted on another port (cache-flush SRV).
       clock.advance(const Duration(seconds: 2));
-      transport.deliver(
-        (Answer()..srv(instance, 'Android.local', 40001)).bytes(),
-      );
+      transport.deliver((Answer()..srv(instance, 'Android.local', 40001)).bytes());
       expect(events.last, isA<AdbServiceUpdated>());
       expect(events.last.service.port, 40001);
 
@@ -247,31 +196,21 @@ void main() {
       expect(events, hasLength(3));
     });
 
-    test(
-      'a PTR alone makes it ask for SRV and TXT, then the address',
-      () async {
-        await start();
-        transport.sent.clear();
-        transport.deliver((Answer()..ptr(tls, instance)).bytes());
-        expect(events, isEmpty);
-        expect(
-          transport.sent.last.questions.map((q) => (q.name, q.type)),
-          containsAll([(instance, DnsType.srv), (instance, DnsType.txt)]),
-        );
-        transport.deliver(
-          (Answer()..srv(instance, 'Android.local', 37123)).bytes(),
-        );
-        expect(events, isEmpty);
-        expect(
-          transport.sent.last.questions.map((q) => (q.name, q.type)),
-          contains(('Android.local', DnsType.a)),
-        );
-        transport.deliver(
-          (Answer()..a('Android.local', '192.168.0.20')).bytes(),
-        );
-        expect(events.single, isA<AdbServiceFound>());
-      },
-    );
+    test('a PTR alone makes it ask for SRV and TXT, then the address', () async {
+      await start();
+      transport.sent.clear();
+      transport.deliver((Answer()..ptr(tls, instance)).bytes());
+      expect(events, isEmpty);
+      expect(
+        transport.sent.last.questions.map((q) => (q.name, q.type)),
+        containsAll([(instance, DnsType.srv), (instance, DnsType.txt)]),
+      );
+      transport.deliver((Answer()..srv(instance, 'Android.local', 37123)).bytes());
+      expect(events, isEmpty);
+      expect(transport.sent.last.questions.map((q) => (q.name, q.type)), contains(('Android.local', DnsType.a)));
+      transport.deliver((Answer()..a('Android.local', '192.168.0.20')).bytes());
+      expect(events.single, isA<AdbServiceFound>());
+    });
 
     test('records expire with their TTL; questions back off', () async {
       await start();
@@ -295,23 +234,11 @@ void main() {
       await start();
       transport.deliver(fullTv().bytes(), '192.168.0.20');
       clock.advance(const Duration(seconds: 2));
-      transport.deliver(
-        (Answer()..a('Android.local', '127.0.0.1')).bytes(),
-        '127.0.0.1',
-      );
-      expect(events.last.service.addresses.map((a) => a.address), [
-        '192.168.0.20',
-        '127.0.0.1',
-      ]);
+      transport.deliver((Answer()..a('Android.local', '127.0.0.1')).bytes(), '127.0.0.1');
+      expect(events.last.service.addresses.map((a) => a.address), ['192.168.0.20', '127.0.0.1']);
       clock.advance(const Duration(seconds: 2));
-      transport.deliver(
-        (Answer()..a('Android.local', '192.168.0.21')).bytes(),
-        '192.168.0.20',
-      );
-      expect(events.last.service.addresses.map((a) => a.address), [
-        '192.168.0.21',
-        '127.0.0.1',
-      ]);
+      transport.deliver((Answer()..a('Android.local', '192.168.0.21')).bytes(), '192.168.0.20');
+      expect(events.last.service.addresses.map((a) => a.address), ['192.168.0.21', '127.0.0.1']);
     });
 
     test('other types, garbage and queries are ignored', () async {
@@ -319,10 +246,7 @@ void main() {
       transport
         ..deliver(Uint8List.fromList([1, 2, 3]))
         ..deliver(DnsMessage.query([const DnsQuestion(tls, DnsType.ptr)]))
-        ..deliver(
-          (Answer()..ptr('_googlecast._tcp.local', 'x._googlecast._tcp.local'))
-              .bytes(),
-        );
+        ..deliver((Answer()..ptr('_googlecast._tcp.local', 'x._googlecast._tcp.local')).bytes());
       expect(events, isEmpty);
     });
 
@@ -337,9 +261,7 @@ void main() {
           count = transport.sent.length;
         }
       }
-      final gaps = [
-        for (var i = 1; i < asked.length; i++) asked[i] - asked[i - 1],
-      ];
+      final gaps = [for (var i = 1; i < asked.length; i++) asked[i] - asked[i - 1]];
       expect(gaps.every((g) => g <= 5), isTrue);
     });
 
@@ -360,10 +282,7 @@ void main() {
       clock = FakeClock();
       transport = FakeTransport(clock: clock, startDelay: startDelay);
       events = [];
-      sub = AdbMdnsBrowser(
-        clock: clock,
-        transport: transport,
-      ).browse(['_ADB-TLS-CONNECT._tcp.']).listen(events.add);
+      sub = AdbMdnsBrowser(clock: clock, transport: transport).browse(['_ADB-TLS-CONNECT._tcp.']).listen(events.add);
       await Future<void>.delayed(Duration.zero);
     }
 
@@ -400,9 +319,7 @@ void main() {
         5,
       ]);
       transport.deliver(withBad);
-      expect(events.single.service.addresses.map((a) => a.address), [
-        '192.168.0.20',
-      ]);
+      expect(events.single.service.addresses.map((a) => a.address), ['192.168.0.20']);
     });
 
     test('types are matched without case or trailing dot', () async {
@@ -411,18 +328,15 @@ void main() {
       expect(events.single, isA<AdbServiceFound>());
     });
 
-    test(
-      'cancelled while starting: the transport is closed once started',
-      () async {
-        final gate = Completer<void>();
-        await start(startDelay: gate);
-        await sub.cancel();
-        gate.complete();
-        await Future<void>.delayed(Duration.zero);
-        expect(transport.closed, isTrue);
-        expect(transport.sent, isEmpty);
-      },
-    );
+    test('cancelled while starting: the transport is closed once started', () async {
+      final gate = Completer<void>();
+      await start(startDelay: gate);
+      await sub.cancel();
+      gate.complete();
+      await Future<void>.delayed(Duration.zero);
+      expect(transport.closed, isTrue);
+      expect(transport.sent, isEmpty);
+    });
 
     test('a PTR that never resolves does not cause a question storm', () async {
       await start();
@@ -430,32 +344,24 @@ void main() {
       for (var i = 0; i < 50; i++) {
         transport.deliver((Answer()..ptr(tls, instance)).bytes());
       }
-      final srvQuestions = transport.sent
-          .expand((m) => m.questions)
-          .where((q) => q.type == DnsType.srv)
-          .length;
+      final srvQuestions = transport.sent.expand((m) => m.questions).where((q) => q.type == DnsType.srv).length;
       // 50 packets over 5 s: asked at 0, 1, 3 s.
       expect(srvQuestions, lessThanOrEqualTo(4));
     });
 
-    test(
-      'a goodbye from one interface keeps the service from another',
-      () async {
-        await start();
-        transport
-          ..deliver(fullTv().bytes(), '192.168.0.20')
-          ..deliver(fullTv().bytes(), '10.0.0.7')
-          ..deliver((Answer()..ptr(tls, instance, ttl: 0)).bytes(), '10.0.0.7');
-        clock.advance(const Duration(seconds: 2));
-        expect(events.whereType<AdbServiceLost>(), isEmpty);
-      },
-    );
+    test('a goodbye from one interface keeps the service from another', () async {
+      await start();
+      transport
+        ..deliver(fullTv().bytes(), '192.168.0.20')
+        ..deliver(fullTv().bytes(), '10.0.0.7')
+        ..deliver((Answer()..ptr(tls, instance, ttl: 0)).bytes(), '10.0.0.7');
+      clock.advance(const Duration(seconds: 2));
+      expect(events.whereType<AdbServiceLost>(), isEmpty);
+    });
 
     test('TXT keys: no case, first wins, empty keys ignored', () async {
       await start();
-      transport.deliver(
-        (fullTv()..txt(instance, ['V=2', 'v=3', '=x', 'flag'])).bytes(),
-      );
+      transport.deliver((fullTv()..txt(instance, ['V=2', 'v=3', '=x', 'flag'])).bytes());
       expect(events.single.service.txt, {'v': '2', 'flag': ''});
     });
 
@@ -478,14 +384,8 @@ void main() {
       transport.sent.clear();
       clock.advance(const Duration(seconds: 97)); // 80 % of 120 s
       final asked = transport.sent.expand((m) => m.questions).toList();
-      expect(
-        asked.map((q) => (q.name, q.type)),
-        contains((instance, DnsType.srv)),
-      );
-      expect(
-        asked.map((q) => (q.name, q.type)),
-        contains(('Android.local', DnsType.a)),
-      );
+      expect(asked.map((q) => (q.name, q.type)), contains((instance, DnsType.srv)));
+      expect(asked.map((q) => (q.name, q.type)), contains(('Android.local', DnsType.a)));
     });
   });
 }

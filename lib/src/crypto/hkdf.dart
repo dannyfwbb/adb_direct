@@ -9,22 +9,13 @@ import 'package:crypto/crypto.dart';
 abstract final class Hkdf {
   /// HKDF-Extract: a pseudorandom key from [inputKeyMaterial] and [salt]
   /// (all-zero, hash-sized, when empty).
-  static Uint8List extract(
-    Hash hash,
-    List<int> inputKeyMaterial, {
-    List<int> salt = const [],
-  }) {
+  static Uint8List extract(Hash hash, List<int> inputKeyMaterial, {List<int> salt = const []}) {
     final key = salt.isEmpty ? List<int>.filled(_hashLength(hash), 0) : salt;
     return Uint8List.fromList(Hmac(hash, key).convert(inputKeyMaterial).bytes);
   }
 
   /// HKDF-Expand: [length] bytes from a pseudorandom key and [info].
-  static Uint8List expand(
-    Hash hash,
-    List<int> pseudorandomKey,
-    List<int> info,
-    int length,
-  ) {
+  static Uint8List expand(Hash hash, List<int> pseudorandomKey, List<int> info, int length) {
     final hashLength = _hashLength(hash);
     if (length < 0 || length > 255 * hashLength) {
       throw RangeError.range(length, 0, 255 * hashLength, 'length');

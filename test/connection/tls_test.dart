@@ -19,15 +19,8 @@ Future<String> echo(AdbConnection adb, String text) async {
 
 void main() {
   test('a trusted key: STLS, TLS, CNXN inside; streams work', () async {
-    final adbd = await FakeTlsAdbd.start(
-      trusted: [testKey],
-      serverKey: otherKey,
-    );
-    final adb = await AdbConnection.connect(
-      '127.0.0.1',
-      adbd.port,
-      key: testKey,
-    );
+    final adbd = await FakeTlsAdbd.start(trusted: [testKey], serverKey: otherKey);
+    final adb = await AdbConnection.connect('127.0.0.1', adbd.port, key: testKey);
     expect(adb.isTls, isTrue);
     expect(adb.deviceCertificate, adbd.certificateDer);
     expect(adb.acceptedKey, testKey);
@@ -40,35 +33,18 @@ void main() {
   });
 
   test('a key the device does not trust: unauthorized, one try', () async {
-    final adbd = await FakeTlsAdbd.start(
-      trusted: [otherKey],
-      serverKey: otherKey,
-    );
+    final adbd = await FakeTlsAdbd.start(trusted: [otherKey], serverKey: otherKey);
     await expectLater(
       AdbConnection.connect('127.0.0.1', adbd.port, key: testKey),
-      throwsA(
-        isA<AdbUnauthorizedException>().having(
-          (e) => e.message,
-          'message',
-          contains('pair it first'),
-        ),
-      ),
+      throwsA(isA<AdbUnauthorizedException>().having((e) => e.message, 'message', contains('pair it first'))),
     );
     expect(adbd.connections, 1);
     await adbd.close();
   });
 
   test('several keys: one TLS session each until one is trusted', () async {
-    final adbd = await FakeTlsAdbd.start(
-      trusted: [otherKey],
-      serverKey: testKey,
-    );
-    final adb = await AdbConnection.connect(
-      '127.0.0.1',
-      adbd.port,
-      key: testKey,
-      extraKeys: [otherKey],
-    );
+    final adbd = await FakeTlsAdbd.start(trusted: [otherKey], serverKey: testKey);
+    final adb = await AdbConnection.connect('127.0.0.1', adbd.port, key: testKey, extraKeys: [otherKey]);
     expect(adb.acceptedKey, otherKey);
     expect(adbd.connections, 2);
     expect(await echo(adb, 'second key'), 'second key');
@@ -77,33 +53,20 @@ void main() {
   });
 
   test('a device that answers STLS but speaks no TLS', () async {
-    final adbd = await FakeTlsAdbd.start(
-      trusted: [testKey],
-      serverKey: otherKey,
-      speakTls: false,
-    );
-    await expectLater(
-      AdbConnection.connect('127.0.0.1', adbd.port, key: testKey),
-      throwsA(isA<AdbException>()),
-    );
+    final adbd = await FakeTlsAdbd.start(trusted: [testKey], serverKey: otherKey, speakTls: false);
+    await expectLater(AdbConnection.connect('127.0.0.1', adbd.port, key: testKey), throwsA(isA<AdbException>()));
     await adbd.close();
   });
 
   test('a TLS handshake that never finishes: timeout', () async {
-    final adbd = await FakeTlsAdbd.start(
-      trusted: [testKey],
-      serverKey: otherKey,
-      hangAfterStls: true,
-    );
+    final adbd = await FakeTlsAdbd.start(trusted: [testKey], serverKey: otherKey, hangAfterStls: true);
     final watch = Stopwatch()..start();
     await expectLater(
       AdbConnection.connect(
         '127.0.0.1',
         adbd.port,
         key: testKey,
-        options: const AdbConnectOptions(
-          handshakeTimeout: Duration(milliseconds: 400),
-        ),
+        options: const AdbConnectOptions(handshakeTimeout: Duration(milliseconds: 400)),
       ),
       throwsA(isA<AdbTimeoutException>()),
     );
@@ -112,21 +75,12 @@ void main() {
   });
 
   test('a TLS handshake that never finishes: cancel', () async {
-    final adbd = await FakeTlsAdbd.start(
-      trusted: [testKey],
-      serverKey: otherKey,
-      hangAfterStls: true,
-    );
+    final adbd = await FakeTlsAdbd.start(trusted: [testKey], serverKey: otherKey, hangAfterStls: true);
     final cancel = Completer<void>();
     Timer(const Duration(milliseconds: 200), cancel.complete);
     final watch = Stopwatch()..start();
     await expectLater(
-      AdbConnection.connect(
-        '127.0.0.1',
-        adbd.port,
-        key: testKey,
-        cancelOn: cancel.future,
-      ),
+      AdbConnection.connect('127.0.0.1', adbd.port, key: testKey, cancelOn: cancel.future),
       throwsA(isA<AdbCancelledException>()),
     );
     expect(watch.elapsed, lessThan(const Duration(seconds: 3)));
@@ -134,19 +88,10 @@ void main() {
   });
 
   test('an untrusted key: the close is kept as the cause', () async {
-    final adbd = await FakeTlsAdbd.start(
-      trusted: [otherKey],
-      serverKey: otherKey,
-    );
+    final adbd = await FakeTlsAdbd.start(trusted: [otherKey], serverKey: otherKey);
     await expectLater(
       AdbConnection.connect('127.0.0.1', adbd.port, key: testKey),
-      throwsA(
-        isA<AdbUnauthorizedException>().having(
-          (e) => e.cause,
-          'cause',
-          isA<AdbException>(),
-        ),
-      ),
+      throwsA(isA<AdbUnauthorizedException>().having((e) => e.cause, 'cause', isA<AdbException>())),
     );
     await adbd.close();
   });
@@ -156,11 +101,7 @@ void main() {
       await acceptHandshake(session);
       await session.expectClientClose();
     });
-    final adb = await AdbConnection.connect(
-      adbd.address,
-      adbd.port,
-      key: testKey,
-    );
+    final adb = await AdbConnection.connect(adbd.address, adbd.port, key: testKey);
     expect(adb.isTls, isFalse);
     expect(adb.deviceCertificate, isNull);
     await adb.close();

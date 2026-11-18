@@ -12,9 +12,7 @@ import 'package:test/test.dart';
 import '../support/adbd_scripts.dart' show otherKey;
 
 final String? host = Platform.environment['ADB_DIRECT_TEST_HOST'];
-final int port = int.parse(
-  Platform.environment['ADB_DIRECT_TEST_PORT'] ?? '5555',
-);
+final int port = int.parse(Platform.environment['ADB_DIRECT_TEST_PORT'] ?? '5555');
 final String? keyPath = Platform.environment['ADB_DIRECT_TEST_KEY'];
 final String? skip = host == null || keyPath == null
     ? 'ADB_DIRECT_TEST_HOST and ADB_DIRECT_TEST_KEY are not set '
@@ -30,17 +28,14 @@ void main() {
   setUpAll(() async {
     if (skip == null) {
       key = AdbKeyPair.fromPem(File(keyPath!).readAsStringSync());
-      authenticates =
-          (await AdbProbe.identify(host!, port)).kind ==
-          AdbEndpointKind.adbAuthentication;
+      authenticates = (await AdbProbe.identify(host!, port)).kind == AdbEndpointKind.adbAuthentication;
       final adb = await AdbConnection.connect(host!, port, key: key);
       shellV2 = adb.shell.supportsShellProtocol;
       await adb.close();
     }
   });
 
-  Future<AdbConnection> connect() =>
-      AdbConnection.connect(host!, port, key: key);
+  Future<AdbConnection> connect() => AdbConnection.connect(host!, port, key: key);
 
   test('connects and reads the banner', () async {
     final adb = await connect();
@@ -78,21 +73,14 @@ void main() {
   test('many commands in parallel over one connection', () async {
     final adb = await connect();
     addTearDown(adb.close);
-    final results = await Future.wait([
-      for (var i = 0; i < 20; i++) adb.shell.run('echo $i'),
-    ]);
-    expect(results.map((r) => r.stdoutText.trim()), [
-      for (var i = 0; i < 20; i++) '$i',
-    ]);
+    final results = await Future.wait([for (var i = 0; i < 20; i++) adb.shell.run('echo $i')]);
+    expect(results.map((r) => r.stdoutText.trim()), [for (var i = 0; i < 20; i++) '$i']);
   }, skip: skip);
 
   test('an unknown service is refused and the connection lives on', () async {
     final adb = await connect();
     addTearDown(adb.close);
-    await expectLater(
-      adb.open('adb_direct-no-such-service:'),
-      throwsA(isA<AdbServiceUnavailableException>()),
-    );
+    await expectLater(adb.open('adb_direct-no-such-service:'), throwsA(isA<AdbServiceUnavailableException>()));
     expect((await adb.shell.run('echo ok')).stdoutText, 'ok\n');
   }, skip: skip);
 
@@ -106,9 +94,7 @@ void main() {
       // dd: old devices have no head.
       final AdbStream stream;
       try {
-        stream = await adb.shell.exec(
-          'dd if=/dev/zero bs=1048576 count=64 2>/dev/null',
-        );
+        stream = await adb.shell.exec('dd if=/dev/zero bs=1048576 count=64 2>/dev/null');
       } on AdbServiceUnavailableException {
         markTestSkipped('no exec: before Android 5');
         return;
@@ -149,9 +135,7 @@ void main() {
       await shell.closeStdin();
       final counted = String.fromCharCodes((await output).expand((b) => b));
       final seconds = stopwatch.elapsedMilliseconds / 1000;
-      print(
-        'upload: ${(size / 1024 / 1024 / seconds).toStringAsFixed(1)} MiB/s',
-      );
+      print('upload: ${(size / 1024 / 1024 / seconds).toStringAsFixed(1)} MiB/s');
       expect(int.parse(counted.trim()), size);
       expect(await shell.exitCode, 0);
     },
@@ -172,15 +156,11 @@ void main() {
     addTearDown(adb.close);
     final shell = await adb.shell.start(command: 'sh');
     final output = StringBuffer();
-    final seen = shell.stdout.listen(
-      (data) => output.write(String.fromCharCodes(data)),
-    );
+    final seen = shell.stdout.listen((data) => output.write(String.fromCharCodes(data)));
     if (shellV2) {
       await shell.resize(rows: 40, columns: 100);
       // Android 7 has no stty; mksh keeps LINES and COLUMNS up to date.
-      await shell.write(
-        'stty size 2>/dev/null || echo "\$LINES \$COLUMNS"; exit 5\n'.codeUnits,
-      );
+      await shell.write('stty size 2>/dev/null || echo "\$LINES \$COLUMNS"; exit 5\n'.codeUnits);
       expect(await shell.exitCode, 5);
       await seen.cancel();
       expect(output.toString(), contains('40 100'));
