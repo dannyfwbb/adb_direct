@@ -124,11 +124,16 @@ final class StreamEndpoint implements StreamCore {
   /// Creates an endpoint that is opening; the connection sends the `OPEN`.
   StreamEndpoint(this._host, {required this.localId, required this.service}) {
     // Synchronous delivery: when add() returns, an active listener has received the data, so it can be acknowledged at
-    // once; a paused or missing listener leaves it unacknowledged until it resumes.
+    // once. Data that arrives while nobody listens, or while the listener is paused, waits in [_held], outside the
+    // controller, and goes out one write at a time once someone takes it: a listener that pauses in its first callback
+    // must not have the rest acknowledged behind its back.
+    //
+    // onListen runs before listen() has returned the subscription, and events added then are queued by the controller,
+    // not delivered: held data goes out a microtask later, once the listener can pause or cancel.
     _input = StreamController<Uint8List>(
       sync: true,
-      onListen: _flushAcknowledgements,
-      onResume: _flushAcknowledgements,
+      onListen: () => scheduleMicrotask(_deliverHeld),
+      onResume: _deliverHeld,
       onCancel: close,
     );
     _armAcknowledgementTimer();
@@ -174,9 +179,11 @@ final class StreamEndpoint implements StreamCore {
   int _inFlight = 0;
   int _acknowledged = 0;
 
-  // Receiving: data received from the device and not yet acknowledged.
+  // Receiving: writes from the device not yet handed to the listener, and those handed over but not yet acknowledged.
+  final Queue<Uint8List> _held = Queue<Uint8List>();
   int _unacknowledgedWrites = 0;
   int _unacknowledgedBytes = 0;
+  bool _delivering = false;
 
   Timer? _acknowledgementTimer;
   int _queued = 0;
@@ -286,14 +293,26 @@ final class StreamEndpoint implements StreamCore {
   /// A `WRTE` with data for us.
   void handleData(AdbMessage write) {
     if (_state != _State.open) return;
-    final data = write.payload;
-    // With synchronous delivery, an active listener receives the data inside add(); an absent or paused one leaves it
-    // buffered until it resumes.
-    final delivered = _input.hasListener && !_input.isPaused;
-    _unacknowledgedWrites++;
-    _unacknowledgedBytes += data.length;
-    _input.add(data);
-    if (delivered) _sendAcknowledgements();
+    _held.add(write.payload);
+    _deliverHeld();
+  }
+
+  /// Hands held writes to the listener while it takes them, then acknowledges what it took. Each write is acknowledged
+  /// only once its listener has received it: one that pauses or closes the stream in its callback stops the rest.
+  void _deliverHeld() {
+    if (_delivering) return; // A listener resuming from inside its own callback: the loop below goes on.
+    _delivering = true;
+    try {
+      while (_held.isNotEmpty && _state == _State.open && _input.hasListener && !_input.isPaused) {
+        final data = _held.removeFirst();
+        _unacknowledgedWrites++;
+        _unacknowledgedBytes += data.length;
+        _input.add(data);
+      }
+    } finally {
+      _delivering = false;
+    }
+    _sendAcknowledgements();
   }
 
   /// A `CLSE` from the device.
@@ -383,13 +402,7 @@ final class StreamEndpoint implements StreamCore {
     }
   }
 
-  /// Acknowledges what was held back once the listener is there and not paused (buffered events are then delivered).
-  void _flushAcknowledgements() {
-    if (!_input.hasListener || _input.isPaused) return;
-    _sendAcknowledgements();
-  }
-
-  /// Acknowledges everything received so far.
+  /// Acknowledges everything the listener has received.
   void _sendAcknowledgements() {
     if (_state != _State.open || _unacknowledgedWrites == 0) return;
     final writes = _unacknowledgedWrites;
@@ -441,6 +454,14 @@ final class StreamEndpoint implements StreamCore {
     }
     _flushes.clear();
     unawaited(_acknowledgements.close());
+    // A normal close keeps what the device sent before it: the listener still gets it, then the end. A caller's own
+    // close drops it, as it asked for no more.
+    if (reason is! AdbCancelledException) {
+      while (_held.isNotEmpty) {
+        _input.add(_held.removeFirst());
+      }
+    }
+    _held.clear();
     if (!normal) _input.addError(reason);
     unawaited(_input.close());
     if (!_closeWhenOpened) _host.endpointFinished(localId);

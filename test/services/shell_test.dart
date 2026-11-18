@@ -221,7 +221,11 @@ void main() {
       session
         ..send(AdbMessage.write(localId: 9, remoteId: 1, data: [0x89, 0x50]))
         ..send(AdbMessage.close(localId: 9, remoteId: 1));
-      await session.expect(AdbMessage.okay(localId: 1, remoteId: 9));
+      // The write is acknowledged when a listener takes it: before the CLSE arrived, or not at all after it.
+      await session.expectQuietExcept(
+        const Duration(milliseconds: 200),
+        (m) => m == AdbMessage.okay(localId: 1, remoteId: 9),
+      );
     });
     final stream = await adb.shell.exec('screencap -p');
     expect((await stream.input.toList()).expand((b) => b), [0x89, 0x50]);
@@ -244,7 +248,10 @@ void main() {
         session
           ..send(AdbMessage.write(localId: 9, remoteId: 1, data: [0x24, 0x20]))
           ..send(AdbMessage.close(localId: 9, remoteId: 1));
-        await session.expect(AdbMessage.okay(localId: 1, remoteId: 9));
+        await session.expectQuietExcept(
+          const Duration(milliseconds: 200),
+          (m) => m == AdbMessage.okay(localId: 1, remoteId: 9),
+        );
       });
       final shell = await adb.shell.start();
       expect(shell.shellProtocol, isFalse);

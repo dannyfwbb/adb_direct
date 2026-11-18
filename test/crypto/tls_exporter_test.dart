@@ -42,10 +42,18 @@ void main() {
   });
 
   for (final (suite, hash) in [('TLS_AES_128_GCM_SHA256', 'SHA-256'), ('TLS_AES_256_GCM_SHA384', 'SHA-384')]) {
-    test('matches OpenSSL’s exporter on a live TLS 1.3 connection from dart:io ($hash, $suite)', () async {
-      final expected = await _exportWithOpenSsl(suite);
-      expect(hex(expected.ours), expected.openssl.toLowerCase());
-    }, skip: Tools.skipUnless(Tools.openssl, 'openssl'));
+    test(
+      'matches OpenSSL’s exporter on a live TLS 1.3 connection from dart:io ($hash, $suite)',
+      () async {
+        final expected = await _exportWithOpenSsl(suite);
+        expect(hex(expected.ours), expected.openssl.toLowerCase());
+      },
+      skip: Tools.skipUnless(Tools.openssl, 'openssl'),
+      // The exporter is the same Dart code everywhere; on the Windows CI runner `openssl s_server` itself ends the
+      // handshake ("Connection terminated during handshake"), so the oracle runs on Linux and macOS. Pairing, which
+      // uses the same key log on both sides, passes on Windows.
+      testOn: '!windows',
+    );
   }
 }
 

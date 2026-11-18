@@ -509,6 +509,69 @@ void main() {
       await adb.close();
     });
 
+    test(
+      'data that came with the OPEN answer, in one read: each write acknowledged only once the listener took it',
+      () async {
+        final window = const AdbConnectOptions().receiveWindow;
+        final (adb, adbd) = await connectTo(banner: tvBanner, (session) async {
+          await session.expect(open(1, 'shell:x', window: window));
+          // As a device often answers: the OPEN's OKAY and the first output in one segment.
+          session.sendRaw([
+            for (final m in [
+              AdbMessage.okay(localId: 9, remoteId: 1, acknowledged: 100),
+              AdbMessage.write(localId: 9, remoteId: 1, data: [1, 1]),
+              AdbMessage.write(localId: 9, remoteId: 1, data: [2, 2, 2]),
+            ])
+              ...AdbMessageCodec.encode(m, withChecksum: false),
+          ]);
+          await session.expect(AdbMessage.okay(localId: 1, remoteId: 9, acknowledged: 2));
+          await session.expectQuiet(const Duration(milliseconds: 150));
+          await session.expect(AdbMessage.okay(localId: 1, remoteId: 9, acknowledged: 3));
+          session.send(AdbMessage.close(localId: 9, remoteId: 1));
+        });
+        final stream = await adb.open('shell:x');
+        final got = <List<int>>[];
+        late StreamSubscription<Uint8List> subscription;
+        subscription = stream.input.listen((data) {
+          got.add(data);
+          if (data.first == 1) {
+            subscription.pause();
+            Future<void>.delayed(const Duration(milliseconds: 250), subscription.resume);
+          }
+        });
+        await stream.done;
+        await subscription.cancel();
+        expect(got, [
+          [1, 1],
+          [2, 2, 2],
+        ]);
+        await adbd.done();
+        await adb.close();
+      },
+    );
+
+    test('a device close right after its data: the listener still gets the data, then the end', () async {
+      final (adb, adbd) = await connectTo((session) async {
+        await session.expect(open(1, 'shell:x'));
+        session.sendRaw([
+          for (final m in [
+            AdbMessage.okay(localId: 9, remoteId: 1),
+            AdbMessage.write(localId: 9, remoteId: 1, data: [7]),
+            AdbMessage.write(localId: 9, remoteId: 1, data: [8]),
+            AdbMessage.close(localId: 9, remoteId: 1),
+          ])
+            ...AdbMessageCodec.encode(m, withChecksum: false),
+        ]);
+        // Nothing needs acknowledging after the device closed the stream.
+        await session.expectQuiet(const Duration(milliseconds: 200));
+      });
+      final stream = await adb.open('shell:x');
+      expect((await stream.input.toList()).expand((b) => b), [7, 8]);
+      expect(stream.closeReason, isNull);
+      await adbd.done();
+      await adb.close();
+    });
+
     test('delayed acknowledgements: a paused listener holds the OKAY', () async {
       final window = const AdbConnectOptions().receiveWindow;
       final (adb, adbd) = await connectTo(banner: tvBanner, (session) async {

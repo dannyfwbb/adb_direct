@@ -25,7 +25,7 @@ void main() {
       );
       expect(paired.guid, 'adb-FAKE0001-AbCdEf');
       expect(paired.certificate, isNotEmpty);
-      await Future<void>.delayed(const Duration(milliseconds: 20));
+      await device.settled();
       expect(device.pairedKeys, [testKey.publicKey.encode()]);
       await device.close();
     });
@@ -145,6 +145,7 @@ void main() {
         ..add(const AdbPairingService(name: 'studio-other', host: '127.0.0.1', port: 1))
         ..add(AdbPairingService(name: qr.serviceName, host: '127.0.0.1', port: device.port));
       expect((await pairing).guid, 'adb-QR-1');
+      await device.settled();
       expect(device.pairedKeys, [testKey.publicKey.encode()]);
       await services.close();
       await device.close();

@@ -48,7 +48,7 @@ final class FakePairingServer {
       ..usePrivateKeyBytes(utf8.encode(identity.privateKeyPem));
     final server = await SecureServerSocket.bind(InternetAddress.loopbackIPv4, 0, context);
     final fake = FakePairingServer._(server, code, guid, mode);
-    server.listen(fake._serve, onError: (Object _) {});
+    server.listen((socket) => fake._sessions.add(fake._serve(socket)), onError: (Object _) {});
     return fake;
   }
 
@@ -74,6 +74,12 @@ final class FakePairingServer {
 
   /// The port.
   int get port => _server.port;
+
+  final List<Future<void>> _sessions = [];
+
+  /// Completes once every session started so far has ended (the client can finish before the device has stored its
+  /// key).
+  Future<void> settled() => Future.wait(_sessions);
 
   /// Stops listening.
   Future<void> close() => _server.close();

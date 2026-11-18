@@ -154,10 +154,39 @@ final class FakeAdbdSession {
   List<Uint8List> get receivedRaw => List.unmodifiable(_receivedRaw);
 
   /// Sends [message] to the client.
-  void send(AdbMessage message) => _socket.add(AdbMessageCodec.encode(message, withChecksum: withChecksum));
+  void send(AdbMessage message) => _write(AdbMessageCodec.encode(message, withChecksum: withChecksum));
 
   /// Sends raw bytes, for malformed-input tests.
-  void sendRaw(List<int> bytes) => _socket.add(bytes);
+  void sendRaw(List<int> bytes) => _write(bytes);
+
+  /// How writes reach the socket, from `FAKE_ADBD_CHUNKING`: as given (default); `coalesce`, everything sent in one
+  /// turn of the event loop in one write, as a real network (and macOS loopback) often delivers it; `bytes`, one write
+  /// per byte. The client must behave the same whatever the split.
+  static final String chunking = Platform.environment['FAKE_ADBD_CHUNKING'] ?? 'none';
+
+  final BytesBuilder _coalesced = BytesBuilder();
+
+  void _write(List<int> bytes) {
+    switch (chunking) {
+      case 'coalesce':
+        if (_coalesced.isEmpty) {
+          Timer.run(() {
+            if (_coalesced.isNotEmpty) _socket.add(_coalesced.takeBytes());
+          });
+        }
+        _coalesced.add(bytes);
+      case 'bytes':
+        for (final byte in bytes) {
+          _socket.add([byte]);
+        }
+      default:
+        _socket.add(bytes);
+    }
+  }
+
+  void _flushCoalesced() {
+    if (_coalesced.isNotEmpty) _socket.add(_coalesced.takeBytes());
+  }
 
   /// The next message from the client.
   ///
@@ -195,6 +224,24 @@ final class FakeAdbdSession {
     }
   }
 
+  /// Like [expectQuiet], but [allowed] messages may come and are taken: for an answer whose timing depends on how the
+  /// bytes were split, such as an acknowledgement of a write the device closed the stream right after.
+  Future<void> expectQuietExcept(Duration duration, bool Function(AdbMessage message) allowed) async {
+    final deadline = DateTime.now().add(duration);
+    while (true) {
+      _throwIfFailed();
+      while (_inbox.isNotEmpty && allowed(_inbox.first)) {
+        _inbox.removeFirst();
+      }
+      if (_inbox.isNotEmpty) {
+        throw FakeAdbdFailure(
+          'unexpected message from the client: ${_inbox.first} (payload ${_preview(_inbox.first)})',
+        );
+      }
+      if (_clientClosed || !await _waitUntil(deadline)) return;
+    }
+  }
+
   /// Waits until the client closes the connection, failing if it sends a message first.
   Future<void> expectClientClose({Duration timeout = const Duration(seconds: 5)}) async {
     final deadline = DateTime.now().add(timeout);
@@ -208,12 +255,16 @@ final class FakeAdbdSession {
 
   /// Closes the connection from adbd's side after sending what is queued.
   Future<void> close() async {
+    _flushCoalesced();
     await _socket.flush();
     await _socket.close();
   }
 
   /// Drops the connection at once, without sending what is queued.
-  void destroy() => _socket.destroy();
+  void destroy() {
+    _flushCoalesced();
+    _socket.destroy();
+  }
 
   /// Waits for news (a message, a close, an error) until [deadline]. Returns false when the deadline passed without
   /// news.
@@ -260,6 +311,7 @@ final class FakeAdbdSession {
   Future<void> _dispose() async {
     const grace = Duration(seconds: 1);
     try {
+      _flushCoalesced();
       // flush() never completes on a socket whose peer is gone: bound it.
       await _socket.flush().timeout(grace);
       await _socket.close().timeout(grace);
