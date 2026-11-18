@@ -35,6 +35,7 @@ export 'src/probe/probe.dart'
     show AdbEndpoint, AdbEndpointKind, AdbProbe, AdbScanResult;
 export 'src/protocol/banner.dart' show AdbBanner, AdbDeviceState, AdbFeature;
 export 'src/protocol/sync_protocol.dart' show AdbDirectoryEntry, AdbFileStat;
+export 'src/server/adb_server.dart' show AdbServer, AdbServerDevice;
 export 'src/services/backup.dart' show AdbBackup;
 export 'src/services/daemon.dart'
     show AdbDaemon, AdbDaemonAnswer, AdbDaemonOutcome;
@@ -52,3 +53,4 @@ export 'src/services/sync_files.dart' show AdbSyncFiles;
 export 'src/stream/adb_stream.dart' show AdbStream;
 export 'src/trace.dart'
     show AdbNoteTrace, AdbPacketTrace, AdbTraceEvent, AdbTracer;
+export 'src/transport/transport.dart' show AdbTransport, AdbTransportListener;

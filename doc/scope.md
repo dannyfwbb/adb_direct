@@ -14,8 +14,8 @@ States: **planned** (designed, not written), **in progress**, **built** (impleme
 | TLS (Android 11+ wireless debugging) | `adb connect` to an `_adb-tls-connect` service | built |
 | Pairing with a six-digit code | `adb pair host:port code` | built |
 | Pairing by QR code | the QR flow in Android Studio | built, not yet checked on a device (the caller supplies mDNS results) |
-| A transport interface for anything that moves bytes (USB through a platform plugin, a tunnel) | `adb -d` | planned |
-| Client for a running adb server (port 5037) | `adb -H`, `-P` | planned |
+| A transport interface for anything that moves bytes (USB through a platform plugin, a tunnel) | `adb -d` | built (`AdbTransport`, `AdbConnection.connectTransport`; a USB outline in `example/`) |
+| Client for a running adb server (port 5037): devices, track, connect, pair, and every service through it | `adb -H`, `-P` | built (`AdbServer`) |
 
 ### Authentication and keys
 

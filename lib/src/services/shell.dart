@@ -94,6 +94,8 @@ final class AdbShell {
     final v2 = supportsShellProtocol;
     final marker = v2 ? null : _exitMarker();
     final finished = Completer<void>();
+    // A timeout can fire before anyone awaits it (during the open below).
+    finished.future.ignore();
     // The deadline covers everything, the open included.
     AdbStream? stream;
     final timer = _connection.clock.timer(timeout, () {
@@ -122,6 +124,12 @@ final class AdbShell {
       rethrow;
     }
     final open = stream;
+    if (finished.isCompleted) {
+      // The deadline passed while opening: stop the command, report it.
+      unawaited(open.close());
+      timer.cancel();
+      await finished.future;
+    }
     final collector = _Collector(maxOutputBytes, v2: v2, pty: pty);
     final subscription = open.input.listen(
       (data) {

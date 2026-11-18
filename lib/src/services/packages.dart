@@ -325,8 +325,13 @@ final class AdbPackages {
   Future<void> _commit(_Channel channel, int session) async {
     final output = await _run(channel, ['install-commit', '$session']);
     // Android 7's `cmd package install-commit` prints nothing when it
-    // succeeds (a failure still prints `Failure [...]`).
-    if (output.trim().isEmpty && channel == _Channel.cmd) return;
+    // succeeds (a failure still prints `Failure [...]`). An empty answer
+    // from a connection that ended is no success.
+    if (output.trim().isEmpty &&
+        channel == _Channel.cmd &&
+        !_connection.isClosed) {
+      return;
+    }
     _checkSuccess(output, 'commit');
   }
 

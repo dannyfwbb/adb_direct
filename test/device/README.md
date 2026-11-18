@@ -64,3 +64,17 @@ Set `ADB_DIRECT_TEST_ROOTABLE=1` only for a device that may be rooted and unroot
 ```bash
 ADB_DIRECT_TEST_MDNS=1 dart test -t device test/device/mdns_device_test.dart
 ```
+
+## Old emulator images and the adb server
+
+Old images (`system-images;android-19|24|28;default;x86`) run their adbd over the qemu pipe, reachable on the host at the console port + 1. Start them outside the range the adb server takes (5555-5585) so only the tests use it, and run the suite on that port:
+
+```bash
+emulator -avd adbd_api24 -ports 5602,5603 -no-window -no-snapshot
+ADB_DIRECT_TEST_HOST=127.0.0.1 ADB_DIRECT_TEST_PORT=5603 ADB_DIRECT_TEST_KEY=$HOME/.android/adbkey \
+  dart test -j 1 -t device test/device/
+```
+
+Shrink their data partition (`disk.dataPartition.size=2G`, `hw.sdCard=no` in the AVD's `config.ini`) when disk space is short. The tests check what each device should do by its features; `daemon_device_test.dart` must not run there (`tcpip` would move adbd off the qemu pipe).
+
+`server_device_test.dart` goes through the local adb server: `ADB_DIRECT_TEST_SERVER_SERIAL=emulator-5556`.

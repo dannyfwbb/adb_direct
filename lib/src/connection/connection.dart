@@ -24,6 +24,7 @@ import '../services/sync.dart';
 import '../stream/adb_stream.dart';
 import '../trace.dart';
 import '../transport/tcp_transport.dart';
+import '../transport/transport.dart';
 import 'handshake.dart';
 import 'message_link.dart';
 import 'options.dart';
@@ -42,7 +43,9 @@ const String livenessService = 'adb-direct-ping:';
 /// The connection ends when either side closes it or anything fails; every
 /// open stream and pending call then fails with the same [closeReason].
 abstract base class AdbConnection {
-  /// For the implementations in this package.
+  /// For the implementations in this package (over ADB packets, and
+  /// through an adb server); not meant to be extended elsewhere. Other
+  /// links go through [connectTransport].
   @internal
   AdbConnection.base();
 
@@ -73,6 +76,35 @@ abstract base class AdbConnection {
     Future<void>? cancelOn,
     AdbClock clock = AdbClock.system,
     AdbTracer? tracer,
+  }) => connectTransport(
+    () => TcpTransport.connect(
+      host,
+      port,
+      timeout: options.connectTimeout,
+      cancelOn: cancelOn,
+    ),
+    key: key,
+    extraKeys: extraKeys,
+    options: options,
+    onWaitingForApproval: onWaitingForApproval,
+    cancelOn: cancelOn,
+    clock: clock,
+    tracer: tracer,
+  );
+
+  /// Like [connect], over a transport of your own: USB, a tunnel, a
+  /// socket made elsewhere. [open] makes a fresh transport each time it is
+  /// called (a TLS port needs one per key tried); it may throw
+  /// [AdbException]s as [connect] does.
+  static Future<AdbConnection> connectTransport(
+    Future<AdbTransport> Function() open, {
+    required AdbKeyPair key,
+    List<AdbKeyPair> extraKeys = const [],
+    AdbConnectOptions options = const AdbConnectOptions(),
+    void Function()? onWaitingForApproval,
+    Future<void>? cancelOn,
+    AdbClock clock = AdbClock.system,
+    AdbTracer? tracer,
   }) async {
     options.validate();
     // Classic ports try every key in one handshake. A TLS port takes one
@@ -81,8 +113,7 @@ abstract base class AdbConnection {
     for (var tlsKey = 0; ; tlsKey++) {
       try {
         return await _attempt(
-          host,
-          port,
+          open,
           keys: [key, ...extraKeys],
           tlsKey: tlsKey,
           options: options,
@@ -193,8 +224,7 @@ abstract base class AdbConnection {
   }
 
   static Future<AdbConnection> _attempt(
-    Object host,
-    int port, {
+    Future<AdbTransport> Function() open, {
     required List<AdbKeyPair> keys,
     required int tlsKey,
     required AdbConnectOptions options,
@@ -203,12 +233,7 @@ abstract base class AdbConnection {
     required AdbClock clock,
     required AdbTracer? tracer,
   }) async {
-    final transport = await TcpTransport.connect(
-      host,
-      port,
-      timeout: options.connectTimeout,
-      cancelOn: cancelOn,
-    );
+    final transport = await open();
     final link = MessageLink(transport, clock: clock, tracer: tracer)..start();
     var connected = false;
     void cancel() {

@@ -48,7 +48,8 @@ extension AdbSyncFiles on AdbSync {
   }
 
   /// Copies [local] to the device path [remote], keeping its modification
-  /// time and owner permission bits.
+  /// time and owner permission bits. On Android 7 to 9 the parent
+  /// directory must exist ([pushDirectory] makes the tree).
   Future<void> pushFile(
     File local,
     String remote, {
@@ -161,9 +162,10 @@ extension AdbSyncFiles on AdbSync {
     }
 
     for (final dir in dirs) {
-      if (length + dir.length > 30000) await flush();
+      final quoted = shellQuote(dir).length + 1;
+      if (length + quoted > 30000) await flush();
       batch.add(dir);
-      length += dir.length + 3;
+      length += quoted;
     }
     await flush();
   }

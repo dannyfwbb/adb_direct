@@ -365,4 +365,24 @@ void main() {
       await adb.close();
     });
   });
+
+  test(
+    'without shell v2: a deadline during the open stops the command',
+    () async {
+      final (adb, adbd) = await connectTo(banner: oldBanner, (session) async {
+        final open = await session.receive();
+        // Answers after the deadline.
+        await Future<void>.delayed(const Duration(milliseconds: 400));
+        session.send(AdbMessage.okay(localId: 9, remoteId: open.arg0));
+        final close = await session.receive();
+        expect(close.command, AdbCommand.close);
+      });
+      await expectLater(
+        adb.shell.run('sleep 100', timeout: const Duration(milliseconds: 100)),
+        throwsA(isA<AdbTimeoutException>()),
+      );
+      await adbd.done();
+      await adb.close();
+    },
+  );
 }

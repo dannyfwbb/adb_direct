@@ -9,6 +9,7 @@ import 'dart:typed_data';
 import 'package:adb_direct/adb_direct.dart';
 import 'package:adb_direct/src/protocol/constants.dart';
 import 'package:adb_direct/src/protocol/message.dart';
+import 'package:adb_direct/src/transport/tcp_transport.dart';
 import 'package:test/test.dart';
 
 import '../support/adbd_scripts.dart';
@@ -447,5 +448,25 @@ void main() {
       await adbd.done();
       await adb.close(drain: false);
     });
+  });
+
+  test('connectTransport: any transport, made by the caller', () async {
+    final adbd = await FakeAdbd.start((session) async {
+      await acceptHandshake(session);
+      await session.expectClientClose();
+    });
+    var made = 0;
+    final adb = await AdbConnection.connectTransport(() {
+      made++;
+      return TcpTransport.connect(
+        adbd.address,
+        adbd.port,
+        timeout: const Duration(seconds: 2),
+      );
+    }, key: testKey);
+    expect(made, 1);
+    expect(adb.isClosed, isFalse);
+    await adb.close();
+    await adbd.done();
   });
 }

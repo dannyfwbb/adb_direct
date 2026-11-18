@@ -4,6 +4,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import '../connection/connection.dart' show AdbConnection;
 import '../errors.dart';
 
 /// Receives what a transport delivers. Exactly one of [AdbTransportListener.onClosed]
@@ -20,11 +21,14 @@ abstract interface class AdbTransportListener {
   void onError(Object error);
 }
 
-/// A bidirectional byte pipe to adbd.
+/// A bidirectional byte pipe to adbd, for [AdbConnection.connectTransport]:
+/// TCP is built in; USB (libusb, Android's USB host API), tunnels and the
+/// like can come from other packages.
 ///
-/// Internal for now; a public, pluggable version (USB, tunnels) comes with
-/// later work. Writes never block: the transport buffers what the network
-/// cannot take yet. Flow control above it (ADB `OKAY`s) bounds that buffer.
+/// Writes never block: the transport buffers what the link cannot take
+/// yet. ADB's flow control (`OKAY`s) above it bounds that buffer. Events go
+/// to the listener from [start] on; exactly one of `onClosed` or `onError`
+/// ends them.
 abstract interface class AdbTransport {
   /// Starts delivering events to [listener]. Call once.
   void start(AdbTransportListener listener);
@@ -44,7 +48,9 @@ abstract interface class AdbTransport {
   /// are delivered.
   void destroy();
 
-  /// Switches the live connection to TLS 1.3 as a client presenting the
+  /// Switches the live connection to TLS 1.3 (wireless debugging; never
+  /// asked of a USB link: throw [AdbNotSupportedException] there) as a
+  /// client presenting the
   /// certificate in [context]; the server's certificate is accepted as it
   /// is (adb has nothing to check it against) and returned. Queued bytes
   /// go out in plain text first. [keyLog] receives the NSS key-log lines
