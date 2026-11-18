@@ -1,10 +1,30 @@
 name: adb_direct
 description: >-
-  A pure Dart ADB client that talks to adbd on Android devices over the
-  network: authentication, wireless debugging, shell, files, apps and more,
-  without the adb binary or an adb server.
-version: 0.0.1-dev
+  A pure Dart ADB client for adbd on Android devices over the network:
+  wireless debugging, shell, files, apps and more, without the adb binary.
+version: 1.0.0
+# Removed by the owner when the package is published (repository and publisher are the owner's choice).
 publish_to: none
+
+topics:
+  - adb
+  - android
+  - debugging
+  - wireless-debugging
+
+platforms:
+  android:
+  ios:
+  linux:
+  macos:
+  windows:
+
+# Test-only key pairs (test/fixtures/README.md), not secrets.
+false_secrets:
+  - /test/fixtures/keys/adbkey
+  - /test/fixtures/keys/adbkey_other
+  - /test/fixtures/keys/adbkey_pkcs1.pem
+  - /test/crypto/adb_key_pair_test.dart
 
 environment:
   sdk: ">=3.9.0 <4.0.0"

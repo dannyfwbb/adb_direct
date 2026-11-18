@@ -1,24 +1,14 @@
 # Changelog
 
-## Unreleased
+## 1.0.0
 
-- Repository, license and documentation structure.
-- Protocol layer: message codec and reader, `CNXN` banner and features, the `AdbException` hierarchy, the `AdbClock` seam.
-- Test support: fixtures recorded from a real adbd and a scripted fake adbd.
-- Keys: `AdbKeyPair` (generate, PEM in PKCS#8 and PKCS#1, adb-compatible), `AdbPublicKey` (adb's format, MD5 fingerprint); internally the AUTH token signature, the TLS certificate, HKDF and the TLS 1.3 exporter.
-- Connections: `AdbConnection` over TCP with the full handshake (several keys, the approval prompt or none, devices without authentication), streams with ADB flow control and delayed acknowledgements, acknowledgement deadlines and a liveness check that notice a device that went away, total teardown; `AdbProbe` (`identify`, `knowsKey`) that never prompts; `AdbShell` (`run` with separate output, exit status, timeout and output limit, a fallback for old devices, `exec`, interactive sessions); tracing; `tool/record_fixture.dart`.
-- Files: `AdbSync` (`stat`, `list`, `read`, `write`, sync v1 and v2, reusable sessions, a fresh session after a device refusal, a stall guard per transfer) and `AdbSyncFiles` for `dart:io` (`pullFile`, `pushFile`, `pullDirectory`, `pushDirectory` with `onlyChanged`).
-- Apps: `AdbPackages` (`install` streamed through `abb_exec` or `cmd`, or pushed on old devices; `installMultiple` in one session, abandoned on failure; `installMultiPackage`; `uninstall`), `AdbApk`, `AdbInstallOptions`, typed `AdbInstallException` codes, acknowledged-byte progress, a stall guard and a verification deadline. `AdbStream.flush`, `AdbStream.acknowledgedBytes` and `AdbStream.acknowledgements`; `AdbConnectOptions.packageManagerTimeout`. `tool/build_test_apks.sh` builds the test APKs.
-- Wireless debugging: TLS connections (`STLS`, TLS 1.3 with the key's certificate, one session per key, `isTls`, `deviceCertificate`); `AdbPairing.pair` with a code and `AdbPairingQr` for QR codes (SPAKE2 over edwards25519 as BoringSSL does it, the TLS exporter, AES-128-GCM); `AdbPairingException.reason`. `tool/pair.dart`.
-- `AdbServer` (a client of a running adb server: version, devices, track-devices, connect, disconnect, pair, and `device(serial)` as an `AdbConnection` through it); `AdbConnection.connectTransport` with a public `AdbTransport`; old devices: `exec:`/PTY fallbacks in `shell.run`, logcat and screencap, directories made before a push on Android 7-9, Android 7's silent commit.
-- Discovery: `AdbMdnsBrowser` (own mDNS querier: PTR/SRV/TXT/A/AAAA, TTLs, goodbyes, per-sender cache flush, back-off, a fallback without port 5353), `AdbService` with serial and suffix, `AdbServiceBrowser` for platform browsers (example adapter in `example/`), `pairingServices()` for QR pairing, `AdbProbe.scan`. `tool/mdns_publish.py` for tests.
-- Forwarding and device services: `AdbConnection.forward` (`AdbForward`), `AdbReverse` (`toLocalPort`, `add` with a handler, `list`, `remove`, `removeAll`; device `OPEN`s accepted only for our targets), `AdbDaemon` (`root`, `unroot`, `tcpip`, `usb`, `reboot`, `remount`, verity) with `AdbDaemonAnswer`, `AdbConnection.waitFor`, `AdbDebug` (`jdwp`, `trackJdwp`, `trackApps` with `AdbAppProcess`, `logcat`, `screencap`, `bugreport`), `AdbBackup`, `AdbRecovery.sideload`.
-- `AdbConnection.connect(cancelOn:)` stops an attempt (TCP connect or a pending approval); `AdbConnection.close(drain: false)` closes without waiting on the device.
-- `AdbProperties` (`getprop`, `setprop`, `serialNumber`, `sdkLevel`) and `AdbCommandException` (`commandFailed`) for helpers over device commands.
-- App management over `pm`: `AdbPackages.list` (`AdbPackageInfo`), `paths`, `setEnabled`, `clearData`, `grantPermission`, `revokePermission`.
-- APEX modules: `AdbApk.isApex`, installed with `--apex`; with `installMultiPackage` the set is staged.
-- Incremental installs: `AdbPackages.installIncremental` with `AdbIncrementalApk` (v4 signatures from `.idsig` files) and `AdbIncrementalInstall` (serving in the background, `done`, `close`).
-- Compression in sync v2: `AdbCompression` and `AdbCompressionMethod` for `AdbSync.read`, `write` and the `dart:io` helpers; LZ4 built in (own codec), Brotli and Zstandard pluggable. Host features now include `sendrecv_v2_lz4` and `apex`.
-- Test APKs come with their `.idsig` files.
-- Robustness: service names with a NUL are refused (except `abb:`/`abb_exec:`, whose arguments may not hold one); session APK names are checked before a session starts; `reverse.toLocalPort` names an `InternetAddress` host by its address; a tracking stream cut inside a frame is an `AdbProtocolException`; the old-device screenshot fallback reports `screencap`'s own failure; the track-app decoder no longer overflows on a huge length; incremental reads are serialized and checked for length.
-- `pushDirectory` skips pipes and sockets, makes empty directories on every version, and reports a directory it cannot make (`AdbSyncException`); `list` refuses entry names with `/` or NUL, so `pullDirectory` cannot be led outside its folder.
+First release: an ADB client in pure Dart for `adbd` over the network.
+
+- **Connections**: classic network debugging with RSA keys (`AdbKeyPair`, `AdbPublicKey`, `adbkey` files compatible with desktop `adb`) and the approval prompt; wireless debugging with TLS connections and pairing by code or QR code (`AdbPairing`, `AdbPairingQr`; SPAKE2 as BoringSSL does it); `AdbConnection.connectTransport` for transports of your own (`AdbTransport`); `AdbServer` for devices behind a running adb server; `AdbConnection.waitFor` for devices coming back; cancellation, deadlines, liveness checks for devices that went away, ADB flow control with delayed acknowledgements, tracing.
+- **Probes and discovery**: `AdbProbe` (`identify`, `knowsKey`, `scan`) never shows anything on a device; `AdbMdnsBrowser` and the `AdbServiceBrowser` interface for platform browsers.
+- **Shell**: `AdbShell.run` (separate output, exit status, deadline, output limit), `exec`, interactive sessions with a terminal; `AdbProperties` (`getprop`, `setprop`, serial number, API level).
+- **Files**: `AdbSync` (stat, list, read, write; sync v1 and v2; progress and stall guards) and `AdbSyncFiles` for files and folders on `dart:io`; compression with `AdbCompression` (LZ4 built in, Brotli and Zstandard pluggable).
+- **Apps**: `AdbPackages`: streamed installs with progress, split APKs, several apps atomically, APEX modules, incremental installs (`installIncremental`), uninstall, and `list`, `paths`, `setEnabled`, `clearData`, `grantPermission`, `revokePermission`.
+- **Networking and device services**: `forward`, `AdbReverse`, any service through `AdbConnection.open`; `AdbDaemon` (root, unroot, remount, reboot, tcpip, usb, verity); `AdbDebug` (JDWP, process tracking, logcat, screenshots, bug reports); `AdbRecovery.sideload`; `AdbBackup`.
+- **Errors**: one sealed `AdbException` hierarchy with stable `AdbErrorCode`s.
+- **Old devices**: Android 4.4 and later, with the fallbacks `adb` uses (no shell protocol, no `exec:`, push installs, Android 7-9's directory creation).
