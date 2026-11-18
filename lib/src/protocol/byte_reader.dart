@@ -18,6 +18,7 @@ final class ByteReader {
     _subscription = input.listen(
       (data) {
         _buffer.add(data);
+        _received += data.length;
         _wake();
       },
       onError: (Object e) {
@@ -41,19 +42,24 @@ final class ByteReader {
   late final StreamSubscription<List<int>> _subscription;
   final ByteQueue _buffer = ByteQueue();
   Completer<void>? _waiter;
+  int _received = 0;
   Object? _error;
   bool _ended = false;
 
-  /// Exactly [count] bytes. Throws [onEnd]'s error when the stream ends first, and [onTimeout]'s when [timeout] passes
-  /// without them.
+  /// Exactly [count] bytes. Throws [onEnd]'s error when the stream ends first, and [onTimeout]'s when no byte arrives
+  /// for [timeout] (a long read that keeps moving does not time out).
   Future<Uint8List> take(int count, {Duration? timeout, AdbException Function()? onTimeout}) async {
     var timedOut = false;
-    final timer = timeout == null
-        ? null
-        : clock.timer(timeout, () {
-            timedOut = true;
-            _wake();
-          });
+    Timer? timer;
+    void arm(int seen) {
+      timer = clock.timer(timeout!, () {
+        if (_received != seen) return arm(_received);
+        timedOut = true;
+        _wake();
+      });
+    }
+
+    if (timeout != null) arm(_received);
     try {
       while (_buffer.length < count) {
         if (_ended) throw onEnd(_error);

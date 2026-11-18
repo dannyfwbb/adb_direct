@@ -211,10 +211,12 @@ sealed class BugreportLine {
     final text = line.trim();
     if (text.startsWith('OK:')) return BugreportDone(text.substring(3));
     if (text.startsWith('FAIL:')) return BugreportFailed(text.substring(5));
-    if (RegExp(r'^PROGRESS:(\d+)/(\d+)$').firstMatch(text) case final m?) {
-      return BugreportProgress(int.parse(m[1]!), int.parse(m[2]!));
-    }
-    return null;
+    if (!text.startsWith('PROGRESS:')) return null;
+    final [done, total, ...] = '${text.substring(9)}/'.split('/');
+    return switch ((int.tryParse(done), int.tryParse(total))) {
+      (final done?, final total?) => BugreportProgress(done, total),
+      _ => null,
+    };
   }
 }
 
