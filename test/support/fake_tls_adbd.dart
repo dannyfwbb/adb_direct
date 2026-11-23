@@ -39,7 +39,7 @@ final class FakeTlsAdbd {
       ..useCertificateChainBytes(utf8.encode(identity.certificatePem))
       ..usePrivateKeyBytes(utf8.encode(identity.privateKeyPem));
     if (trusted.isNotEmpty) {
-      context.setTrustedCertificatesBytes(utf8.encode(trusted.map((k) => k.tls.certificatePem).join()));
+      context.setTrustedCertificatesBytes(utf8.encode(trusted.map((k) => k.tls(DateTime.now).certificatePem).join()));
     }
     final server = await RawServerSocket.bind(InternetAddress.loopbackIPv4, 0);
     final adbd = FakeTlsAdbd._(server, context, identity.certificateDer, banner)

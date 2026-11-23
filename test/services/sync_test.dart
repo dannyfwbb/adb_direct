@@ -518,6 +518,26 @@ void main() {
       await adb.close();
     });
 
+    test('a push without a time takes it from the options', () async {
+      final (adb, adbd) = await connectTo(
+        banner: v2Banner,
+        options: AdbConnectOptions(now: () => DateTime.fromMillisecondsSinceEpoch(1234 * 1000)),
+        (session) async {
+          final peer = await SyncPeer.accept(session);
+          expect(await peer.request(), ('SND2', '/t'));
+          await peer.read(12);
+          expect(await peer.header(), ('DATA', 1));
+          await peer.read(1);
+          expect(await peer.header(), ('DONE', 1234));
+          peer.send(SyncRequest.header(SyncId.okay, 0));
+          await peer.settle();
+        },
+      );
+      await adb.sync.writeAll('/t', [1]);
+      await adbd.done();
+      await adb.close();
+    });
+
     test('operations at once use separate sessions', () async {
       final (adb, adbd) = await connectTo(banner: v2Banner, (session) async {
         final opens = <int>[];

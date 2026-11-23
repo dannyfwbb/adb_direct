@@ -74,6 +74,7 @@ final class AdbPairingQr {
     Future<void>? cancelOn,
     void Function(String line)? keyLog,
     AdbClock clock = AdbClock.system,
+    DateTime Function() now = DateTime.now,
   }) async {
     final found = Completer<AdbPairingService>();
     void fail(AdbException error) {
@@ -106,6 +107,7 @@ final class AdbPairingQr {
       cancelOn: cancelOn,
       keyLog: keyLog,
       clock: clock,
+      now: now,
     );
   }
 }

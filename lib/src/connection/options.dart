@@ -20,6 +20,7 @@ final class AdbConnectOptions {
     this.packageManagerTimeout = const Duration(minutes: 5),
     this.receiveWindow = 4 * 1024 * 1024,
     this.hostFeatures = defaultHostFeatures,
+    this.now = DateTime.now,
   });
 
   /// The features this library implements and announces by default.
@@ -80,6 +81,9 @@ final class AdbConnectOptions {
 
   /// The features announced in our `CNXN`.
   final Set<AdbFeature> hostFeatures;
+
+  /// The wall clock: the start of a TLS certificate's validity, and the time of a pushed file without `modified`.
+  final DateTime Function() now;
 
   /// Throws [ArgumentError] when a value cannot work: a duration that is not positive, or a receive window outside 1
   /// B..2 GiB (adbd refuses an `OPEN` with a window of 0, and acknowledgements are 32-bit).

@@ -167,9 +167,10 @@ final class Handshake {
     link
       ..note('Handshake: STLS; TLS with key ${tlsKey + 1}')
       ..send(AdbMessage.stls());
+    final identity = key.tls(options.now);
     final context = SecurityContext(withTrustedRoots: false)
-      ..useCertificateChainBytes(utf8.encode(key.tls.certificatePem))
-      ..usePrivateKeyBytes(utf8.encode(key.tls.privateKeyPem));
+      ..useCertificateChainBytes(utf8.encode(identity.certificatePem))
+      ..usePrivateKeyBytes(utf8.encode(identity.privateKeyPem));
     final timeout = _left;
     final certificate = await link.clock.deadline(
       link.startTls(context: context),

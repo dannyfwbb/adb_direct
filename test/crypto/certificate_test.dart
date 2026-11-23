@@ -20,6 +20,13 @@ void main() {
   Future<String> openssl(List<String> args) => Tools.run(Tools.openssl!, args);
 
   group('the TLS certificate', () {
+    test('is made once per key object, at the time given', () {
+      final key = AdbKeyPair.fromPem(pair.toPem());
+      final first = key.tls(() => now);
+      expect(first.certificatePem, identity.certificatePem);
+      expect(key.tls(() => DateTime.utc(2030)), same(first));
+    });
+
     test('has the fields adb puts in its own', () async {
       final file = File('${temp.path}/cert.pem')..writeAsStringSync(identity.certificatePem);
       final text = await openssl(['x509', '-in', file.path, '-noout', '-text']);

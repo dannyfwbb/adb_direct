@@ -30,6 +30,10 @@ abstract interface class AdbTransport {
   void start(AdbTransportListener listener);
 
   /// Queues [bytes] for sending. The transport takes ownership.
+  ///
+  /// Each call carries exactly one whole ADB message: its 24-byte header followed by its payload. A link that frames
+  /// messages itself can rely on it: USB sends the header and the payload as separate transfers, and ends a payload
+  /// whose size is a multiple of the endpoint's packet size with a zero-length packet.
   void write(Uint8List bytes);
 
   /// Bytes queued but not yet handed to the operating system.

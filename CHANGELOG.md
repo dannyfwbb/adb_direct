@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- mDNS browsing works over IPv6 as well as IPv4: questions go out on every interface, and a link-local address comes with its zone, so it can be connected to.
+- `AdbConnectOptions.now` and a `now` parameter on pairing: the wall clock for TLS certificates and for pushed files without `modified`.
+- `AdbTransport.write` documents that each call carries one whole ADB message. The USB outline in `example/` now sends the header and payload as separate transfers, with a zero-length packet when a payload fills its last packet.
+
 ## 1.1.0 (2026-11-23)
 
 - Deadlines and output limits where a device that stayed connected but never finished could hang a call: `debug.screencap` (`timeout`, `maxBytes`), the `daemon` services (`timeout`), and `reverse` commands (30 s). The stream is closed and the connection stays usable.

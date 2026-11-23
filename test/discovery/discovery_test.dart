@@ -44,6 +44,8 @@ final class Answer {
 
   void a(String host, String address, {int ttl = 120}) => _add(host, 1, ttl, InternetAddress(address).rawAddress);
 
+  void aaaa(String host, String address, {int ttl = 120}) => _add(host, 28, ttl, InternetAddress(address).rawAddress);
+
   Uint8List bytes() =>
       Uint8List.fromList([0, 0, 0x84, 0, 0, 0, _count >> 8, _count & 255, 0, 0, 0, 0, ..._records.toBytes()]);
 }
@@ -102,6 +104,30 @@ Answer fullTv({int port = 37123, String address = '192.168.0.20'}) => Answer()
   ..a('Android.local', address);
 
 void main() {
+  group('addresses from the network', () {
+    test('an IPv4-mapped sender is the IPv4 one', () {
+      expect(IoMdnsTransport.unmapped(InternetAddress('::ffff:192.0.2.1')).address, '192.0.2.1');
+      expect(IoMdnsTransport.unmapped(InternetAddress('192.0.2.1')).address, '192.0.2.1');
+      expect(IoMdnsTransport.unmapped(InternetAddress('2001:db8::1')).address, '2001:db8::1');
+    });
+
+    test('a link-local address takes the zone of its sender', () async {
+      final clock = FakeClock();
+      final transport = FakeTransport(clock: clock);
+      final events = <AdbServiceEvent>[];
+      final sub = AdbMdnsBrowser(clock: clock, transport: transport).browse([tls]).listen(events.add);
+      await pumpEventQueue();
+      final answer = Answer()
+        ..ptr(tls, instance)
+        ..srv(instance, 'Android.local', 37123)
+        ..txt(instance, ['v=1'])
+        ..aaaa('Android.local', 'fe80::2');
+      transport.deliver(answer.bytes(), 'fe80::2%lo');
+      expect((events.single as AdbServiceFound).service.addresses.single.address, 'fe80::2%lo');
+      await sub.cancel();
+    }, testOn: 'linux');
+  });
+
   group('DNS messages', () {
     test('a real Avahi answer (legacy unicast, compressed names)', () {
       final message = DnsMessage.decode(File('test/fixtures/mdns/avahi_legacy_answer.bin').readAsBytesSync());

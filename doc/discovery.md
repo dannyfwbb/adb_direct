@@ -27,7 +27,7 @@ final sub = AdbMdnsBrowser().browse(AdbServiceType.all).listen((event) {
 
 `AdbMdnsBrowser` shares port 5353 with the system's responder and hears announcements and goodbyes, so a device that turns debugging off is lost within about two seconds (a goodbye takes effect after a second, per RFC 6762). Where it cannot share the port it asks from a port of its own and notices a departure when the records expire (within about ten seconds then, as such answers live 10 s). It asks again at 1, 2, 4 … 60 s, refreshes records at 80 % and 90 % of their lifetime, resolves what is missing (SRV, TXT, addresses) without asking the same question more than once a second, and reports changes a tenth of a second after the packets of one announcement (a host answers once per network interface).
 
-It keeps only the records of the types it browses (their instances and hosts), at most 1024 of them and none longer than 75 minutes, so a busy or hostile network cannot grow it. Malformed packets are ignored. IPv4 only: questions leave through the system's default multicast interface, and IPv6 addresses arrive when a device announces them over IPv4. Types match without case.
+It keeps only the records of the types it browses (their instances and hosts), at most 1024 of them and none longer than 75 minutes, so a busy or hostile network cannot grow it. Malformed packets are ignored. It works over IPv4 and IPv6: IPv4 questions leave through the system's default multicast interface, IPv6 questions through every interface. A link-local IPv6 address comes with the interface it was heard on (`fe80::1%wlan0`), so it can be connected to as it is. Types match without case.
 
 Platform notes:
 

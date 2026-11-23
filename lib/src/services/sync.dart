@@ -28,11 +28,12 @@ typedef AdbProgress = void Function(int done, int? total);
 final class AdbSync {
   /// Creates the namespace for [_connection]; transfers that make no progress for [stallTimeout] fail.
   @internal
-  AdbSync(this._connection, {required this.stallTimeout}) {
+  AdbSync(this._connection, {required this.stallTimeout, DateTime Function() now = DateTime.now}) : _now = now {
     unawaited(_connection.done.then((_) => _idleTimer?.cancel()));
   }
 
   final AdbConnection _connection;
+  final DateTime Function() _now;
 
   /// The connection, for the `dart:io` helpers.
   @internal
@@ -192,7 +193,7 @@ final class AdbSync {
   ) async {
     // v1 sends the mode after the path, in the same length-limited field.
     _checkPath(_v2Transfer ? path : '$path,$mode');
-    final mtime = _mtime(modified ?? DateTime.now());
+    final mtime = _mtime(modified ?? _now());
     final flag = _flag(compression, push: true);
     return _run(
       (session) => session.write(

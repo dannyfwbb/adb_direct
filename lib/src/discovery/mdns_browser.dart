@@ -20,9 +20,10 @@ import 'mdns_transport.dart';
 /// refreshes records at 80 % and 90 % of their TTL, resolves what a PTR names (SRV, TXT, addresses), and keeps only
 /// records that belong to the browsed types.
 ///
-/// IPv4 only; queries leave through the system's default multicast interface. On Android the app must hold a
-/// `WifiManager.MulticastLock` while browsing, or Wi-Fi drivers drop multicast. On iOS raw multicast needs an
-/// entitlement: use a platform browser through [AdbServiceBrowser] instead.
+/// Works over IPv4 and IPv6. IPv4 queries leave through the system's default multicast interface, IPv6 queries through
+/// every interface; a link-local address comes with the zone it was heard on, so it can be connected to. On Android the
+/// app must hold a `WifiManager.MulticastLock` while browsing, or Wi-Fi drivers drop multicast. On iOS raw multicast
+/// needs an entitlement: use a platform browser through [AdbServiceBrowser] instead.
 final class AdbMdnsBrowser implements AdbServiceBrowser {
   /// Creates a browser.
   AdbMdnsBrowser({
@@ -362,12 +363,24 @@ final class _Session {
     final lower = host.toLowerCase();
     final found = {
       for (final e in _cache.values)
-        if (e.record.data case DnsAddress(:final address) when e.record.name.toLowerCase() == lower) address,
+        if (e.record.data case DnsAddress(:final address) when e.record.name.toLowerCase() == lower)
+          _inZoneOf(address, e.from),
     }.toList();
     int rank(InternetAddress a) =>
         (a.isLoopback ? 4 : 0) + (a.isLinkLocal ? 2 : 0) + (a.type == InternetAddressType.IPv4 ? 0 : 1);
     found.sort((a, b) => rank(a) != rank(b) ? rank(a) - rank(b) : a.address.compareTo(b.address));
     return found;
+  }
+
+  /// [address], with the zone of [sender] when it is an IPv6 link-local one: `fe80::` means nothing without the
+  /// interface, and the record does not name it.
+  static InternetAddress _inZoneOf(InternetAddress address, String sender) {
+    if (address.type != InternetAddressType.IPv6 || !address.isLinkLocal || address.address.contains('%')) {
+      return address;
+    }
+    final zone = sender.indexOf('%');
+    if (zone < 0) return address;
+    return InternetAddress.tryParse('${address.address}${sender.substring(zone)}') ?? address;
   }
 
   /// The pairs of the newest TXT record (RFC 6763 6.4: keys compare without case, the first occurrence wins, an empty

@@ -16,8 +16,10 @@ abstract interface class UsbBulkPipe {
   /// Reads up to [maxLength] bytes from the IN endpoint; an empty result means the device went away.
   Future<Uint8List> read(int maxLength);
 
-  /// Writes [data] to the OUT endpoint. adbd wants each ADB message in its own transfers: the 24-byte header, then the
-  /// payload.
+  /// The OUT endpoint's `wMaxPacketSize`.
+  int get maxPacketSize;
+
+  /// Writes [data] to the OUT endpoint as one transfer; empty [data] is a zero-length packet.
   Future<void> write(Uint8List data);
 
   /// Releases the interface.
@@ -72,16 +74,27 @@ final class UsbTransport implements AdbTransport {
   Future<void> _drain() async {
     _writing = true;
     while (_out.isNotEmpty && !_ended) {
-      final chunk = _out.removeFirst();
+      final message = _out.removeFirst();
       try {
-        await _pipe.write(chunk);
+        await _writeMessage(message);
       } on Object catch (e) {
         _end(error: AdbClosedException('USB write failed', cause: e));
         return;
       }
-      _pending -= chunk.length;
+      _pending -= message.length;
     }
     _writing = false;
+  }
+
+  /// One ADB message, as adbd reads it: the header, then the payload. A payload that fills its last packet exactly
+  /// needs a zero-length packet, or the device keeps waiting for the end of the transfer.
+  Future<void> _writeMessage(Uint8List message) async {
+    const headerLength = 24;
+    await _pipe.write(Uint8List.sublistView(message, 0, headerLength));
+    final payload = Uint8List.sublistView(message, headerLength);
+    if (payload.isEmpty) return;
+    await _pipe.write(payload);
+    if (payload.length % _pipe.maxPacketSize == 0) await _pipe.write(Uint8List(0));
   }
 
   @override

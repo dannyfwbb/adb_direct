@@ -90,11 +90,11 @@ final class AdbKeyPair {
 
   static final Expando<TlsIdentity> _tls = Expando('adb_direct TLS identity');
 
-  /// The certificate this key pair object presents in TLS: made on first use (valid for ten years from then, as adb's)
+  /// The certificate this key pair object presents in TLS: made on first use at [now] (valid for ten years, as adb's)
   /// and reused for the life of the object, so no RSA signature is spent per connection. Another object for the same
   /// key, or a new process, makes a new one; devices check only the public key.
   @internal
-  TlsIdentity get tls => _tls[this] ??= buildTlsIdentity(_key, now: DateTime.now().toUtc());
+  TlsIdentity tls(DateTime Function() now) => _tls[this] ??= buildTlsIdentity(_key, now: now().toUtc());
 
   /// Equal when the keys and the comments are equal. Compares public values only: the modulus determines the private
   /// key.

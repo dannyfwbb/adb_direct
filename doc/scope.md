@@ -31,7 +31,7 @@ States: **planned** (designed, not written), **in progress**, **built** (impleme
 | Area | `adb` equivalent | State |
 | --- | --- | --- |
 | mDNS service names, parsing announcements | — | done (1.0.0) |
-| Built-in mDNS browsing on platforms where multicast works from `dart:io` | `adb mdns services` | done (1.0.0) (IPv4; checked against Avahi on Linux) |
+| Built-in mDNS browsing on platforms where multicast works from `dart:io` | `adb mdns services` | done (1.0.0), IPv6 (unreleased) (IPv4 checked against Avahi on Linux) |
 | A hook for platform discovery (iOS `NWBrowser`, Android NSD) | — | done (1.0.0) (`AdbServiceBrowser`, example adapter) |
 | A probe that tells whether an address speaks ADB, without authenticating | — | done (1.0.0) |
 | A check whether a device already trusts a key, without asking its user | — | done (1.0.0) |

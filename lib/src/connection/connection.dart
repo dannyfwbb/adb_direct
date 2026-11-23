@@ -274,7 +274,7 @@ abstract base class AdbConnection {
   late final AdbReverse reverse = AdbReverse(this);
 
   /// Files: stat, list, read and write over the sync protocol.
-  late final AdbSync sync = AdbSync(this, stallTimeout: options.transferStallTimeout);
+  late final AdbSync sync = AdbSync(this, stallTimeout: options.transferStallTimeout, now: options.now);
 
   /// Forwards a local TCP port to [remote] on the device (`tcp:8080`, `localabstract:<name>`, `jdwp:<pid>`, …), like
   /// `adb forward`. [port] 0 picks a free port ([AdbForward.port] tells which). The forward ends with

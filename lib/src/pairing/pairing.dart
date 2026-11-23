@@ -45,7 +45,7 @@ abstract final class AdbPairing {
   /// after [timeout], or [AdbCancelledException] when [cancelOn] completes first.
   ///
   /// [keyLog] receives the TLS session's key-log lines (NSS format), for decrypting a capture in Wireshark; they are
-  /// secrets.
+  /// secrets. [now] is the wall clock for the certificate [key] presents, when it has none yet.
   static Future<AdbPairedDevice> pair(
     Object host,
     int port, {
@@ -56,9 +56,10 @@ abstract final class AdbPairing {
     Future<void>? cancelOn,
     void Function(String line)? keyLog,
     AdbClock clock = AdbClock.system,
+    DateTime Function() now = DateTime.now,
   }) async {
     if (code.isEmpty) throw ArgumentError.value(code, 'code', 'is empty');
-    final attempt = _Attempt(host, port, key, keyLog);
+    final attempt = _Attempt(host, port, key, keyLog, now);
     cancelOn?.whenComplete(attempt.stop).ignore();
     final deadline = clock.timer(timeout, () {
       attempt.timedOut = true;
@@ -96,12 +97,13 @@ abstract final class AdbPairing {
 
 /// One pairing attempt: the TLS connection, then the exchange; [stop] ends it from outside.
 final class _Attempt {
-  _Attempt(this.host, this.port, this.key, this.keyLog);
+  _Attempt(this.host, this.port, this.key, this.keyLog, this.now);
 
   final Object host;
   final int port;
   final AdbKeyPair key;
   final void Function(String line)? keyLog;
+  final DateTime Function() now;
 
   /// The session's key-log lines, where the exporter secret comes from.
   final List<String> _lines = [];
@@ -117,9 +119,10 @@ final class _Attempt {
   }
 
   Future<SecureSocket> connect(Duration timeout) async {
+    final identity = key.tls(now);
     final context = SecurityContext(withTrustedRoots: false)
-      ..useCertificateChainBytes(utf8.encode(key.tls.certificatePem))
-      ..usePrivateKeyBytes(utf8.encode(key.tls.privateKeyPem));
+      ..useCertificateChainBytes(utf8.encode(identity.certificatePem))
+      ..usePrivateKeyBytes(utf8.encode(identity.privateKeyPem));
     try {
       final task = _task = await SecureSocket.startConnect(
         host,
