@@ -1,11 +1,13 @@
 // Copyright 2026 The adb_direct authors
 // SPDX-License-Identifier: Apache-2.0
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:meta/meta.dart';
 
+import '../clock.dart';
 import '../connection/connection.dart';
 import '../errors.dart';
 
@@ -46,16 +48,33 @@ final class SmartAnswer {
 int? parseHex4(String text) => RegExp(r'^[0-9a-fA-F]{4}$').hasMatch(text) ? int.parse(text, radix: 16) : null;
 
 /// Opens [service], reads until the device closes it (at most [maxBytes]), and returns what it sent.
+///
+/// A device that keeps the stream open past [timeout] (the open included) gets it closed, and the call throws
+/// [AdbTimeoutException]; the connection stays usable.
 @internal
-Future<Uint8List> readAll(AdbConnection connection, String service, {int maxBytes = 1024 * 1024}) async {
-  final stream = await connection.open(service);
-  final bytes = BytesBuilder(copy: false);
-  await for (final chunk in stream.input) {
-    bytes.add(chunk);
-    if (bytes.length > maxBytes) {
-      await stream.close();
-      throw AdbProtocolException('"$service" answered more than $maxBytes B');
+Future<Uint8List> readAll(
+  AdbConnection connection,
+  String service, {
+  int maxBytes = 1024 * 1024,
+  Duration timeout = const Duration(seconds: 30),
+}) async {
+  final stream = connection.openStream(service);
+
+  Future<Uint8List> collect() async {
+    await stream.opened;
+    final bytes = BytesBuilder(copy: false);
+    await for (final chunk in stream.input) {
+      bytes.add(chunk);
+      if (bytes.length > maxBytes) {
+        await stream.close();
+        throw AdbProtocolException('"$service" answered more than $maxBytes B');
+      }
     }
+    return bytes.takeBytes();
   }
-  return bytes.takeBytes();
+
+  return connection.clock.deadline(collect(), timeout, () {
+    unawaited(stream.close());
+    return AdbTimeoutException('"$service" did not answer within $timeout');
+  });
 }

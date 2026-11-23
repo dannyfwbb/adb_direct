@@ -9,6 +9,7 @@ import 'dart:typed_data';
 import 'package:meta/meta.dart';
 
 import '../bytes.dart';
+import '../clock.dart';
 import '../connection/connection.dart';
 import '../errors.dart';
 import '../protocol/banner.dart';
@@ -110,30 +111,68 @@ final class AdbDebug {
   }
 
   /// A screenshot as PNG (`screencap -p`).
-  Future<Uint8List> screencap({int? display}) async {
+  ///
+  /// A capture still running after [timeout] is abandoned and the call throws [AdbTimeoutException]; the connection
+  /// stays usable. More than [maxBytes] of output is an [AdbCommandException].
+  Future<Uint8List> screencap({
+    int? display,
+    Duration timeout = const Duration(seconds: 30),
+    int maxBytes = 128 * 1024 * 1024,
+  }) async {
+    if (maxBytes < 1) throw ArgumentError.value(maxBytes, 'maxBytes', 'must be positive');
     final command = 'screencap -p${display == null ? '' : ' -d $display'}';
-    Uint8List bytes;
-    try {
-      final stream = await _connection.open('exec:$command');
-      final png = BytesBuilder(copy: false);
-      await stream.input.forEach(png.add);
-      bytes = png.takeBytes();
-    } on AdbServiceUnavailableException {
-      // Before Android 5 there is no exec:, and a PTY would mangle the bytes: write a file on the device and copy it.
-      bytes = await _screencapToFile(command);
+    final clock = _connection.clock;
+    final started = clock.elapsed;
+    final stream = _connection.openStream('exec:$command');
+    var timedOut = false;
+
+    Future<Uint8List> capture() async {
+      Uint8List bytes;
+      try {
+        await stream.opened;
+        bytes = await _collectCapture(stream.input, command, maxBytes, () => timedOut);
+      } on AdbServiceUnavailableException {
+        if (timedOut) rethrow;
+        // Before Android 5 there is no exec:, and a PTY would mangle the bytes: write a file on the device and copy it.
+        bytes = await _screencapToFile(command, timeout - (clock.elapsed - started), maxBytes, () => timedOut);
+      }
+      const signature = [0x89, 0x50, 0x4e, 0x47];
+      if (bytes.length < 8 || Iterable<int>.generate(4).any((i) => bytes[i] != signature[i])) {
+        final text = utf8.decode(bytes.take(200).toList(), allowMalformed: true);
+        throw AdbProtocolException('screencap did not return a PNG: $text');
+      }
+      return bytes;
     }
-    const signature = [0x89, 0x50, 0x4e, 0x47];
-    if (bytes.length < 8 || Iterable<int>.generate(4).any((i) => bytes[i] != signature[i])) {
-      final text = utf8.decode(bytes.take(200).toList(), allowMalformed: true);
-      throw AdbProtocolException('screencap did not return a PNG: $text');
-    }
-    return bytes;
+
+    return clock.deadline(capture(), timeout, () {
+      timedOut = true;
+      unawaited(stream.close());
+      return AdbTimeoutException('screencap did not finish within $timeout');
+    });
   }
 
-  Future<Uint8List> _screencapToFile(String command) async {
+  /// Everything [input] delivers, up to [maxBytes]; stops as soon as [abandoned] says the caller has gone.
+  static Future<Uint8List> _collectCapture(
+    Stream<Uint8List> input,
+    String command,
+    int maxBytes,
+    bool Function() abandoned,
+  ) async {
+    final bytes = BytesBuilder(copy: false);
+    await for (final chunk in input) {
+      if (abandoned()) throw AdbTimeoutException('"$command" was abandoned');
+      bytes.add(chunk);
+      if (bytes.length > maxBytes) {
+        throw AdbCommandException('screencap produced more than $maxBytes B', command: command, output: '');
+      }
+    }
+    return bytes.takeBytes();
+  }
+
+  Future<Uint8List> _screencapToFile(String command, Duration timeout, int maxBytes, bool Function() abandoned) async {
     final path = '/data/local/tmp/adb_direct_${randomHex()}.png';
     try {
-      final result = await _connection.shell.run('$command ${shellQuote(path)}');
+      final result = await _connection.shell.run('$command ${shellQuote(path)}', timeout: timeout);
       if ((result.exitCode ?? 0) != 0) {
         throw AdbCommandException(
           'screencap failed: ${'${result.stdoutText}${result.stderrText}'.trim()}',
@@ -142,7 +181,7 @@ final class AdbDebug {
           exitCode: result.exitCode,
         );
       }
-      return await _connection.sync.readAll(path);
+      return await _collectCapture(_connection.sync.read(path), command, maxBytes, abandoned);
     } finally {
       await _connection.shell.removeQuietly(path);
     }

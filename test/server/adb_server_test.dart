@@ -4,6 +4,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:adb_direct/adb_direct.dart';
 import 'package:test/test.dart';
@@ -112,6 +113,150 @@ void main() {
     await adb.close();
     expect(adb.isClosed, isTrue);
     await server.close();
+  });
+
+  group('relayed streams', () {
+    /// A server for `emulator-5554` whose tracking socket stays open; `exec:` sockets go to [raw].
+    Future<(ServerSocket, List<Socket>)> relay(void Function(StreamSubscription<List<int>> input) raw) async {
+      final trackers = <Socket>[];
+      late ServerSocket server;
+      server = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      server.listen((socket) {
+        final buffer = <int>[];
+        var taken = false;
+        // It ends with the socket.
+        // ignore: cancel_subscriptions
+        late StreamSubscription<List<int>> sub;
+        sub = socket.listen(
+          (data) {
+            if (taken) return;
+            buffer.addAll(data);
+            while (buffer.length >= 4) {
+              final n = int.parse(ascii.decode(buffer.sublist(0, 4)), radix: 16);
+              if (buffer.length < 4 + n) return;
+              final r = utf8.decode(buffer.sublist(4, 4 + n));
+              buffer.removeRange(0, 4 + n);
+              if (r == 'host-serial:emulator-5554:features') {
+                socket.write('OKAY${frame('shell_v2')}');
+              } else if (r == 'host:devices-l') {
+                socket.write('OKAY${frame('emulator-5554 device model:X\n')}');
+              } else if (r == 'host:transport:emulator-5554') {
+                socket.write('OKAY');
+              } else if (r == 'host:track-devices-l') {
+                socket.write('OKAY${frame('emulator-5554 device model:X\n')}');
+                trackers.add(socket);
+              } else if (r.startsWith('exec:')) {
+                taken = true;
+                socket.write('OKAY');
+                sub.onData(null);
+                raw(sub);
+                return;
+              } else {
+                socket.write('FAIL${frame('closed')}');
+              }
+            }
+          },
+          onError: (Object _) {},
+          onDone: socket.destroy,
+        );
+      });
+      return (server, trackers);
+    }
+
+    test('writes reach the service and count as acknowledged', () async {
+      final got = Completer<String>();
+      final bytes = <int>[];
+      final (server, _) = await relay((input) {
+        input.onData((d) {
+          bytes.addAll(d);
+          if (bytes.length >= 5 && !got.isCompleted) got.complete(ascii.decode(bytes));
+        });
+      });
+      final adb = await AdbServer(port: server.port).device('emulator-5554');
+      final stream = await adb.open('exec:cat');
+      final acks = <int>[];
+      final sub = stream.acknowledgements.listen(acks.add);
+      await stream.write(ascii.encode('he'));
+      await stream.write(const []);
+      await stream.write(ascii.encode('llo'));
+      await stream.flush();
+      expect(await got.future.timeout(const Duration(seconds: 5)), 'hello');
+      expect(stream.acknowledgedBytes, 5);
+      expect(acks, [2, 5]);
+      await sub.cancel();
+      await stream.close();
+      expect(stream.isClosed, isTrue);
+      await expectLater(stream.write([1]), throwsA(isA<AdbCancelledException>()));
+      await adb.close();
+      await server.close();
+    });
+
+    test('a write blocked on a server that stopped reading ends when the stream closes', () async {
+      // Never reads: the socket buffers fill up and the flush stays pending.
+      final (server, _) = await relay((input) => input.pause());
+      final adb = await AdbServer(port: server.port).device('emulator-5554');
+      final stream = await adb.open('exec:cat');
+      final pending = stream.write(Uint8List(64 * 1024 * 1024)).then<Object?>((_) => null, onError: (Object e) => e);
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      await stream.close();
+      final outcome = await pending.timeout(const Duration(seconds: 5), onTimeout: () => 'STILL PENDING');
+      expect(outcome, isNot('STILL PENDING'));
+      await adb.close();
+      await server.close();
+    });
+
+    test('losing the server ends the connection and its streams', () async {
+      final (server, trackers) = await relay((_) {});
+      final adb = await AdbServer(port: server.port).device('emulator-5554');
+      final stream = await adb.open('exec:cat');
+      final failed = expectLater(stream.input.drain<void>(), throwsA(isA<AdbClosedException>()));
+      while (trackers.isEmpty) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+      trackers.single.destroy();
+      await adb.done.timeout(const Duration(seconds: 5));
+      await failed;
+      expect(adb.closeReason, isA<AdbClosedException>());
+      expect(() => adb.openStream('exec:x'), throwsA(isA<AdbClosedException>()));
+      await server.close();
+    });
+
+    test('what the server cannot give: reverse handlers in code; connection facts', () async {
+      final (server, _) = await relay((_) {});
+      final adb = await AdbServer(port: server.port).device('emulator-5554');
+      await expectLater(adb.reverse.add('tcp:1', (stream) {}), throwsA(isA<AdbNotSupportedException>()));
+      expect(adb.acceptedKey, isNull);
+      expect(adb.isTls, isFalse);
+      expect(adb.deviceCertificate, isNull);
+      expect(adb.delayedAck, isFalse);
+      expect(adb.maxPayload, 0xffff);
+      expect(adb.protocolVersion, 0x01000001);
+      await adb.close();
+      await server.close();
+    });
+  });
+
+  test('closing a device connection at once, with the server gone, reports nothing', () async {
+    final errors = <Object>[];
+    final done = Completer<void>();
+    unawaited(
+      runZonedGuarded<Future<void>>(() async {
+        final server = await fakeServer(
+          (r) => switch (r) {
+            'host-serial:emulator-5554:features' => 'OKAY${frame('shell_v2')}',
+            'host:devices-l' => 'OKAY${frame('emulator-5554 device model:X\n')}',
+            _ => 'FAIL${frame('closed')}',
+          },
+        );
+        final adb = await AdbServer(port: server.port).device('emulator-5554');
+        await server.close();
+        await adb.close();
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        done.complete();
+      }, (e, _) => errors.add(e)),
+    );
+    await done.future.timeout(const Duration(seconds: 5));
+    expect(errors, isEmpty);
   });
 
   test('no server: refused', () async {

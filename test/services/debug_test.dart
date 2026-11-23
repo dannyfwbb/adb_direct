@@ -14,6 +14,7 @@ import 'package:test/test.dart';
 
 import '../support/adbd_scripts.dart';
 import '../support/fake_adbd.dart';
+import '../support/fake_clock.dart';
 
 Uint8List fixture(String name) => File('test/fixtures/services/$name').readAsBytesSync();
 
@@ -141,6 +142,67 @@ void main() {
       });
       final first = await adb.debug.trackApps().first;
       expect(first.map((p) => p.pid), [1234, 1109, 1236]);
+      await adb.close();
+      await adbd.done();
+    });
+  });
+
+  group('screencap deadline and limit', () {
+    test('a capture that never ends times out; the stream closes and the connection stays', () async {
+      final clock = FakeClock();
+      final started = Completer<void>();
+      final closed = Completer<void>();
+      final adbd = await FakeAdbd.start((session) async {
+        await acceptHandshake(session, banner: classicBanner);
+        final open = await session.receive();
+        session
+          ..send(AdbMessage.okay(localId: 9, remoteId: open.arg0))
+          ..send(AdbMessage.write(localId: 9, remoteId: open.arg0, data: [0x89, 0x50, 0x4e, 0x47]));
+        started.complete();
+        while (true) {
+          final m = await session.receive();
+          if (m.command == AdbCommand.close) break;
+        }
+        closed.complete();
+        await session.expectClientClose(timeout: const Duration(seconds: 2)).catchError((Object _) {});
+      });
+      final adb = await AdbConnection.connect(
+        adbd.address,
+        adbd.port,
+        key: testKey,
+        clock: clock,
+        options: const AdbConnectOptions(livenessInterval: null),
+      );
+      final call = adb.debug.screencap(timeout: const Duration(seconds: 3));
+      await started.future;
+      clock.advance(const Duration(seconds: 3));
+      await expectLater(call, throwsA(isA<AdbTimeoutException>()));
+      await closed.future.timeout(const Duration(seconds: 5));
+      expect(adb.isClosed, isFalse);
+      await adb.close();
+      await adbd.done();
+    });
+
+    test('more than maxBytes is a command error', () async {
+      final (adb, adbd) = await serve((session, service, id) async {
+        write(session, id, List.filled(64, 0x89));
+        await session.expectClientClose(timeout: const Duration(seconds: 5)).catchError((Object _) {});
+      });
+      await expectLater(
+        adb.debug.screencap(maxBytes: 16),
+        throwsA(isA<AdbCommandException>().having((e) => e.command, 'command', 'screencap -p')),
+      );
+      await adb.close();
+      await adbd.done();
+    });
+
+    test('maxBytes must be positive', () async {
+      final (adb, adbd) = await serve((session, service, id) async {
+        close(session, id);
+        await session.expectClientClose(timeout: const Duration(seconds: 2)).catchError((Object _) {});
+      });
+      await expectLater(adb.debug.screencap(maxBytes: 0), throwsArgumentError);
+      await adb.shell.exec('true').then((s) => s.close(), onError: (Object _) {});
       await adb.close();
       await adbd.done();
     });

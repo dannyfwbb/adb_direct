@@ -121,7 +121,8 @@ final class ServerConnection extends AdbConnection {
   void _fail(AdbException reason) {
     if (_closeReason != null) return;
     _closeReason = reason;
-    unawaited(_tracking.cancel());
+    // Cancelling while the tracker still connects hands us its failure; the connection is over either way.
+    _tracking.cancel().ignore();
     for (final stream in _streams.toList()) {
       stream.finish(reason);
     }

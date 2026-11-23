@@ -11,6 +11,7 @@ import 'package:test/test.dart';
 
 import '../support/adbd_scripts.dart';
 import '../support/fake_adbd.dart';
+import '../support/fake_clock.dart';
 
 final Map<String, String> answers =
     (jsonDecode(File('test/fixtures/services/answers.json').readAsStringSync()) as Map<String, Object?>)
@@ -41,7 +42,199 @@ Future<(AdbConnection, FakeAdbd, Completer<String>)> serve(String text, {bool cl
   return (adb, adbd, service);
 }
 
+/// Accepts the next OPEN, sends [text] and stays silent until the client closes the stream. Returns the service.
+Future<String> answerThenHang(FakeAdbdSession session, void Function() onOpened, {String text = ''}) async {
+  var open = await session.receive();
+  while (open.command != AdbCommand.open) {
+    open = await session.receive();
+  }
+  session.send(AdbMessage.okay(localId: 9, remoteId: open.arg0));
+  if (text.isNotEmpty) session.send(AdbMessage.write(localId: 9, remoteId: open.arg0, data: utf8.encode(text)));
+  onOpened();
+  while (true) {
+    final m = await session.receive();
+    // The client's own id comes first in what it sends.
+    if (m.command == AdbCommand.close && m.arg0 == open.arg0) break;
+  }
+  return utf8.decode(open.payload).replaceAll('\u0000', '');
+}
+
+Future<AdbConnection> connectWith(FakeAdbd adbd, FakeClock clock) => AdbConnection.connect(
+  adbd.address,
+  adbd.port,
+  key: testKey,
+  clock: clock,
+  options: const AdbConnectOptions(livenessInterval: null),
+);
+
 void main() {
+  group('deadlines and limits', () {
+    test('a silent service times out, its stream is closed, the connection still works', () async {
+      final clock = FakeClock();
+      final opened = Completer<void>();
+      final hung = Completer<String>();
+      final adbd = await FakeAdbd.start((session) async {
+        await acceptHandshake(session, banner: classicBanner);
+        hung.complete(await answerThenHang(session, opened.complete));
+        var open = await session.receive();
+        while (open.command != AdbCommand.open) {
+          open = await session.receive();
+        }
+        session
+          ..send(AdbMessage.okay(localId: 10, remoteId: open.arg0))
+          ..send(AdbMessage.write(localId: 10, remoteId: open.arg0, data: utf8.encode('remount succeeded\n')))
+          ..send(AdbMessage.close(localId: 10, remoteId: open.arg0));
+        await session.expectClientClose(timeout: const Duration(seconds: 2)).catchError((Object _) {});
+      });
+      final adb = await connectWith(adbd, clock);
+      final call = adb.daemon.remount(timeout: const Duration(seconds: 5));
+      await opened.future;
+      clock.advance(const Duration(seconds: 4));
+      clock.advance(const Duration(seconds: 1));
+      await expectLater(call, throwsA(isA<AdbTimeoutException>()));
+      expect(await hung.future, 'remount:');
+      expect(adb.isClosed, isFalse);
+      expect((await adb.daemon.remount()).outcome, AdbDaemonOutcome.done);
+      await adb.close();
+      await adbd.done();
+    });
+
+    test('silence after a recognised answer is that answer', () async {
+      final clock = FakeClock();
+      final opened = Completer<void>();
+      final adbd = await FakeAdbd.start((session) async {
+        await acceptHandshake(session, banner: classicBanner);
+        await answerThenHang(session, opened.complete, text: answers['root: (production)']!);
+        await session.expectClientClose(timeout: const Duration(seconds: 2)).catchError((Object _) {});
+      });
+      final adb = await connectWith(adbd, clock);
+      final call = adb.daemon.root(timeout: const Duration(seconds: 5));
+      await opened.future;
+      // The answer has to arrive before the deadline passes.
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      clock.advance(const Duration(seconds: 5));
+      expect((await call).outcome, AdbDaemonOutcome.refused);
+      expect(adb.isClosed, isFalse);
+      await adb.close();
+      await adbd.done();
+    });
+
+    test('a restart announced without closing the stream ends the connection at the deadline', () async {
+      final clock = FakeClock();
+      final opened = Completer<void>();
+      final adbd = await FakeAdbd.start((session) async {
+        await acceptHandshake(session, banner: classicBanner);
+        var open = await session.receive();
+        while (open.command != AdbCommand.open) {
+          open = await session.receive();
+        }
+        session
+          ..send(AdbMessage.okay(localId: 9, remoteId: open.arg0))
+          ..send(AdbMessage.write(localId: 9, remoteId: open.arg0, data: utf8.encode(answers['tcpip:5555']!)));
+        opened.complete();
+        await session
+            .receive(timeout: const Duration(seconds: 3))
+            .catchError((Object _) => AdbMessage.close(localId: 0, remoteId: 0));
+        session.destroy();
+      });
+      final adb = await connectWith(adbd, clock);
+      final call = adb.daemon.tcpip(5555, timeout: const Duration(seconds: 5));
+      await opened.future;
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      clock.advance(const Duration(seconds: 5));
+      expect((await call).restarting, isTrue);
+      expect(adb.isClosed, isTrue);
+      await adbd.done();
+    });
+
+    test('output past the limit is a command error and closes the stream', () async {
+      final closed = Completer<void>();
+      final adbd = await FakeAdbd.start((session) async {
+        await acceptHandshake(session, banner: classicBanner);
+        var open = await session.receive();
+        while (open.command != AdbCommand.open) {
+          open = await session.receive();
+        }
+        session.send(AdbMessage.okay(localId: 9, remoteId: open.arg0));
+        // Two payloads of 1 MiB would need acknowledgements; the first plus one byte is enough.
+        session.send(AdbMessage.write(localId: 9, remoteId: open.arg0, data: List.filled(1024 * 1024, 0x61)));
+        while (true) {
+          final m = await session.receive();
+          if (m.command == AdbCommand.close) break;
+          if (m.command == AdbCommand.okay) {
+            session.send(AdbMessage.write(localId: 9, remoteId: open.arg0, data: [0x61]));
+          }
+        }
+        closed.complete();
+        await session.expectClientClose(timeout: const Duration(seconds: 2)).catchError((Object _) {});
+      });
+      final adb = await AdbConnection.connect(adbd.address, adbd.port, key: testKey);
+      await expectLater(
+        adb.daemon.remount(),
+        throwsA(isA<AdbCommandException>().having((e) => e.command, 'command', 'remount:')),
+      );
+      await closed.future.timeout(const Duration(seconds: 5));
+      await adb.close();
+      await adbd.done();
+    });
+
+    test('a device without the service: not supported', () async {
+      final adbd = await FakeAdbd.start((session) async {
+        await acceptHandshake(session, banner: classicBanner);
+        final open = await session.receive();
+        session.send(AdbMessage.close(localId: 0, remoteId: open.arg0));
+        await session.expectClientClose(timeout: const Duration(seconds: 2)).catchError((Object _) {});
+      });
+      final adb = await AdbConnection.connect(adbd.address, adbd.port, key: testKey);
+      await expectLater(adb.daemon.disableVerity(), throwsA(isA<AdbNotSupportedException>()));
+      await adb.close();
+      await adbd.done();
+    });
+
+    test('a reboot that never answers still ends the connection', () async {
+      final clock = FakeClock();
+      final opened = Completer<void>();
+      final adbd = await FakeAdbd.start((session) async {
+        await acceptHandshake(session, banner: classicBanner);
+        final open = await session.receive();
+        session.send(AdbMessage.okay(localId: 9, remoteId: open.arg0));
+        opened.complete();
+        // The client drops the connection without draining, so its CLSE may or may not arrive.
+        try {
+          while (true) {
+            await session.receive();
+          }
+        } on FakeAdbdFailure {
+          session.destroy();
+        }
+      });
+      final adb = await connectWith(adbd, clock);
+      final call = adb.daemon.reboot();
+      await opened.future;
+      clock.advance(const Duration(seconds: 10));
+      expect((await call).restarting, isTrue);
+      expect(adb.isClosed, isTrue);
+      await adbd.done();
+    });
+
+    test('every service asks for its own name', () async {
+      for (final (name, run) in <(String, Future<AdbDaemonAnswer> Function(AdbConnection))>[
+        ('unroot:', (a) => a.daemon.unroot()),
+        ('usb:', (a) => a.daemon.usb()),
+        ('disable-verity:', (a) => a.daemon.disableVerity()),
+        ('enable-verity:', (a) => a.daemon.enableVerity()),
+      ]) {
+        final (adb, adbd, service) = await serve('some answer\n');
+        final answer = await run(adb);
+        expect(await service.future, name);
+        expect(answer.output, 'some answer\n');
+        expect('$answer', contains('some answer'));
+        await adb.close();
+        await adbd.done();
+      }
+    });
+  });
+
   group('daemon answers (recorded)', () {
     test('root on a production build: refused, connection kept', () async {
       final (adb, adbd, service) = await serve(answers['root: (production)']!);

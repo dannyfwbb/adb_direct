@@ -48,6 +48,8 @@ if (answer.restarting) adb = await AdbConnection.waitFor(host, port, key: key);
 
 When adbd restarts, the call closes the connection and returns `restarting`; an answer cut off by the restart counts as one too. `usb()` over the network ends network debugging until someone turns it on again on the device.
 
+Every call but `reboot` takes a `timeout`: 30 s, or 2 minutes for `remount`, `disableVerity` and `enableVerity`. A service still silent then gets its stream closed and the call throws `AdbTimeoutException`, unless what it printed already tells the outcome. The connection stays usable. Output past 1 MiB is an `AdbCommandException`.
+
 `AdbConnection.waitFor` connects again with a pause that grows from 250 ms to 2 s (the last attempt may run past `timeout` by one connect), retrying only "not there yet" failures (unreachable, refused, closed, timeouts, a garbled exchange while adbd starts). A device that refuses the key fails at once. After `tcpip` or `root` adbd is back in about a quarter of a second on an emulator; after a reboot it takes as long as booting and bringing the network up.
 
 ## Debugging
@@ -58,7 +60,7 @@ When adbd restarts, the call closes the connection and returns `restarting`; an 
 | `debug.trackApps()` | Lists of `AdbAppProcess` (pid, debuggable, profileable, architecture, user, process name, packages, uid), Android 12+ |
 | `debug.jdwp(pid)` | A stream to that process's JDWP agent, from the handshake on |
 | `debug.logcat(arguments: ['-d'])` | Log lines; without `-d` it follows until cancelled |
-| `debug.screencap()` | A PNG |
+| `debug.screencap()` | A PNG; `timeout` (30 s) and `maxBytes` (128 MiB) bound it |
 | `debug.bugreport(file, onProgress: …)` | A bug report zip (Android 7+): `bugreportz -p`, then a pull, then the device copy is removed |
 
 ## Backup, restore and sideload

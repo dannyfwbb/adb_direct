@@ -12,6 +12,7 @@ import 'package:test/test.dart';
 
 import '../support/adbd_scripts.dart';
 import '../support/fake_adbd.dart';
+import '../support/fake_clock.dart';
 
 /// Recorded answers (test/fixtures/services/answers.json).
 final Map<String, String> answers =
@@ -178,6 +179,119 @@ void main() {
       expect(forward.isClosed, isTrue);
       await expectLater(Socket.connect('127.0.0.1', forward.port), throwsA(isA<SocketException>()));
       await adbd.done();
+    });
+  });
+
+  group('reverse: the rest of it', () {
+    test('a device that never answers: timeout, the target is released, the connection works', () async {
+      final clock = FakeClock();
+      final opened = Completer<void>();
+      final adbd = await FakeAdbd.start((session) async {
+        await acceptHandshake(session, banner: classicBanner);
+        final open = await next(session, (m) => m.command == AdbCommand.open);
+        session.send(AdbMessage.okay(localId: 40, remoteId: open.arg0));
+        opened.complete();
+        await next(session, (m) => m.command == AdbCommand.close && m.arg0 == open.arg0);
+        // The forward did not happen: a connection to its target is refused.
+        final label = utf8.decode(open.payload).replaceAll('\u0000', '').split(';').last;
+        session.send(AdbMessage.open(localId: 91, service: label));
+        final refused = await next(session, (m) => m.arg1 == 91);
+        expect(refused.command, AdbCommand.close);
+      });
+      final adb = await AdbConnection.connect(
+        adbd.address,
+        adbd.port,
+        key: testKey,
+        clock: clock,
+        options: const AdbConnectOptions(livenessInterval: null),
+      );
+      final call = adb.reverse.add('tcp:1', (stream) => fail('must not be reached'));
+      await opened.future;
+      clock.advance(const Duration(seconds: 30));
+      await expectLater(call, throwsA(isA<AdbTimeoutException>()));
+      await adbd.done();
+      expect(adb.isClosed, isFalse);
+      await adb.close();
+    });
+
+    test('toLocalPort copies both ways to the local socket', () async {
+      final local = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      local.listen((socket) {
+        socket.listen((data) {
+          socket
+            ..add(ascii.encode('echo:'))
+            ..add(data);
+          unawaited(socket.close());
+        });
+      });
+      final (adb, adbd) = await connectTo((session) async {
+        final service = await answer(session, 'OKAY');
+        session.send(AdbMessage.open(localId: 92, service: service.split(';').last));
+        final okay = await next(session, (m) => m.command == AdbCommand.okay && m.arg1 == 92);
+        session.send(AdbMessage.write(localId: 92, remoteId: okay.arg0, data: ascii.encode('ping')));
+        final got = <int>[];
+        while (got.length < 'echo:ping'.length) {
+          final m = await next(session, (m) => m.command == AdbCommand.write && m.arg1 == 92);
+          got.addAll(m.payload);
+          session.send(AdbMessage.okay(localId: 92, remoteId: okay.arg0));
+        }
+        expect(ascii.decode(got), 'echo:ping');
+        session.send(AdbMessage.close(localId: 92, remoteId: okay.arg0));
+      });
+      await adb.reverse.toLocalPort('tcp:8', local.port);
+      await adbd.done();
+      await adb.close();
+      await local.close();
+    });
+
+    test('toLocalPort with nothing listening closes the device side', () async {
+      final probe = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
+      final port = probe.port;
+      await probe.close();
+      final (adb, adbd) = await connectTo((session) async {
+        final service = await answer(session, 'OKAY');
+        session.send(AdbMessage.open(localId: 93, service: service.split(';').last));
+        await next(session, (m) => m.command == AdbCommand.close && m.arg1 == 93);
+      });
+      await adb.reverse.toLocalPort('tcp:9', port);
+      await adbd.done();
+      await adb.close();
+    });
+
+    test('remove through the forward, removeAll, and bad specs', () async {
+      final services = <String>[];
+      final removed = Completer<void>();
+      final (adb, adbd) = await connectTo((session) async {
+        for (var i = 0; i < 4; i++) {
+          services.add(await answer(session, 'OKAY'));
+        }
+        await removed.future;
+        // After removeAll the old target is not accepted.
+        final label = services[2].split(';').last;
+        session.send(AdbMessage.open(localId: 94, service: label));
+        final refused = await next(session, (m) => m.arg1 == 94);
+        expect(refused.command, AdbCommand.close);
+      });
+      final first = await adb.reverse.add('tcp:1', (stream) => stream.close());
+      expect('$first', contains('tcp:1'));
+      await first.remove();
+      await adb.reverse.add('tcp:2', (stream) => stream.close());
+      await adb.reverse.removeAll();
+      removed.complete();
+      await adbd.done();
+      expect(services[1], 'reverse:killforward:tcp:1');
+      expect(services[3], 'reverse:killforward-all');
+      await expectLater(adb.reverse.add('', (stream) {}), throwsArgumentError);
+      await expectLater(adb.reverse.add('tcp:1;x', (stream) {}), throwsArgumentError);
+      await adb.close();
+    });
+
+    test('entries compare by value', () {
+      const a = AdbReverseEntry('tcp:1', 'tcp:2');
+      expect(a, const AdbReverseEntry('tcp:1', 'tcp:2'));
+      expect(a.hashCode, const AdbReverseEntry('tcp:1', 'tcp:2').hashCode);
+      expect(a, isNot(const AdbReverseEntry('tcp:1', 'tcp:3')));
+      expect('$a', 'tcp:1 → tcp:2');
     });
   });
 

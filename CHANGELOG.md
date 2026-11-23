@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Deadlines and output limits where a device that stayed connected but never finished could hang a call: `debug.screencap` (`timeout`, `maxBytes`), the `daemon` services (`timeout`), and `reverse` commands (30 s). The stream is closed and the connection stays usable.
+- `AdbServer`: closing a device connection while its device tracking was still connecting to a server that had gone away raised an unhandled error.
+
 ## 1.0.1 (2026-11-18)
 
 - Streams: a write from the device is acknowledged only once the listener has received it. Data the device sent together with its answer to `OPEN` (common for command output) was acknowledged as soon as someone listened, so a listener that paused at once could not hold the device back.
