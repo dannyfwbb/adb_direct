@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.2.0 (2026-11-24)
 
 - mDNS browsing works over IPv6 as well as IPv4: questions go out on every interface, and a link-local address comes with its zone, so it can be connected to.
 - `AdbConnectOptions.now` and a `now` parameter on pairing: the wall clock for TLS certificates and for pushed files without `modified`.
