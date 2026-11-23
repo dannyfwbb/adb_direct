@@ -2,7 +2,7 @@ name: adb_direct
 description: >-
   A pure Dart ADB client for adbd on Android devices over the network:
   wireless debugging, shell, files, apps and more, without the adb binary.
-version: 1.0.1
+version: 1.1.0
 repository: https://github.com/dannyfwbb/adb_direct
 issue_tracker: https://github.com/dannyfwbb/adb_direct/issues
 

@@ -58,7 +58,7 @@ States: **planned** (designed, not written), **in progress**, **built** (impleme
 | Interactive shell with a PTY, window size, stdin | `adb shell` | done (1.0.0) |
 | Raw exec without a PTY | `adb exec-out` | done (1.0.0) |
 | Streaming output (logcat and the like) | `adb logcat` | done (1.0.0) |
-| Deadlines per command, output limits | — | done (1.0.0) |
+| Deadlines per command, output limits | — | done (1.0.0), extended to daemon services and `reverse` (1.1.0) |
 
 ### Files
 
@@ -96,11 +96,11 @@ States: **planned** (designed, not written), **in progress**, **built** (impleme
 
 | Area | `adb` equivalent | State |
 | --- | --- | --- |
-| Bug report | `adb bugreport` | done (1.0.0) |
+| Bug report | `adb bugreport` | done (1.0.0), stall guard (1.1.0) |
 | JDWP process list, a stream to a process's JDWP | `adb jdwp`, `track-jdwp` | done (1.0.0) |
 | App process tracking (pid, debuggable, profileable, architecture, packages) | `adb track-app` | done (1.0.0) |
 | Device files opened directly | `dev:`, `dev-raw:` services | through `open('dev:<path>')`; no helper, not checked on a device |
-| Screenshots and log streaming helpers | `adb exec-out screencap -p`, `adb logcat` | done (1.0.0) |
+| Screenshots and log streaming helpers | `adb exec-out screencap -p`, `adb logcat` | done (1.0.0), screenshot deadline and size limit (1.1.0) |
 | Sideload an OTA in recovery | `adb sideload` | done (1.0.0), not yet checked on a device in recovery |
 | Backup and restore (deprecated on the device side) | `adb backup`, `adb restore` | done (1.0.0), not yet checked on a device (needs on-screen confirmation) |
 
