@@ -208,6 +208,108 @@ void main() {
     });
   });
 
+  group('bug report stall guard', () {
+    Future<AdbConnection> connect(FakeAdbd adbd, FakeClock clock) => AdbConnection.connect(
+      adbd.address,
+      adbd.port,
+      key: testKey,
+      clock: clock,
+      options: const AdbConnectOptions(livenessInterval: null),
+    );
+
+    test('output resets the guard; silence ends the call and the connection stays', () async {
+      final clock = FakeClock();
+      final started = Completer<void>();
+      final more = Completer<void>();
+      final closed = Completer<void>();
+      final adbd = await FakeAdbd.start((session) async {
+        await acceptHandshake(session, banner: classicBanner);
+        final open = await session.receive();
+        expect(utf8.decode(open.payload).replaceAll('\u0000', ''), 'exec:bugreportz -p');
+        session
+          ..send(AdbMessage.okay(localId: 9, remoteId: open.arg0))
+          ..send(AdbMessage.write(localId: 9, remoteId: open.arg0, data: ascii.encode('PROGRESS:1/10\n')));
+        started.complete();
+        await more.future;
+        session.send(AdbMessage.write(localId: 9, remoteId: open.arg0, data: ascii.encode('PROGRESS:2/10\n')));
+        while (true) {
+          final m = await session.receive();
+          if (m.command == AdbCommand.close) break;
+        }
+        closed.complete();
+        await session.expectClientClose(timeout: const Duration(seconds: 2)).catchError((Object _) {});
+      });
+      final adb = await connect(adbd, clock);
+      final progress = <int>[];
+      final first = Completer<void>();
+      final second = Completer<void>();
+      var ended = false;
+      final call = adb.debug
+          .bugreport(
+            File('unused.zip'),
+            stallTimeout: const Duration(seconds: 10),
+            onProgress: (done, _) {
+              progress.add(done);
+              (done == 1 ? first : second).complete();
+            },
+          )
+          .whenComplete(() => ended = true);
+      final outcome = expectLater(call, throwsA(isA<AdbTimeoutException>()));
+      await started.future;
+      await first.future.timeout(const Duration(seconds: 5));
+      clock.advance(const Duration(seconds: 9));
+      more.complete();
+      await second.future.timeout(const Duration(seconds: 5));
+      // Nine seconds after the second line: past ten from the first, still within ten of the last.
+      clock.advance(const Duration(seconds: 9));
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(ended, isFalse);
+      clock.advance(const Duration(seconds: 1));
+      await outcome;
+      await closed.future.timeout(const Duration(seconds: 5));
+      expect(progress, [1, 2]);
+      expect(adb.isClosed, isFalse);
+      expect(clock.pendingTimers, 0);
+      await adb.close();
+      await adbd.done();
+    });
+
+    test('a device that never answers the open', () async {
+      final clock = FakeClock();
+      final received = Completer<void>();
+      final adbd = await FakeAdbd.start((session) async {
+        await acceptHandshake(session, banner: classicBanner);
+        await session.receive();
+        received.complete();
+        await session.expectClientClose(timeout: const Duration(seconds: 5));
+      });
+      final adb = await connect(adbd, clock);
+      final call = expectLater(
+        adb.debug.bugreport(File('unused.zip'), stallTimeout: const Duration(seconds: 10)),
+        throwsA(isA<AdbTimeoutException>()),
+      );
+      await received.future;
+      clock.advance(const Duration(seconds: 10));
+      await call;
+      await adb.close();
+      await adbd.done();
+    });
+
+    test('old devices are still told so, and the timeout must be positive', () async {
+      final adbd = await FakeAdbd.start((session) async {
+        await acceptHandshake(session, banner: classicBanner);
+        final open = await session.receive();
+        session.send(AdbMessage.close(localId: 0, remoteId: open.arg0));
+        await session.expectClientClose(timeout: const Duration(seconds: 2)).catchError((Object _) {});
+      });
+      final adb = await AdbConnection.connect(adbd.address, adbd.port, key: testKey);
+      await expectLater(adb.debug.bugreport(File('unused.zip')), throwsA(isA<AdbNotSupportedException>()));
+      await expectLater(adb.debug.bugreport(File('unused.zip'), stallTimeout: Duration.zero), throwsArgumentError);
+      await adb.close();
+      await adbd.done();
+    });
+  });
+
   group('logcat, screencap, bug reports', () {
     test('logcat lines across message boundaries', () async {
       final (adb, adbd) = await serve((session, service, id) async {

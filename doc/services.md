@@ -61,7 +61,7 @@ Every call but `reboot` takes a `timeout`: 30 s, or 2 minutes for `remount`, `di
 | `debug.jdwp(pid)` | A stream to that process's JDWP agent, from the handshake on |
 | `debug.logcat(arguments: ['-d'])` | Log lines; without `-d` it follows until cancelled |
 | `debug.screencap()` | A PNG; `timeout` (30 s) and `maxBytes` (128 MiB) bound it |
-| `debug.bugreport(file, onProgress: …)` | A bug report zip (Android 7+): `bugreportz -p`, then a pull, then the device copy is removed |
+| `debug.bugreport(file, onProgress: …)` | A bug report zip (Android 7+): `bugreportz -p`, then a pull, then the device copy is removed. `stallTimeout` (5 minutes without output) ends the wait |
 
 ## Backup, restore and sideload
 

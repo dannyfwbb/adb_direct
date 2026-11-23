@@ -190,39 +190,76 @@ final class AdbDebug {
   /// Writes a bug report (a zip, Android 7+) to [local], as `adb bugreport` does: `bugreportz -p` on the device, then a
   /// pull, then the device copy is removed. Takes minutes; [onProgress] follows it.
   ///
+  /// There is no limit on the whole report, which can take long on a busy device. When `bugreportz` prints nothing for
+  /// [stallTimeout], the call stops waiting and throws [AdbTimeoutException]; the connection stays usable, and the
+  /// device may still finish the report and keep its file.
+  ///
   /// Throws [AdbException] when the device reports a failure.
-  Future<void> bugreport(File local, {AdbBugReportProgress? onProgress}) async {
-    final AdbStream stream;
-    try {
-      stream = await _connection.open('exec:bugreportz -p');
-    } on AdbServiceUnavailableException {
-      throw const AdbNotSupportedException('Bug reports as zip files need Android 7 or later');
+  Future<void> bugreport(
+    File local, {
+    AdbBugReportProgress? onProgress,
+    Duration stallTimeout = const Duration(minutes: 5),
+  }) async {
+    if (stallTimeout <= Duration.zero) throw ArgumentError.value(stallTimeout, 'stallTimeout', 'must be positive');
+    final stream = _connection.openStream('exec:bugreportz -p');
+    var stalled = false;
+    Timer? guard;
+    void watch() {
+      guard?.cancel();
+      guard = _connection.clock.timer(stallTimeout, () {
+        stalled = true;
+        unawaited(stream.close());
+      });
     }
+
+    AdbTimeoutException stall() => AdbTimeoutException('bugreportz printed nothing for $stallTimeout');
 
     String? path;
-    await for (final line in _lines(stream)) {
-      switch (BugreportLine.parse(line)) {
-        case BugreportProgress(:final done, :final total):
-          onProgress?.call(done, total);
-        case BugreportDone(path: final written):
-          path = written;
-        case BugreportFailed(:final reason):
-          throw AdbServiceUnavailableException('The bug report failed: $reason', service: 'bugreportz');
-        case null:
-          break;
+    watch();
+    try {
+      try {
+        await stream.opened;
+      } on AdbServiceUnavailableException {
+        throw const AdbNotSupportedException('Bug reports as zip files need Android 7 or later');
+      } on AdbException {
+        if (stalled) throw stall();
+        rethrow;
       }
+
+      final input = stream.input.map((chunk) {
+        watch();
+        return chunk;
+      });
+      await for (final line in _decodeLines(input)) {
+        switch (BugreportLine.parse(line)) {
+          case BugreportProgress(:final done, :final total):
+            onProgress?.call(done, total);
+          case BugreportDone(path: final written):
+            path = written;
+          case BugreportFailed(:final reason):
+            throw AdbServiceUnavailableException('The bug report failed: $reason', service: 'bugreportz');
+          case null:
+            break;
+        }
+      }
+      if (stalled) throw stall();
+    } finally {
+      guard?.cancel();
     }
-    if (path == null) throw const AdbProtocolException('bugreportz gave no file');
+    final written = path;
+    if (written == null) throw const AdbProtocolException('bugreportz gave no file');
 
     try {
-      await _connection.sync.pullFile(path, local);
+      await _connection.sync.pullFile(written, local);
     } finally {
-      await _connection.shell.removeQuietly(path);
+      await _connection.shell.removeQuietly(written);
     }
   }
 
-  static Stream<String> _lines(AdbStream stream) =>
-      const Utf8Decoder(allowMalformed: true).bind(stream.input).transform(const LineSplitter());
+  static Stream<String> _lines(AdbStream stream) => _decodeLines(stream.input);
+
+  static Stream<String> _decodeLines(Stream<Uint8List> input) =>
+      const Utf8Decoder(allowMalformed: true).bind(input).transform(const LineSplitter());
 
   /// The payloads of a `<hex4 length><payload>` stream, however the bytes are split into messages.
   Stream<Uint8List> _frames(String service) async* {

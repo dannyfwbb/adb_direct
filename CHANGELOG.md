@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Deadlines and output limits where a device that stayed connected but never finished could hang a call: `debug.screencap` (`timeout`, `maxBytes`), the `daemon` services (`timeout`), and `reverse` commands (30 s). The stream is closed and the connection stays usable.
+- `debug.bugreport` takes a `stallTimeout` (5 minutes): `bugreportz` printing nothing for that long is an `AdbTimeoutException`.
 - `AdbServer`: closing a device connection while its device tracking was still connecting to a server that had gone away raised an unhandled error.
 
 ## 1.0.1 (2026-11-18)
